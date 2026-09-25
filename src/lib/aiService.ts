@@ -1,4 +1,5 @@
 import type { AICallUsage, AIModel, SeoResearchResult } from '../types';
+import { isShellMode } from './appMode';
 
 export interface AIRequest {
   model: AIModel;
@@ -120,6 +121,11 @@ function getDemoKey(prompt: string): string {
 export async function callAI(req: AIRequest): Promise<AIResponse> {
   const { model, prompt, systemPrompt, maxTokens, temperature, stepNumber, splitByWave, bypassCache, requestPurpose, jsonMode, jsonSchema, contextQuery, skipDocumentContext, articleId } = req;
 
+  if (isShellMode) {
+    const content = DEMO_RESPONSES[getDemoKey(prompt)];
+    return { content, model: `${model.name} (simulated)`, generatedAt: new Date().toISOString(), cacheHit: false };
+  }
+
   // Resolve railway URL — prop → localStorage → hardcoded production URL
   const railwayUrl = req.railwayUrl
     || localStorage.getItem('writer:railwayUrl')
@@ -193,6 +199,10 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
 }
 
 export async function researchSeoKeywords(seeds: string[], articleId: string, railwayUrl?: string, keywordCount = 10): Promise<SeoResearchResult> {
+  if (isShellMode) return {
+    keywords: seeds.slice(0, keywordCount).map((keyword, index) => ({ keyword, searchVolume: null, keywordDifficulty: null, competition: null, cpc: null, intent: index % 2 ? 'informational' : 'commercial', source: 'openai_web_search' as const, updatedAt: null })),
+    seedKeywords: seeds, location: 'simulated', language: 'en', researchedAt: new Date().toISOString(),
+  };
   const baseUrl = railwayUrl || localStorage.getItem('writer:railwayUrl') || 'https://rebuildwriterstudiotool-production.up.railway.app';
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/seo/research`, {
     method: 'POST',

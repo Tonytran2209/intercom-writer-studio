@@ -17,6 +17,7 @@ export async function downloadDocumentFromRailway(
   fallbackName: string,
   railwayUrl: string,
 ): Promise<void> {
+  if (isShellMode) throw new Error('Downloads are unavailable in shell mode.');
   const response = await fetch(
     `${resolveBaseUrl(railwayUrl)}/api/documents/${encodeURIComponent(id)}/download`,
   );
@@ -35,3 +36,4 @@ export async function downloadDocumentFromRailway(
   anchor.remove();
   URL.revokeObjectURL(objectUrl);
 }
+import { isShellMode } from './appMode';

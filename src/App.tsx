@@ -25,6 +25,7 @@ import BatchActivity from "./components/BatchActivity"
 import LoginScreen from "./components/LoginScreen"
 import { clampArticleStep, gateArticleStep, gateStepCompletion } from "./lib/workflowGuards"
 import { isLegacyArticle } from "./lib/legacyCompatibility"
+import { isShellMode, shellUser } from "./lib/appMode"
 
 function generateId() {
   return `art-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -52,6 +53,7 @@ type ArticleUpdateOptions = { silent?: boolean }
 export default function App() {
   const { tr } = useI18n()
   const [authSession, setAuthSession] = useState<db.AuthSession | null>(() => {
+    if (isShellMode) return { accessToken: "shell", expiresAt: null, user: shellUser }
     if (hasPasswordRecoveryLink()) {
       db.clearAuthSession()
       return null
@@ -121,8 +123,13 @@ export default function App() {
   const waitForArticleMutations = useCallback((articleId: string) =>
     articleMutationQueues.current.get(articleId) ?? Promise.resolve(), [])
 
-  // Load all data from Supabase / Railway on mount
+  // Shell mode intentionally has no external data source. Keep all edits in
+  // React state so UX work cannot affect the existing production database.
   useEffect(() => {
+    if (isShellMode) {
+      setSyncStatus("idle")
+      return
+    }
     if (!authSession) {
       setSyncStatus("idle")
       return
@@ -175,7 +182,9 @@ export default function App() {
         ),
       )
       if (!options.silent) setSyncStatus("saving")
-      return enqueueArticleMutation(id, () => db.updateArticle(id, updates))
+      return enqueueArticleMutation(id, () => isShellMode
+        ? Promise.resolve({ ...(previous ?? createNewArticle()), ...updates, id })
+        : db.updateArticle(id, updates))
         .then(() => {
           failedArticleMutations.current.delete(id)
           if (!options.silent) setSyncStatus("idle")
@@ -236,6 +245,7 @@ export default function App() {
       )
       articlesRef.current = updated
       setArticles(updated)
+      if (isShellMode) return
       enqueueArticleMutation(articleId, () =>
         db.updateArticle(articleId, { aiUsageByStep }),
       ).catch((error: unknown) => {
@@ -304,11 +314,11 @@ export default function App() {
         }
       })
       for (const record of records)
-        saved.push(await enqueueArticleMutation(record.id, () => db.saveArticle(record)))
+        saved.push(await enqueueArticleMutation(record.id, () => isShellMode ? Promise.resolve(record) : db.saveArticle(record)))
       setArticles((current) => [...saved, ...current])
       setActiveId(saved[0]?.id ?? null)
       setShowBatchOverview(isBatch)
-      if (isBatch) await db.startBatch(activityId)
+      if (isBatch && !isShellMode) await db.startBatch(activityId)
       setSyncStatus("idle")
     } catch (error: unknown) {
       if (saved.length) {
@@ -344,7 +354,7 @@ export default function App() {
       setSyncStatus("saving")
       try {
         const savedArticle = await enqueueArticleMutation(target.id, () =>
-          db.updateArticle(target.id, updates),
+          isShellMode ? Promise.resolve({ ...target, ...updates }) : db.updateArticle(target.id, updates),
         )
         setArticles((prev) =>
           prev.map((item) => (item.id === target.id ? savedArticle : item)),
@@ -411,9 +421,9 @@ export default function App() {
       try {
         // Finish any content save already queued before deleting the database record.
         await Promise.all(targets.map((item) => waitForArticleMutations(item.id)))
-        if (target.activityKind === "batch" && target.activityId)
+        if (!isShellMode && target.activityKind === "batch" && target.activityId)
           await db.deleteBatch(target.activityId)
-        else
+        else if (!isShellMode)
           await db.deleteArticle(target.id)
         setSyncStatus("idle")
         notifyWorkspace(targets.length > 1 ? `Đã xóa batch gồm ${targets.length} bài.` : "Đã xóa bài viết.", "success")
@@ -439,11 +449,11 @@ export default function App() {
   ) => {
     setConfig(newConfig)
     setFiles(newFiles)
-    if (newConfig.railwayUrl)
+    if (!isShellMode && newConfig.railwayUrl)
       localStorage.setItem("writer:railwayUrl", newConfig.railwayUrl)
     setSyncStatus("saving")
     try {
-      await Promise.all([
+      if (!isShellMode) await Promise.all([
         db.saveConfig(newConfig),
         db.saveFiles(newFiles, newConfig.railwayUrl),
       ])
@@ -463,7 +473,7 @@ export default function App() {
       },
     }
     setConfig(next)
-    void db
+    if (!isShellMode) void db
       .saveConfig(next)
       .catch((error) =>
         setArticleActionError(
@@ -514,7 +524,7 @@ export default function App() {
 
   useEffect(() => {
     const activityIds = activeBatchIds.split(",").filter(Boolean)
-    if (!activityIds.length) return
+    if (isShellMode || !activityIds.length) return
     let stopped = false
     const refresh = async () => {
       try {
@@ -691,7 +701,10 @@ export default function App() {
         onOpenConfig={() => setShowConfig(true)}
         canManageSettings={authSession.user.role === "admin"}
         currentUser={authSession.user}
-        onSignOut={() => { db.clearAuthSession(); setAuthSession(null); setArticles([]); setFiles([]); setActiveId(null) }}
+        onSignOut={() => {
+          if (isShellMode) return
+          db.clearAuthSession(); setAuthSession(null); setArticles([]); setFiles([]); setActiveId(null)
+        }}
         onToggleComplete={handleToggleComplete}
         completionSavingId={completionSavingId}
         onDeleteArticle={handleDeleteArticle}
@@ -700,6 +713,9 @@ export default function App() {
 
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">
         <WorkspaceNotificationHost />
+        {isShellMode && <div role="status" className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100">
+          {tr("Shell mode — dữ liệu chỉ mô phỏng trong phiên này; không kết nối Railway hoặc Supabase.", "Shell mode — data is simulated for this session only; Railway and Supabase are disconnected.")}
+        </div>}
         {article && isLegacyArticle(article) ? (
           <LegacyArticleView
             article={article}
@@ -716,17 +732,17 @@ export default function App() {
               setShowBatchOverview(false)
             }}
             onStart={() =>
-              article.activityId
+              !isShellMode && article.activityId
                 ? db.startBatch(article.activityId)
                 : Promise.resolve()
             }
             onPause={() =>
-              article.activityId
+              !isShellMode && article.activityId
                 ? db.pauseBatch(article.activityId)
                 : Promise.resolve()
             }
             onRetry={async (id) => {
-              if (!article.activityId) return
+              if (isShellMode || !article.activityId) return
               const previous = articlesRef.current.find((item) => item.id === id)
               setArticles((current) =>
                 current.map((item) => item.id === id

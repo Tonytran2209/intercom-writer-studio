@@ -1,4 +1,5 @@
 import type { ActionDataSource, DocumentFile, FileCategory } from '../types';
+import { isShellMode } from './appMode';
 
 interface ImportResponse {
   target: 'writer:files';
@@ -10,6 +11,7 @@ export async function importSourceThroughRailway(
   category: FileCategory,
   railwayUrl: string,
 ): Promise<ImportResponse> {
+  if (isShellMode) throw new Error('External imports are unavailable in shell mode.');
   const baseUrl = railwayUrl.trim().replace(/\/$/, '') || window.location.origin;
   const response = await fetch(`${baseUrl}/api/import/source`, {
     method: 'POST',

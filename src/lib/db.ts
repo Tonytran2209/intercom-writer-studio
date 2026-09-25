@@ -1,4 +1,5 @@
 import type { Article, AppConfig, DocumentFile, WebsiteContentRecord } from "../types"
+import { isShellMode } from "./appMode"
 
 const AUTH_STORAGE_KEY = "writer:auth-session"
 
@@ -44,6 +45,8 @@ async function railwayRequest<T>(
   init?: RequestInit,
   railwayUrl?: string,
 ): Promise<T> {
+  if (isShellMode)
+    throw new Error("Shell mode is active. No Railway or Supabase request was made.")
   const url = `${resolveRailwayUrl(railwayUrl)}${path}`
   const method = (init?.method ?? "GET").toUpperCase()
   const maxAttempts = method === "GET" ? 3 : 1

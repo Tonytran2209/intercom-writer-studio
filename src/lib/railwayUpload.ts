@@ -1,4 +1,5 @@
 import type { ActionDataSource, DocumentFile, FileCategory } from '../types';
+import { isShellMode } from './appMode';
 
 interface UploadResponse {
   target: 'writer:files';
@@ -10,6 +11,7 @@ export async function uploadDocumentToRailway(
   category: FileCategory,
   railwayUrl: string,
 ): Promise<UploadResponse> {
+  if (isShellMode) throw new Error('Document upload is unavailable in shell mode.');
   const baseUrl = railwayUrl.trim().replace(/\/$/, '');
   if (!baseUrl) throw new Error('Chưa cấu hình Railway URL.');
 
