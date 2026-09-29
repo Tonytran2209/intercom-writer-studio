@@ -1,4 +1,4 @@
-import { BookOpenCheck, ChevronDown, CircleHelp, Globe2, Inbox, LayoutGrid, Linkedin, PanelLeftClose, PanelLeftOpen, PlusSquare, Search, Share2 } from "lucide-react"
+import { BookOpenCheck, ChevronDown, Globe2, Inbox, LayoutGrid, Linkedin, PanelLeftClose, PanelLeftOpen, Search, Settings, Share2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import BrandMark from "./BrandMark"
 interface Props { onOpenSettings: () => void; onNewPackage: () => void; onOpenDiscovery: () => void }
@@ -14,7 +14,7 @@ export default function EbSidebar({ onOpenSettings, onNewPackage, onOpenDiscover
       <SectionLabel label="Starred packages" hidden={hidden}/><div className="space-y-0.5">{starred.length ? starred.map(item => <Star key={item.title} label={item.title} color={item.color} hidden={hidden}/>) : <p className={`px-2.5 py-1 text-[10px] text-slate-400 ${hidden}`}>Loading items…</p>}</div>
       <SectionLabel label="Publishing channels" hidden={hidden}/><nav className="space-y-0.5"><SideButton icon={Globe2} label="fab.careers Article" active collapsed={collapsed}/><SideButton icon={Share2} label="Threads & Facebook" collapsed={collapsed}/><SideButton icon={Linkedin} label="LinkedIn" collapsed={collapsed}/></nav>
     </div>
-    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-500"><button className="rounded-lg p-1.5 hover:bg-slate-200/60" aria-label="Help"><CircleHelp className="h-4 w-4"/></button><button onClick={onOpenSettings} className={`rounded-lg p-1.5 hover:bg-slate-200/60 ${hidden}`} aria-label="Settings"><PlusSquare className="h-4 w-4"/></button><button className={`rounded-lg p-1.5 hover:bg-slate-200/60 ${hidden}`} aria-label="Search"><Search className="h-4 w-4"/></button></div>
+    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-500"><button className="rounded-lg p-1.5 hover:bg-slate-200/60" aria-label="Search"><Search className="h-4 w-4"/></button><button onClick={onOpenSettings} className="rounded-lg p-1.5 hover:bg-slate-200/60" aria-label="Settings"><Settings className="h-4 w-4"/></button></div>
   </aside>
 }
 function SideButton({ icon: Icon, label, active, collapsed, count, onClick }: { icon: typeof LayoutGrid; label: string; active?: boolean; collapsed: boolean; count?: string; onClick?: () => void }) { return <button onClick={onClick} title={collapsed ? label : undefined} className={`flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-xs font-medium ${active ? "bg-slate-200/70 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-200/50"} ${collapsed ? "justify-center px-0" : ""}`}><Icon className="h-4 w-4 shrink-0 text-slate-500"/><span className={collapsed ? "hidden" : "truncate"}>{label}</span>{count && <span className={`ml-auto rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 ${collapsed ? "hidden" : ""}`}>{count}</span>}</button> }
