@@ -1,18 +1,18 @@
 /* Settings is a quiet working surface. Only controls react to hover. */
 .minimal-settings {
   --settings-bg: #ffffff;
-  --settings-sidebar: #f7f7f5;
+  --settings-sidebar: #f8fafc;
   --settings-card: #ffffff;
   --settings-card-subtle: #f8f8f6;
   --settings-control: #f3f3f1;
-  --settings-border: #e2e2de;
-  --settings-text: #20201e;
-  --settings-muted: #73736f;
-  --settings-faint: #9a9a95;
+  --settings-border: rgb(226 232 240 / 80%);
+  --settings-text: #1e293b;
+  --settings-muted: #64748b;
+  --settings-faint: #94a3b8;
   --settings-danger-bg: #fff1f1;
   --settings-danger: #c94a4a;
   background: var(--settings-bg) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 .minimal-settings .settings-shell { max-width: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
@@ -35,7 +35,7 @@
 .minimal-settings .settings-back-button:hover,
 .minimal-settings .settings-nav-item:hover:not(.is-active) { background: var(--settings-control) !important; color: var(--settings-text) !important; }
 .minimal-settings .settings-nav-item.is-active,
-.minimal-settings .settings-nav-item.is-active:hover { background: #e8e8e4 !important; color: var(--settings-text) !important; }
+.minimal-settings .settings-nav-item.is-active:hover { background: rgb(226 232 240 / 70%) !important; color: var(--settings-text) !important; }
 
 .minimal-settings .settings-search input,
 .minimal-settings .settings-content input,

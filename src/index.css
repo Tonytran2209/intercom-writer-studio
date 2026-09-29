@@ -1,14 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: "Inter", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* F.Learning Content Engine UI guideline tokens. These classes are used by
+   the shell-mode workspace and settings, keeping the product surface light
+   and compact even while legacy connected screens remain available. */
+.writer-light { font-family: "Inter", sans-serif; }
+.eb-workspace { box-shadow: 0 1px 2px rgb(15 23 42 / 4%); }
+.eb-workspace .kanban-column { box-shadow: 0 1px 2px rgb(15 23 42 / 4%); }
+.kanban-purple { border-color: rgb(233 213 255 / 80%); background: #faf5ff; }
+.kanban-purple > div span { background: #a855f7; }
+.kanban-amber { border-color: rgb(253 230 138 / 80%); background: #fffbeb; }
+.kanban-amber > div span { background: #f59e0b; }
+.kanban-blue { border-color: rgb(191 219 254 / 80%); background: #eff6ff; }
+.kanban-blue > div span { background: #3b82f6; }
+.kanban-emerald { border-color: rgb(167 243 208 / 80%); background: #f0fdf4; }
+.kanban-emerald > div span { background: #10b981; }
+.glow-input-container { background: linear-gradient(100deg, #c084fc, #818cf8, #60a5fa, #f472b6); }
 
 /* Settings follows the reference UI's quiet product surface, adapted to the app's light theme. */
 .writer-light .minimal-settings {

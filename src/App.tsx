@@ -27,6 +27,7 @@ import { clampArticleStep, gateArticleStep, gateStepCompletion } from "./lib/wor
 import { isLegacyArticle } from "./lib/legacyCompatibility"
 import { isShellMode, shellUser } from "./lib/appMode"
 import EbWorkingSpace from "./components/EbWorkingSpace"
+import EbSidebar from "./components/EbSidebar"
 
 function generateId() {
   return `art-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -677,8 +678,12 @@ export default function App() {
   }
 
   return (
-    <div className="writer-light h-dvh flex flex-col md:flex-row overflow-hidden bg-[#f7f7f5] text-slate-900">
-      <Sidebar
+    <div className="writer-light h-dvh flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
+      {isShellMode ? <EbSidebar
+        onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}
+        onOpenDiscovery={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(true) }}
+        onOpenSettings={() => setShowConfig(true)}
+      /> : <Sidebar
         articles={articles}
         activeArticleId={activeId}
         onSelectArticle={(id) => {
@@ -710,13 +715,10 @@ export default function App() {
         completionSavingId={completionSavingId}
         onDeleteArticle={handleDeleteArticle}
         deletingArticleId={deletingArticleId}
-      />
+      />}
 
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">
         <WorkspaceNotificationHost />
-        {isShellMode && <div role="status" className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100">
-          {tr("Shell mode — dữ liệu chỉ mô phỏng trong phiên này; không kết nối Railway hoặc Supabase.", "Shell mode — data is simulated for this session only; Railway and Supabase are disconnected.")}
-        </div>}
         {article && isLegacyArticle(article) ? (
           <LegacyArticleView
             article={article}

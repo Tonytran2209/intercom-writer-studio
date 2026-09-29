@@ -46,17 +46,17 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
   };
 
   return (
-    <div className="minimal-settings fixed inset-0 z-50 bg-white">
-      <div className="settings-shell grid h-dvh w-full grid-cols-1 overflow-hidden bg-white md:grid-cols-[260px_minmax(0,1fr)]">
+    <div className="minimal-settings fixed inset-0 z-50 bg-[#e9ecef] p-3">
+      <div className="settings-shell grid h-full w-full grid-cols-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white md:grid-cols-[256px_minmax(0,1fr)]">
         <aside className="settings-sidebar flex min-h-0 flex-col border-b border-slate-200 bg-slate-50 md:border-b-0 md:border-r">
           <div className="p-3">
-            <button onClick={onClose} className="settings-back-button inline-flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
+            <button onClick={onClose} className="settings-back-button inline-flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100">
               <ArrowLeft className="app-icon" aria-hidden="true" />
               {tr('Quay lại ứng dụng', 'Back to app')}
             </button>
             <label className="settings-search relative mt-2 block">
               <Search className="app-icon pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <input value={query} onChange={event => setQuery(event.target.value)} placeholder={tr('Tìm cài đặt...', 'Search settings...')} className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-700 outline-none" />
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder={tr('Tìm cài đặt...', 'Search settings...')} className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-700 outline-none" />
             </label>
           </div>
 
@@ -64,8 +64,8 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
             {visibleTabs.map(tab => {
               const Icon = tab.icon;
               return <div key={tab.id}>
-                <button onClick={() => setActiveTab(tab.id)} className={`settings-nav-item flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-[15px] transition-colors ${activeTab === tab.id ? 'is-active bg-slate-200 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                  <Icon className="h-[18px] w-[18px] shrink-0 stroke-[1.75]" aria-hidden="true" />
+                <button onClick={() => setActiveTab(tab.id)} className={`settings-nav-item flex h-8 w-full items-center gap-3 rounded-lg px-3 text-left text-xs transition-colors ${activeTab === tab.id ? 'is-active bg-slate-200 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+                  <Icon className="h-4 w-4 shrink-0 stroke-[1.75]" aria-hidden="true" />
                   <span className="truncate">{language === 'vi' ? tab.labelVi : tab.labelEn}</span>
                 </button>
               </div>;
@@ -80,10 +80,10 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
         </aside>
 
         <main className="settings-main flex min-h-0 min-w-0 flex-col bg-white">
-          <header className="settings-page-header shrink-0 px-5 pb-3 pt-6 md:px-8 md:pb-4 md:pt-9">
+          <header className="settings-page-header shrink-0 border-b border-slate-200/80 px-5 py-4 md:px-8">
             <div className="mx-auto max-w-[760px]">
-              <h1 className="text-[26px] font-semibold tracking-[-0.01em] text-slate-900">{language === 'vi' ? active.labelVi : active.labelEn}</h1>
-              <p className="mt-1 text-sm leading-5 text-slate-500">{language === 'vi' ? active.descriptionVi : active.descriptionEn}</p>
+              <h1 className="text-sm font-bold text-slate-900">{language === 'vi' ? active.labelVi : active.labelEn}</h1>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{language === 'vi' ? active.descriptionVi : active.descriptionEn}</p>
             </div>
           </header>
 
@@ -97,8 +97,8 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
           </div>
 
           <footer className="settings-footer flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3 md:px-8">
-            <button onClick={onClose} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">{tr('Huỷ', 'Cancel')}</button>
-            <button onClick={handleSave} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800">{tr('Lưu thay đổi', 'Save changes')}</button>
+            <button onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">{tr('Huỷ', 'Cancel')}</button>
+            <button onClick={handleSave} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700">{tr('Lưu thay đổi', 'Save changes')}</button>
           </footer>
         </main>
       </div>
