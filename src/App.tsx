@@ -26,6 +26,7 @@ import LoginScreen from "./components/LoginScreen"
 import { clampArticleStep, gateArticleStep, gateStepCompletion } from "./lib/workflowGuards"
 import { isLegacyArticle } from "./lib/legacyCompatibility"
 import { isShellMode, shellUser } from "./lib/appMode"
+import EbWorkingSpace from "./components/EbWorkingSpace"
 
 function generateId() {
   return `art-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -833,6 +834,8 @@ export default function App() {
               </div>
             </main>
           </>
+        ) : isShellMode ? (
+          <EbWorkingSpace />
         ) : (
           // Article selected from sidebar but not found (shouldn't happen)
           <ActivityLauncher

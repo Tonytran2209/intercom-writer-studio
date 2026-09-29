@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Bot, Cpu, Library, Search } from 'lucide-react';
+import { ArrowLeft, Bot, Cpu, Library, Search, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AppConfig, Article, DocumentFile, ActiveTab } from '../../types';
 import TabStepSetup from './TabStepSetup';
 import TabModels from './TabModels';
 import TabKnowledgeBase from './TabKnowledgeBase';
+import TabEbSkill from './TabEbSkill';
 import { sanitizeConfigFileAccess } from '../../lib/documentStatus';
 import { useI18n } from '../../lib/i18n';
 
@@ -17,6 +18,7 @@ interface Props {
 }
 
 const TABS: Array<{ id: ActiveTab; labelVi: string; labelEn: string; descriptionVi: string; descriptionEn: string; icon: LucideIcon }> = [
+  { id: 'eb-skill', labelVi: 'EB Skill', labelEn: 'EB Skill', descriptionVi: 'Workflow, approval gates và nguồn viết Employer Branding', descriptionEn: 'Employer-brand workflow, approval gates, and writing sources', icon: Sparkles },
   { id: 'step-setup', labelVi: 'Workflow AI', labelEn: 'AI workflow', descriptionVi: 'Model theo bước, nguồn context và usage', descriptionEn: 'Step models, context sources, and usage', icon: Bot },
   { id: 'models', labelVi: 'AI Models', labelEn: 'AI models', descriptionVi: 'Provider, model và chi phí token', descriptionEn: 'Providers, models, and token pricing', icon: Cpu },
   { id: 'knowledge-base', labelVi: 'Knowledge & Rules', labelEn: 'Knowledge & rules', descriptionVi: 'Knowledge Base, Skills và website inventory', descriptionEn: 'Knowledge Base, skills, and website inventory', icon: Library },
@@ -24,7 +26,7 @@ const TABS: Array<{ id: ActiveTab; labelVi: string; labelEn: string; description
 
 export default function ConfigModal({ config, files, articles, onSave, onClose }: Props) {
   const { language, tr } = useI18n();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('step-setup');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('eb-skill');
   const [query, setQuery] = useState('');
   const [localConfig, setLocalConfig] = useState<AppConfig>({ ...config });
   const [localFiles, setLocalFiles] = useState<DocumentFile[]>([...files]);
@@ -88,6 +90,7 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
           <div className="settings-content min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-8 md:py-7">
             <div className="mx-auto max-w-[760px]">
               {activeTab === 'step-setup' && <TabStepSetup config={localConfig} files={localFiles} articles={articles} onChange={setLocalConfig} />}
+              {activeTab === 'eb-skill' && <TabEbSkill config={localConfig} onChange={setLocalConfig} />}
               {activeTab === 'models' && <TabModels config={localConfig} onChange={setLocalConfig} />}
               {activeTab === 'knowledge-base' && <TabKnowledgeBase files={localFiles} onChange={setLocalFiles} railwayUrl={localConfig.railwayUrl} config={localConfig} onConfigChange={setLocalConfig} />}
             </div>
