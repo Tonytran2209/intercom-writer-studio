@@ -2736,3 +2736,6 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light .eb-workspace .gate-emerald { background: #f0fdf4 !important; border-color: rgb(167 243 208 / 80%) !important; }
 .gate-dot { display: grid; width: .875rem; height: .875rem; place-items: center; border-radius: 9999px; color: #fff; }
 .gate-dot-blue { background: #3b82f6; }.gate-dot-amber { background: #f59e0b; }.gate-dot-purple { background: #a855f7; }.gate-dot-emerald { background: #10b981; }
+.filter-checkbox { display: grid; width: .875rem; height: .875rem; flex: 0 0 .875rem; place-items: center; border: 1px solid #cbd5e1; border-radius: .25rem; color: #fff; }
+.filter-checkbox.is-selected { border-color: #4f46e5; background: #4f46e5; }
+.filter-checkbox svg { width: .625rem; height: .625rem; stroke-width: 2.5; }
