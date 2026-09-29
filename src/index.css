@@ -2722,3 +2722,11 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light .eb-workspace .glow-input-container { background: transparent !important; }
 .writer-light .eb-workspace .glow-input-container > div { background: #ffffff !important; }
 .writer-light .eb-workspace .kanban-column { color: #1e293b !important; }
+.writer-light .eb-workspace .demo-column-blue { background: #eff6ff !important; border-color: rgb(191 219 254 / 80%) !important; }
+.writer-light .eb-workspace .demo-column-amber { background: #fffbeb !important; border-color: rgb(253 230 138 / 80%) !important; }
+.writer-light .eb-workspace .demo-column-purple { background: #faf5ff !important; border-color: rgb(233 213 255 / 80%) !important; }
+.writer-light .eb-workspace .demo-column-emerald { background: #f0fdf4 !important; border-color: rgb(167 243 208 / 80%) !important; }
+.demo-column-icon-blue { background: #3b82f6; }
+.demo-column-icon-amber { background: #f59e0b; }
+.demo-column-icon-purple { border: 1px dashed #94a3b8; background: transparent; color: transparent; }
+.demo-column-icon-emerald { background: #10b981; }
