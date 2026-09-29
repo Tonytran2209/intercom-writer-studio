@@ -25,7 +25,14 @@ body {
 .kanban-blue > div span { background: #3b82f6; }
 .kanban-emerald { border-color: rgb(167 243 208 / 80%); background: #f0fdf4; }
 .kanban-emerald > div span { background: #10b981; }
-.glow-input-container { background: linear-gradient(100deg, #c084fc, #818cf8, #60a5fa, #f472b6); }
+.glow-input-container { position: relative; }
+.glow-input-container::before { position: absolute; inset: -2px; z-index: 0; border-radius: 1rem; background: linear-gradient(90deg, #c084fc, #818cf8, #60a5fa, #f472b6); content: ""; filter: blur(6px); opacity: 0; transition: opacity .3s ease, filter .3s ease; }
+.glow-input-container:hover::before, .glow-input-container:focus-within::before { filter: blur(8px); opacity: .85; }
+.glow-input-container > div { position: relative; z-index: 1; }
+.list-status-blue { background: #3b82f6; }
+.list-status-amber { background: #f59e0b; }
+.list-status-purple { border: 2px dashed #94a3b8; background: transparent; color: transparent; }
+.list-status-emerald { background: #10b981; }
 
 /* Settings follows the reference UI's quiet product surface, adapted to the app's light theme. */
 .writer-light .minimal-settings {
