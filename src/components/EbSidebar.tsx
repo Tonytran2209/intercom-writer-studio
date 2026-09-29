@@ -1,4 +1,4 @@
-import { BookOpenCheck, ChevronDown, Globe2, Inbox, LayoutGrid, Linkedin, PanelLeftClose, PanelLeftOpen, Search, Settings, Share2 } from "lucide-react"
+import { BookOpenCheck, ChevronDown, Inbox, LayoutGrid, PanelLeftClose, PanelLeftOpen, Search, Settings } from "lucide-react"
 import { useEffect, useState } from "react"
 import BrandMark from "./BrandMark"
 interface Props { onOpenSettings: () => void; onNewPackage: () => void; onOpenDiscovery: () => void }
@@ -12,7 +12,6 @@ export default function EbSidebar({ onOpenSettings, onNewPackage, onOpenDiscover
     <div className="flex flex-col gap-4 overflow-hidden"><div className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-slate-200/60"><button onClick={onNewPackage} className="flex min-w-0 items-center gap-2"><BrandMark className="h-5 w-5"/><span className={`truncate text-xs font-semibold text-slate-800 ${hidden}`}>Writer Studio</span><ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 ${hidden}`}/></button><button onClick={() => setCollapsed(value => !value)} className="rounded p-1 text-slate-400 hover:bg-slate-300/50 hover:text-slate-600" aria-label="Toggle sidebar">{collapsed ? <PanelLeftOpen className="h-4 w-4"/> : <PanelLeftClose className="h-4 w-4"/>}</button></div>
       <nav className="space-y-0.5"><SideButton icon={LayoutGrid} label="New activity" active collapsed={collapsed} onClick={() => open("new")}/><SideButton icon={Inbox} label="Discovery" collapsed={collapsed} count="4" onClick={() => open("discovery")}/><SideButton icon={BookOpenCheck} label="Library Article" collapsed={collapsed} onClick={() => open("library")}/></nav>
       <SectionLabel label="Starred packages" hidden={hidden}/><div className="space-y-0.5">{starred.length ? starred.map(item => <Star key={item.title} label={item.title} color={item.color} hidden={hidden}/>) : <p className={`px-2.5 py-1 text-[10px] text-slate-400 ${hidden}`}>Loading items…</p>}</div>
-      <SectionLabel label="Publishing channels" hidden={hidden}/><nav className="space-y-0.5"><SideButton icon={Globe2} label="fab.careers Article" active collapsed={collapsed}/><SideButton icon={Share2} label="Threads & Facebook" collapsed={collapsed}/><SideButton icon={Linkedin} label="LinkedIn" collapsed={collapsed}/></nav>
     </div>
     <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-500"><button className="rounded-lg p-1.5 hover:bg-slate-200/60" aria-label="Search"><Search className="h-4 w-4"/></button><button onClick={onOpenSettings} className="rounded-lg p-1.5 hover:bg-slate-200/60" aria-label="Settings"><Settings className="h-4 w-4"/></button></div>
   </aside>
