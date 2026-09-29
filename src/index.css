@@ -2730,3 +2730,9 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .demo-column-icon-amber { background: #f59e0b; }
 .demo-column-icon-purple { border: 1px dashed #94a3b8; background: transparent; color: transparent; }
 .demo-column-icon-emerald { background: #10b981; }
+.writer-light .eb-workspace .gate-blue { background: #eff6ff !important; border-color: rgb(191 219 254 / 80%) !important; }
+.writer-light .eb-workspace .gate-amber { background: #fffbeb !important; border-color: rgb(253 230 138 / 80%) !important; }
+.writer-light .eb-workspace .gate-purple { background: #faf5ff !important; border-color: rgb(233 213 255 / 80%) !important; }
+.writer-light .eb-workspace .gate-emerald { background: #f0fdf4 !important; border-color: rgb(167 243 208 / 80%) !important; }
+.gate-dot { display: grid; width: .875rem; height: .875rem; place-items: center; border-radius: 9999px; color: #fff; }
+.gate-dot-blue { background: #3b82f6; }.gate-dot-amber { background: #f59e0b; }.gate-dot-purple { background: #a855f7; }.gate-dot-emerald { background: #10b981; }
