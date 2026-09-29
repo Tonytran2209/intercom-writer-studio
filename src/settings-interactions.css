@@ -138,59 +138,6 @@
 .minimal-settings .settings-footer button:first-child:hover { background: var(--settings-control) !important; color: var(--settings-text) !important; }
 .minimal-settings .settings-content .border-dashed:hover { border-color: #a9a9a3 !important; background: var(--settings-card-subtle) !important; }
 
-.codex-dark .minimal-settings {
-  --settings-bg: #121212;
-  --settings-sidebar: #1e1e1e;
-  --settings-card: #1e1e1e;
-  --settings-card-subtle: #191919;
-  --settings-control: #2a2a2c;
-  --settings-border: #2c2c2e;
-  --settings-text: #ececec;
-  --settings-muted: #8e8e93;
-  --settings-faint: #636366;
-  --settings-danger-bg: #2a181a;
-  --settings-danger: #f87171;
-  padding: 0 !important;
-}
-.codex-dark .minimal-settings .settings-page-header h1,
-.codex-dark .minimal-settings .settings-content .text-slate-700,
-.codex-dark .minimal-settings .settings-content .text-slate-800,
-.codex-dark .minimal-settings .settings-content .text-slate-900 { color: var(--settings-text) !important; }
-.codex-dark .minimal-settings .settings-content .text-slate-300,
-.codex-dark .minimal-settings .settings-content .text-slate-400 { color: var(--settings-faint) !important; }
-.codex-dark .minimal-settings .settings-content .text-slate-500,
-.codex-dark .minimal-settings .settings-content .text-slate-600,
-.codex-dark .minimal-settings .settings-page-header p { color: var(--settings-muted) !important; }
-.codex-dark .minimal-settings .settings-nav-item.is-active,
-.codex-dark .minimal-settings .settings-nav-item.is-active:hover { background: #343434 !important; }
-.codex-dark .minimal-settings .settings-back-button:hover,
-.codex-dark .minimal-settings .settings-nav-item:hover:not(.is-active) { background: #292929 !important; }
-.codex-dark .minimal-settings .settings-search input,
-.codex-dark .minimal-settings .settings-content input,
-.codex-dark .minimal-settings .settings-content textarea,
-.codex-dark .minimal-settings .settings-content select { background: #242426 !important; border-color: #3a3a3c !important; }
-.codex-dark .minimal-settings .settings-content input:focus,
-.codex-dark .minimal-settings .settings-content textarea:focus,
-.codex-dark .minimal-settings .settings-content select:focus,
-.codex-dark .minimal-settings .settings-search input:focus { border-color: #555558 !important; box-shadow: 0 0 0 1px #555558 !important; }
-.codex-dark .minimal-settings .settings-subnav button.is-active,
-.codex-dark .minimal-settings .settings-subnav button.is-active:hover { background: #3a3a3c !important; color: #ececec !important; box-shadow: none !important; }
-.codex-dark .minimal-settings .settings-secondary-action,
-.codex-dark .minimal-settings .workflow-stage-row button { border-color: #3a3a3c !important; background: transparent !important; color: #b5b5b8 !important; }
-.codex-dark .minimal-settings .settings-secondary-action:hover,
-.codex-dark .minimal-settings .workflow-stage-row button:hover { border-color: #4a4a4c !important; background: #2a2a2c !important; color: #ececec !important; }
-.codex-dark .minimal-settings .workflow-phase-button.is-active,
-.codex-dark .minimal-settings .workflow-phase-button.is-active:hover { background: #2a2a2c !important; }
-.codex-dark .minimal-settings .settings-content button.bg-slate-900 { border: 1px solid #3a3a3c !important; background: #2a2a2c !important; color: var(--settings-text) !important; }
-.codex-dark .minimal-settings .settings-content button.bg-slate-900:hover { border-color: #4a4a4c !important; background: #323234 !important; }
-.codex-dark .minimal-settings .settings-content .workflow-rule-group,
-.codex-dark .minimal-settings .settings-content .workflow-rule-group:hover { border-color: var(--settings-border) !important; background: var(--settings-card) !important; }
-.codex-dark .minimal-settings .settings-content .model-provider-group,
-.codex-dark .minimal-settings .settings-content .model-provider-group:hover,
-.codex-dark .minimal-settings .settings-content .model-provider-group .model-setting-row,
-.codex-dark .minimal-settings .settings-content .model-provider-group .model-setting-row:hover { background: var(--settings-card) !important; border-color: var(--settings-border) !important; }
-.codex-dark .minimal-settings .prompt-group pre { color: #c9c9cc !important; }
-
 /* Model enablement switches: blue clearly communicates the active state in
    the otherwise neutral settings surface. */
 .settings-model-toggle {
@@ -198,7 +145,7 @@
   width: 2.25rem;
   height: 1.25rem;
   border-radius: 9999px;
-  background: #363636;
+  background: #d6d6d1;
   transition: background-color 160ms ease, box-shadow 160ms ease;
 }
 .settings-model-toggle::after {
@@ -207,7 +154,7 @@
   left: 2px;
   width: 1rem;
   height: 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #c4c4be;
   border-radius: 9999px;
   background: #fff;
   content: "";

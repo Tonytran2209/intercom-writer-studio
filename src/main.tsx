@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
-import './codex-theme.css'
 import './settings-interactions.css'
 import { LanguageProvider } from './lib/i18n'
 
