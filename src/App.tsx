@@ -627,7 +627,7 @@ export default function App() {
 
   if (syncStatus === "loading") {
     return (
-      <div className="codex-dark h-dvh flex items-center justify-center bg-[#141414]">
+      <div className="writer-light h-dvh flex items-center justify-center bg-[#f7f7f5]">
         <div className="text-center space-y-3">
           <BrandMark className="mx-auto h-10 w-10" />
           <div className="text-sm font-medium text-[#e5e5e5]">
@@ -643,7 +643,7 @@ export default function App() {
 
   if (initialLoadError) {
     return (
-      <div className="codex-dark h-dvh flex items-center justify-center bg-[#141414] p-4 sm:p-6">
+      <div className="writer-light h-dvh flex items-center justify-center bg-[#f7f7f5] p-4 sm:p-6">
         <div className="max-w-md w-full bg-[#1c1c1c] border border-[#2d2d2d] rounded-2xl p-6 text-center space-y-4">
           <div className="w-12 h-12 rounded-xl border border-red-900/50 bg-red-950/30 text-red-400 flex items-center justify-center text-xl mx-auto">
             !
@@ -677,7 +677,7 @@ export default function App() {
   }
 
   return (
-    <div className="codex-dark h-dvh flex flex-col md:flex-row overflow-hidden bg-[#141414]">
+    <div className="writer-light h-dvh flex flex-col md:flex-row overflow-hidden bg-[#f7f7f5] text-slate-900">
       <Sidebar
         articles={articles}
         activeArticleId={activeId}

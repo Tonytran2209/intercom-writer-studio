@@ -2637,3 +2637,18 @@ html, body, #root {
   .workflow-rail-label { display: block; flex: 1 1 auto; }
   .workflow-rail-number { display: none; }
 }
+
+/* Global light theme.  The app no longer opts into the legacy .codex-dark
+   surface; these rules also cover the literal palette used by older screens. */
+html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme: light; }
+.writer-light { background: #f7f7f5; color: #20201e; }
+.writer-light main { background: #f7f7f5 !important; }
+.writer-light .bg-\[\#141414\], .writer-light .bg-\[\#171717\] { background: #f7f7f5 !important; }
+.writer-light .bg-\[\#181818\], .writer-light .bg-\[\#191919\], .writer-light .bg-\[\#1a1a1a\], .writer-light .bg-\[\#1b1b1b\], .writer-light .bg-\[\#202020\], .writer-light .bg-\[\#222021\] { background: #ffffff !important; }
+.writer-light .bg-\[\#222\], .writer-light .bg-\[\#252525\], .writer-light .bg-\[\#292929\], .writer-light .bg-\[\#303030\], .writer-light .bg-\[\#343434\], .writer-light .bg-\[\#353535\] { background: #f4f4f1 !important; }
+.writer-light .border-\[\#292929\], .writer-light .border-\[\#2b2b2b\], .writer-light .border-\[\#303030\], .writer-light .border-\[\#333\], .writer-light .border-\[\#343434\], .writer-light .border-\[\#353535\], .writer-light .border-\[\#363636\], .writer-light .border-\[\#3a3a3a\], .writer-light .border-\[\#3b3b3b\], .writer-light .border-\[\#454545\] { border-color: #deded9 !important; }
+.writer-light .text-\[\#e8e8e8\], .writer-light .text-\[\#e7e7e7\], .writer-light .text-\[\#e5e5e5\], .writer-light .text-\[\#e0e0e0\], .writer-light .text-\[\#dedede\], .writer-light .text-\[\#ddd\], .writer-light .text-\[\#d8d8d8\], .writer-light .text-\[\#d0d0d0\] { color: #20201e !important; }
+.writer-light .text-\[\#c8c8c8\], .writer-light .text-\[\#bbb\], .writer-light .text-\[\#aaa\], .writer-light .text-\[\#a6a6a6\], .writer-light .text-\[\#a5a5a5\], .writer-light .text-\[\#a3a3a3\], .writer-light .text-\[\#a0a0a0\], .writer-light .text-\[\#929292\], .writer-light .text-\[\#8f8f8f\], .writer-light .text-\[\#8e8e8e\], .writer-light .text-\[\#888\] { color: #6f6f69 !important; }
+.writer-light input, .writer-light textarea, .writer-light select { background: #fff !important; color: #20201e !important; border-color: #deded9 !important; }
+.writer-light ::-webkit-scrollbar { width: 10px; height: 10px; }
+.writer-light ::-webkit-scrollbar-thumb { background: #d5d5cf; border: 3px solid #f7f7f5; border-radius: 99px; }
