@@ -2652,3 +2652,34 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light input, .writer-light textarea, .writer-light select { background: #fff !important; color: #20201e !important; border-color: #deded9 !important; }
 .writer-light ::-webkit-scrollbar { width: 10px; height: 10px; }
 .writer-light ::-webkit-scrollbar-thumb { background: #d5d5cf; border: 3px solid #f7f7f5; border-radius: 99px; }
+
+/* EB shell has deliberate component-level colors, so translate that palette as
+   one system rather than relying on scattered dark-theme utility overrides. */
+.writer-light .eb-workspace { background: #f7f7f5 !important; color: #252521; }
+.writer-light .eb-workspace .text-white { color: #252521 !important; }
+.writer-light .eb-workspace .text-violet-300,
+.writer-light .eb-workspace .text-violet-200 { color: #6d28d9 !important; }
+.writer-light .eb-workspace .text-amber-100 { color: #8a5800 !important; }
+.writer-light .text-amber-100,
+.writer-light .text-amber-200 { color: #8a5800 !important; }
+.writer-light .eb-workspace .text-emerald-300 { color: #047857 !important; }
+.writer-light .eb-workspace button.bg-violet-500,
+.writer-light .eb-workspace button.bg-violet-500 .text-white { color: #ffffff !important; }
+.writer-light .eb-workspace .bg-violet-500.text-white { color: #ffffff !important; }
+.writer-light .eb-workspace textarea::placeholder { color: #76766f !important; opacity: 1; }
+.writer-light .eb-workspace [class*='bg-amber-500'] { background-color: #fff4d9 !important; }
+.writer-light .eb-workspace [class*='border-amber-500'] { border-color: #f4d49b !important; }
+.writer-light .eb-workspace [class*='border-violet-400'] { border-color: #c4b5fd !important; }
+.writer-light .eb-workspace .bg-emerald-500 { background-color: #10b981 !important; }
+.writer-light .eb-workspace .bg-violet-500 { background-color: #7c3aed !important; }
+
+/* Sidebar account and menu controls used their own charcoal palette. */
+.writer-light .writer-sidebar .bg-\[\#2b2b2b\],
+.writer-light .writer-sidebar .hover\:bg-\[\#2c2c2c\]:hover { background-color: #ffffff !important; }
+.writer-light .writer-sidebar .border-\[\#444\],
+.writer-light .writer-sidebar .bg-\[\#2c2c2c\],
+.writer-light .writer-sidebar .bg-\[\#454545\] { border-color: #deded9 !important; background-color: #deded9 !important; }
+.writer-light .writer-sidebar .text-\[\#f1f1f1\],
+.writer-light .writer-sidebar .text-\[\#b5b5b5\],
+.writer-light .writer-sidebar .text-\[\#a4a4a4\],
+.writer-light .writer-sidebar .text-\[\#858585\] { color: #575750 !important; }

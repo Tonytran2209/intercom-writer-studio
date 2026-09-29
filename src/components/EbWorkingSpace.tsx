@@ -27,7 +27,7 @@ export default function EbWorkingSpace() {
   const [approved, setApproved] = useState<Gate>(0)
   const hasInput = raw.trim().length > 12
   const approve = (value: Gate) => { setApproved(value); setGate(Math.min(3, value + 1) as Gate) }
-  return <main className="continuous-workspace flex-1 min-h-0 overflow-y-auto bg-[#171717] p-4 md:p-7">
+  return <main className="eb-workspace continuous-workspace flex-1 min-h-0 overflow-y-auto bg-[#171717] p-4 md:p-7">
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-col gap-4 border-b border-[#303030] pb-5 sm:flex-row sm:items-start sm:justify-between"><div><div className="mb-2 flex items-center gap-2 text-xs font-medium text-violet-300"><Sparkles className="h-4 w-4"/> EB writing skill <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">Shell mode</span></div><h1 className="text-2xl font-semibold tracking-tight text-white">New Employer Brand package</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#a5a5a5]">Turn a real workplace moment into a fab.careers article and channel-ready social copy—one approval gate at a time.</p></div><button className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#454545] px-3 py-2 text-sm text-[#e4e4e4] hover:bg-[#292929]"><Lightbulb className="h-4 w-4"/> Discovery mode</button></header>
 
