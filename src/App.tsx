@@ -678,7 +678,7 @@ export default function App() {
   }
 
   return (
-    <div className="writer-light h-dvh flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
+    <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
       {isShellMode ? <EbSidebar
         onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}
         onOpenDiscovery={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(true) }}

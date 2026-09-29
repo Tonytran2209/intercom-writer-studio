@@ -2707,3 +2707,18 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light .writer-sidebar .text-\[\#b5b5b5\],
 .writer-light .writer-sidebar .text-\[\#a4a4a4\],
 .writer-light .writer-sidebar .text-\[\#858585\] { color: #575750 !important; }
+
+/* Final shell safeguards: old light-theme migration rules above were written
+   for the former dark EB prototype and accidentally inverted white text and
+   the white main panel. Keep these exact-demo components isolated from them. */
+.writer-light .eb-workspace { background: #ffffff !important; color: #1e293b !important; }
+.writer-light .eb-workspace .text-white { color: #ffffff !important; }
+.writer-light .eb-workspace > header,
+.writer-light .eb-workspace > div { background-color: #ffffff; }
+.writer-light .eb-workspace > section { background-color: rgb(248 250 252 / 30%) !important; }
+.writer-light .eb-workspace button.bg-indigo-600 { background-color: #4f46e5 !important; color: #ffffff !important; }
+.writer-light .eb-workspace button.bg-indigo-600:hover { background-color: #4338ca !important; }
+.writer-light .eb-workspace button.bg-indigo-600:disabled { background-color: #4f46e5 !important; color: #ffffff !important; opacity: .45; }
+.writer-light .eb-workspace .glow-input-container { background: transparent !important; }
+.writer-light .eb-workspace .glow-input-container > div { background: #ffffff !important; }
+.writer-light .eb-workspace .kanban-column { color: #1e293b !important; }
