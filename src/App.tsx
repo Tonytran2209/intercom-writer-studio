@@ -130,6 +130,14 @@ export default function App() {
   // Shell mode intentionally has no external data source. Keep all edits in
   // React state so UX work cannot affect the existing production database.
   useEffect(() => {
+    // EB V2 owns its own loading lifecycle inside EbWorkingSpace. In
+    // particular, it must never bootstrap legacy articles/config/files, which
+    // would both alter the intended UI and require legacy Supabase resources.
+    if (useEbWorkspace) {
+      setSyncStatus("idle")
+      setInitialLoadError(null)
+      return
+    }
     if (isShellMode) {
       setSyncStatus("idle")
       return
