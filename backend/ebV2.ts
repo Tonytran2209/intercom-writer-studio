@@ -1,10 +1,13 @@
 import type express from 'express';
+import multer from 'multer';
 import { generate } from './providers.ts';
 import { tableAvailable, tableDeleteWhere, tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
+import { extractDocumentText } from './documentParser.ts';
 
 type AuthRequest = express.Request & { auth?: { userId: string; email: string; role: 'user' | 'admin' } };
 type ModelInput = { provider?: string; modelId?: string };
 const stages = { brief: 'extract_mapping', article: ['article_spec', 'outline', 'draft'], adapt: 'channel_adaptation', review: 'repetition_check' } as const;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 
 function text(value: unknown) { return String(value ?? '').trim(); }
 function modelFrom(body: any, key = 'model'): Required<ModelInput> | null {
@@ -69,6 +72,27 @@ export function registerEbV2Routes(app: express.Express) {
       await tableUpdate('eb_v2_packages', item.id, { title, updated_at: new Date().toISOString() });
       res.status(201).json({ package: { ...item, brief: result.content } });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to create Brief.' }); }
+  });
+  app.post('/api/eb-v2/packages/upload', upload.single('file'), async (req: AuthRequest, res) => {
+    const file = req.file; const model = { provider: text(req.body?.provider), modelId: text(req.body?.modelId) };
+    if (!file) return res.status(400).json({ error: 'A file is required.' }); if (!model.provider || !model.modelId) return res.status(400).json({ error: 'Choose a Brief AI model before analysing a file.' });
+    try {
+      const inputText = await extractDocumentText(file.buffer, file.originalname); if (!inputText.trim()) return res.status(400).json({ error: 'The uploaded file did not contain readable text.' });
+      const item = await tableInsert<any>('eb_v2_packages', { title: file.originalname, state: 'brief', source_type: 'upload', created_by: req.auth?.userId ?? null });
+      await tableInsert('eb_v2_package_inputs', { package_id: item.id, input_text: inputText, upload_name: file.originalname, raw_snapshot: { mimeType: file.mimetype, byteSize: file.size } });
+      await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand input from ${file.originalname}. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText.slice(0, 60000)}`, model, await libraryContext());
+      res.status(201).json({ package: item });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to analyse uploaded file.' }); }
+  });
+  app.post('/api/eb-v2/discovery', async (req, res) => {
+    const model = modelFrom(req.body); if (!model) return res.status(400).json({ error: 'Choose a Brief AI model before running Discovery.' });
+    try {
+      const docs = await libraryContext(); if (!docs.length) return res.status(409).json({ error: 'Load EB Library documents before running Discovery.' });
+      const result = await generate({ provider: model.provider, modelId: model.modelId, contextDocs: docs, maxTokens: 900, temperature: 0.7, prompt: 'Propose exactly 3 distinct employer-brand article ideas grounded in the supplied library. Return one title per line, with no numbering or commentary.' });
+      const titles = result.content.split(/\n+/).map(line => line.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter(Boolean).slice(0, 3);
+      const items = await Promise.all(titles.map(title => tableInsert<any>('eb_v2_discovery_items', { title, source_summary: 'EB Library discovery', status: 'suggested', evidence: [] })));
+      res.status(201).json({ items });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to run Discovery.' }); }
   });
 
   app.post('/api/eb-v2/packages/:id/approve-brief', async (req, res) => {
