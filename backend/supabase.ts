@@ -19,10 +19,10 @@ function getClient(): SupabaseClient {
   if (_client) return _client;
 
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 
   if (!url) throw new Error('Missing SUPABASE_URL in Railway environment variables.');
-  if (!key) throw new Error('Missing SUPABASE_SECRET_KEY or SUPABASE_ANON_KEY in Railway environment variables.');
+  if (!key) throw new Error('Missing SUPABASE_SECRET_KEY, SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_ANON_KEY in Railway environment variables.');
 
   _client = createClient(url, key, {
     auth: {
