@@ -206,6 +206,14 @@ export async function saveConfig(config: AppConfig): Promise<void> {
   )
 }
 
+// ── EB Workspace V2 (isolated from legacy Writer Studio records) ────────────
+export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[] }
+export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return railwayRequest<EbV2Workspace>("/api/eb-v2/workspace") }
+export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; model: { provider: string; id: string } }) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input)) }
+export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model })) }
+export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel })) }
+export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action })) }
+
 export async function scanWebsiteUrl(
   url: string,
   railwayUrl?: string,

@@ -53,6 +53,9 @@ type SyncStatus = "idle" | "loading" | "saving" | "error"
 type ArticleUpdateOptions = { silent?: boolean }
 
 export default function App() {
+  // The EB workspace owns both shell and connected V2 modes. Legacy article
+  // screens remain in the codebase only for historical data, never as the V2 entry point.
+  const useEbWorkspace = true
   const { tr } = useI18n()
   const [authSession, setAuthSession] = useState<db.AuthSession | null>(() => {
     if (isShellMode) return { accessToken: "shell", expiresAt: null, user: shellUser }
@@ -679,7 +682,7 @@ export default function App() {
 
   return (
     <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
-      {isShellMode ? <EbSidebar
+      {useEbWorkspace ? <EbSidebar
         onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}
         onOpenDiscovery={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(true) }}
         onOpenSettings={() => setShowConfig(true)}
@@ -836,8 +839,8 @@ export default function App() {
               </div>
             </main>
           </>
-        ) : isShellMode ? (
-          <EbWorkingSpace />
+        ) : useEbWorkspace ? (
+          <EbWorkingSpace config={config} />
         ) : (
           // Article selected from sidebar but not found (shouldn't happen)
           <ActivityLauncher
