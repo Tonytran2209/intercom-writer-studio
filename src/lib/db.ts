@@ -208,6 +208,8 @@ export async function saveConfig(config: AppConfig): Promise<void> {
 
 // ── EB Workspace V2 (isolated from legacy Writer Studio records) ────────────
 export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[] }
+export async function fetchEbV2Settings(): Promise<AppConfig | null> { const result = await railwayRequest<{ settings: AppConfig | null }>("/api/eb-v2/settings"); return result.settings }
+export async function saveEbV2Settings(settings: AppConfig): Promise<void> { await railwayRequest("/api/eb-v2/settings", jsonRequest("POST", { settings })) }
 export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return railwayRequest<EbV2Workspace>("/api/eb-v2/workspace") }
 export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; model: { provider: string; id: string } }) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input)) }
 export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model })) }

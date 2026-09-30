@@ -1,6 +1,6 @@
 import type express from 'express';
 import { generate } from './providers.ts';
-import { tableInsert, tableSelect, tableUpdate } from './supabase.ts';
+import { tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
 
 type AuthRequest = express.Request & { auth?: { userId: string; email: string; role: 'user' | 'admin' } };
 type ModelInput = { provider?: string; modelId?: string };
@@ -38,6 +38,20 @@ async function workspace() {
 }
 
 export function registerEbV2Routes(app: express.Express) {
+  app.get('/api/eb-v2/settings', async (_req, res) => {
+    try {
+      const row = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0] ?? null;
+      res.json({ settings: row?.settings ?? null });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB V2 settings.' }); }
+  });
+  app.post('/api/eb-v2/settings', async (req: AuthRequest, res) => {
+    try {
+      const settings = req.body?.settings;
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return res.status(400).json({ error: 'Settings must be an object.' });
+      await tableUpsert('eb_v2_app_settings', { id: true, settings, updated_by: req.auth?.userId ?? null, updated_at: new Date().toISOString() }, 'id');
+      res.json({ settings });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save EB V2 settings.' }); }
+  });
   app.get('/api/eb-v2/workspace', async (_req, res) => { try { res.json(await workspace()); } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB workspace.' }); } });
 
   app.post('/api/eb-v2/packages', async (req: AuthRequest, res) => {

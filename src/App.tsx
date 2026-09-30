@@ -134,8 +134,17 @@ export default function App() {
     // particular, it must never bootstrap legacy articles/config/files, which
     // would both alter the intended UI and require legacy Supabase resources.
     if (useEbWorkspace) {
-      setSyncStatus("idle")
-      setInitialLoadError(null)
+      if (isShellMode) { setSyncStatus("idle"); setInitialLoadError(null); return }
+      const loadV2Settings = async () => {
+        try {
+          const remoteConfig = await db.fetchEbV2Settings()
+          if (remoteConfig) setConfig(mergeWithLatestModelCatalog(remoteConfig))
+        } catch {
+          // Workspace handles its own connection state. Never replace the V2
+          // shell with the legacy full-page error UI just because settings are unavailable.
+        } finally { setSyncStatus("idle"); setInitialLoadError(null) }
+      }
+      void loadV2Settings()
       return
     }
     if (isShellMode) {
@@ -465,10 +474,10 @@ export default function App() {
       localStorage.setItem("writer:railwayUrl", newConfig.railwayUrl)
     setSyncStatus("saving")
     try {
-      if (!isShellMode) await Promise.all([
-        db.saveConfig(newConfig),
-        db.saveFiles(newFiles, newConfig.railwayUrl),
-      ])
+      if (!isShellMode) {
+        if (useEbWorkspace) await db.saveEbV2Settings(newConfig)
+        else await Promise.all([db.saveConfig(newConfig), db.saveFiles(newFiles, newConfig.railwayUrl)])
+      }
       setSyncStatus("idle")
     } catch {
       setSyncStatus("error")
