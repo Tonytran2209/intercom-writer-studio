@@ -1,6 +1,6 @@
 import type express from 'express';
 import { generate } from './providers.ts';
-import { tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
+import { tableAvailable, tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
 
 type AuthRequest = express.Request & { auth?: { userId: string; email: string; role: 'user' | 'admin' } };
 type ModelInput = { provider?: string; modelId?: string };
@@ -38,6 +38,10 @@ async function workspace() {
 }
 
 export function registerEbV2Routes(app: express.Express) {
+  app.get('/api/eb-v2/health', async (_req, res) => {
+    const tables = ['eb_v2_library_documents', 'eb_v2_packages', 'eb_v2_package_inputs', 'eb_v2_discovery_items', 'eb_v2_gate_runs', 'eb_v2_articles', 'eb_v2_channel_outputs', 'eb_v2_review_actions', 'eb_v2_app_settings'];
+    try { const availability = Object.fromEntries(await Promise.all(tables.map(async table => [table, await tableAvailable(table)]))); const ok = Object.values(availability).every(Boolean); res.status(ok ? 200 : 503).json({ status: ok ? 'ok' : 'degraded', tables: availability }); } catch (error) { res.status(503).json({ status: 'degraded', error: error instanceof Error ? error.message : 'Unable to inspect EB V2 tables.' }); }
+  });
   app.get('/api/eb-v2/settings', async (_req, res) => {
     try {
       const row = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0] ?? null;
