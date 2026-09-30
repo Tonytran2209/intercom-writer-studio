@@ -173,6 +173,25 @@
   outline-offset: 2px;
 }
 
+/* Primary settings actions share the same indigo CTA treatment as the
+   workspace. This intentionally wins over legacy light-theme neutralizers. */
+.writer-light .minimal-settings button.bg-indigo-600,
+.writer-light .minimal-settings .settings-footer button.bg-indigo-600 {
+  border: 0 !important;
+  border-radius: .5rem !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  font-size: .75rem !important;
+  font-weight: 600 !important;
+  line-height: 1rem !important;
+  box-shadow: 0 1px 2px rgb(79 70 229 / 20%) !important;
+}
+.writer-light .minimal-settings button.bg-indigo-600:hover,
+.writer-light .minimal-settings .settings-footer button.bg-indigo-600:hover {
+  background: #4338ca !important;
+  color: #ffffff !important;
+}
+
 @media (max-width: 767px) {
   .minimal-settings .settings-sidebar { max-height: 14rem; }
   .minimal-settings .settings-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; }
