@@ -218,6 +218,8 @@ export async function createEbV2Package(input: { title?: string; inputText: stri
 export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin()) }
 export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel }), ebV2Origin()) }
 export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action }), ebV2Origin()) }
+export async function deleteEbV2Package(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
+export async function deleteEbV2ChannelOutput(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 
 export async function scanWebsiteUrl(
   url: string,

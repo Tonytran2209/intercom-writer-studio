@@ -1,6 +1,6 @@
 import type express from 'express';
 import { generate } from './providers.ts';
-import { tableAvailable, tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
+import { tableAvailable, tableDeleteWhere, tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
 
 type AuthRequest = express.Request & { auth?: { userId: string; email: string; role: 'user' | 'admin' } };
 type ModelInput = { provider?: string; modelId?: string };
@@ -111,5 +111,17 @@ export function registerEbV2Routes(app: express.Express) {
       await tableUpdate('eb_v2_channel_outputs', output.id, { status: action === 'done' ? 'done' : action === 'reject' ? 'rejected' : 'recheck', completed_at: action === 'done' ? new Date().toISOString() : null });
       res.json(await workspace());
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save review action.' }); }
+  });
+
+  // Deleting a package is scoped to V2 only; foreign-key cascades remove its
+  // inputs, runs, article revisions, channel outputs and review actions.
+  app.delete('/api/eb-v2/packages/:id', async (req, res) => {
+    try { await tableDeleteWhere('eb_v2_packages', 'id', text(req.params.id)); res.json(await workspace()); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to delete EB package.' }); }
+  });
+  // A reviewer may remove one channel output without deleting its package.
+  app.delete('/api/eb-v2/channel-outputs/:id', async (req, res) => {
+    try { await tableDeleteWhere('eb_v2_channel_outputs', 'id', text(req.params.id)); res.json(await workspace()); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to delete channel output.' }); }
   });
 }
