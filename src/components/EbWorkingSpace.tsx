@@ -34,13 +34,16 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [view, setView] = useState<View>("grid")
   const [page, setPage] = useState<WorkspacePage>("board")
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  // Demo cards belong exclusively to Shell mode. A connected workspace starts
+  // empty while its V2 data is loading, so users never mistake a failed fetch
+  // for real package data.
+  const [tasks, setTasks] = useState<Task[]>(() => isShellMode ? initialTasks : [])
   const [input, setInput] = useState("")
   const [fileName, setFileName] = useState("")
   const [filterOpen, setFilterOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<string[]>([])
   const [discoveryOpen, setDiscoveryOpen] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+  const [syncing, setSyncing] = useState(!isShellMode)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const filterRef = useRef<HTMLDivElement>(null)
   const discoveryRef = useRef<HTMLDivElement>(null)
