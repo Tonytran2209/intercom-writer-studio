@@ -22,10 +22,9 @@ import LegacyArticleView from "./components/workspace/LegacyArticleView"
 import { useI18n } from "./lib/i18n"
 import ActivityLauncher from "./components/ActivityLauncher"
 import BatchActivity from "./components/BatchActivity"
-import LoginScreen from "./components/LoginScreen"
 import { clampArticleStep, gateArticleStep, gateStepCompletion } from "./lib/workflowGuards"
 import { isLegacyArticle } from "./lib/legacyCompatibility"
-import { isShellMode, shellUser } from "./lib/appMode"
+import { isAuthDisabled, isShellMode, shellUser } from "./lib/appMode"
 import EbWorkingSpace from "./components/EbWorkingSpace"
 import EbSidebar from "./components/EbSidebar"
 
@@ -58,7 +57,7 @@ export default function App() {
   const useEbWorkspace = true
   const { tr } = useI18n()
   const [authSession, setAuthSession] = useState<db.AuthSession | null>(() => {
-    if (isShellMode) return { accessToken: "shell", expiresAt: null, user: shellUser }
+    if (isShellMode || isAuthDisabled) return { accessToken: "local", expiresAt: null, user: shellUser }
     if (hasPasswordRecoveryLink()) {
       db.clearAuthSession()
       return null
@@ -620,14 +619,7 @@ export default function App() {
     undefined
 
   // ── Loading screen ──
-  if (!authSession) {
-    return <LoginScreen
-      onLogin={async (email, password) => setAuthSession(await db.login(email, password))}
-      onSignUp={db.signUp}
-      onForgotPassword={db.requestPasswordReset}
-      onResetPassword={db.resetPassword}
-    />
-  }
+  if (!authSession && !isAuthDisabled) return null
 
   if (syncStatus === "loading") {
     return (
@@ -708,8 +700,8 @@ export default function App() {
           )
         }}
         onOpenConfig={() => setShowConfig(true)}
-        canManageSettings={authSession.user.role === "admin"}
-        currentUser={authSession.user}
+        canManageSettings={authSession?.user.role === "admin"}
+        currentUser={authSession?.user ?? shellUser}
         onSignOut={() => {
           if (isShellMode) return
           db.clearAuthSession(); setAuthSession(null); setArticles([]); setFiles([]); setActiveId(null)

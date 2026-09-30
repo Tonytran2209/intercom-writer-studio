@@ -138,6 +138,12 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
 app.use("/api", async (req: AuthenticatedRequest, res, next) => {
   if (["/auth/login", "/auth/signup", "/auth/forgot-password"].includes(req.path)) return next()
+  if (process.env.WRITER_AUTH_MODE !== "required") {
+    // Temporary shared-internal mode. This bypasses Supabase Auth only; all
+    // persistence still goes through the server-side Supabase service key.
+    req.auth = { userId: "00000000-0000-0000-0000-000000000000", email: "local@writer.studio", role: "admin" }
+    return next()
+  }
   const token = req.header("authorization")?.replace(/^Bearer\s+/i, "").trim()
   if (!token) return res.status(401).json({ error: "Vui lòng đăng nhập để tiếp tục." })
   try {

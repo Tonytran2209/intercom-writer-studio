@@ -6,6 +6,10 @@
  */
 export const isShellMode = import.meta.env.VITE_WRITER_DATA_MODE !== "connected"
 
+// V2 is temporarily operated as a shared internal tool. Set this to
+// "required" before exposing it beyond the trusted team.
+export const isAuthDisabled = import.meta.env.VITE_WRITER_AUTH_MODE !== "required"
+
 export const shellUser = {
   id: "shell-designer",
   email: "designer@local",
