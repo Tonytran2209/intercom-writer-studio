@@ -159,11 +159,32 @@ export interface WorkflowRuleSetting {
 
 export type WorkflowRuleSettings = Partial<Record<WorkflowRuleId, WorkflowRuleSetting>>
 
+export type EbRuleEnforcement = "strict" | "guided"
+export interface EbWorkflowRule {
+  id: string
+  title: string
+  enabled: boolean
+  enforcement: EbRuleEnforcement
+  instruction: string
+  advanced: string
+}
+export interface EbPromptLogEntry {
+  id: string
+  createdAt: string
+  gate: "brief" | "article" | "adapt" | "review"
+  summary: string
+}
+export interface EbWorkflowSettings {
+  rules: EbWorkflowRule[]
+  promptLog: EbPromptLogEntry[]
+}
+
 export interface AppConfig {
   railwayUrl: string
   stepConfigs: Record<number, StepConfig>
   models: AIModel[]
   workflowRules?: WorkflowRuleSettings
+  ebWorkflowSettings?: EbWorkflowSettings
   websiteInventory?: WebsiteContentRecord[]
 }
 
