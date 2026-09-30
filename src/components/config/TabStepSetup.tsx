@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ChevronRight, Clock3, FileText, Sparkles } from 'lucide-react';
 import type { AppConfig, Article, DocumentFile } from '../../types';
 import { pingRailway } from '../../lib/db';
 import { isDocumentReady } from '../../lib/documentStatus';
@@ -6,63 +7,62 @@ import { useI18n } from '../../lib/i18n';
 
 interface Props { config: AppConfig; files: DocumentFile[]; articles: Article[]; onChange: (config: AppConfig) => void }
 const RAILWAY_URL = 'https://rebuildwriterstudiotool-production.up.railway.app';
+const articleStages = [
+  { step: 2, labelVi: 'Article spec', labelEn: 'Article spec', detailVi: 'Định hướng, keyword và contract bài viết', detailEn: 'Direction, keywords and article contract' },
+  { step: 3, labelVi: 'Draft outline', labelEn: 'Draft outline', detailVi: 'Cấu trúc fab.careers có evidence', detailEn: 'Evidence-backed fab.careers structure' },
+  { step: 4, labelVi: 'First draft & check', labelEn: 'First draft & check', detailVi: 'Bài viết và kiểm tra chất lượng', detailEn: 'Article draft and quality checks' },
+] as const;
 
 export default function TabStepSetup({ config, files, articles, onChange }: Props) {
   const { language, tr } = useI18n();
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const enabledModels = config.models.filter(model => model.enabled);
   const readyKb = files.filter(file => file.category === 'kb' && isDocumentReady(file));
-  const readySkills = files.filter(file => file.category === 'rules' && isDocumentReady(file));
-  const workflowSteps = [2, 3, 4] as const;
-  const usageSummary = Object.fromEntries(workflowSteps.map(step => [String(step), articles.flatMap(article => article.aiUsageByStep?.[step] ?? [])]));
+  const enabledRules = (config.ebWorkflowSettings?.rules ?? []).filter(rule => rule.enabled);
+  const usageByStep = useMemo(() => Object.fromEntries(([1, 2, 3, 4] as const).map(step => [step, articles.flatMap(article => article.aiUsageByStep?.[step] ?? [])])), [articles]);
 
   useEffect(() => { pingRailway(config.railwayUrl || RAILWAY_URL).then(result => setBackendOk(result.ok)); }, [config.railwayUrl]);
 
   const updateStepModel = (step: number, modelId: string) => onChange({
     ...config,
-    stepConfigs: { ...config.stepConfigs, [step]: { ...config.stepConfigs[step], modelId, fileAccess: { kb: readyKb.map(f => f.id), rules: readySkills.map(f => f.id) } } },
+    stepConfigs: { ...config.stepConfigs, [step]: { ...config.stepConfigs[step], modelId, fileAccess: { kb: readyKb.map(file => file.id), rules: [] } } },
   });
-  const updateDraftWordLimit = (value: number) => onChange({
-    ...config,
-    stepConfigs: { ...config.stepConfigs, 4: { ...config.stepConfigs[4], maxDraftWords: Math.min(10000, Math.max(800, value || 1500)) } },
-  });
+  const updateDraftWordLimit = (value: number) => onChange({ ...config, stepConfigs: { ...config.stepConfigs, 4: { ...config.stepConfigs[4], maxDraftWords: Math.min(10000, Math.max(800, value || 1500)) } } });
+  const modelSelect = (step: number, label: string) => <select aria-label={`${label} model`} value={config.stepConfigs[step]?.modelId ?? ''} onChange={event => updateStepModel(step, event.target.value)} className="h-9 min-w-48 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700"><option value="">— {tr('Chọn model', 'Select model')} —</option>{enabledModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select>;
+  const usage = (step: 1 | 2 | 3 | 4) => { const calls = usageByStep[step] ?? []; return `${calls.reduce((sum, call) => sum + Number(call.totalTokens ?? 0), 0).toLocaleString()} tokens · ${calls.length} AI calls`; };
 
-  return <div className="settings-stack space-y-8">
+  return <div className="settings-stack space-y-7">
     <section>
-      <h2 className="mb-3 text-sm font-medium text-slate-800">{tr('Hệ thống', 'System')}</h2>
-      <div className="settings-preference-group divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-800">{tr('AI Backend', 'AI backend')}</p><p className="mt-0.5 truncate text-xs text-slate-400">{config.railwayUrl || RAILWAY_URL}</p></div>
-          <span className={`inline-flex items-center gap-1.5 text-xs ${backendOk ? 'text-emerald-600' : backendOk === false ? 'text-red-600' : 'text-slate-400'}`}><span className={`h-2 w-2 rounded-full ${backendOk ? 'bg-emerald-500' : backendOk === false ? 'bg-red-500' : 'animate-pulse bg-slate-300'}`} />{backendOk ? tr('Online', 'Online') : backendOk === false ? tr('Mất kết nối', 'Offline') : tr('Đang kiểm tra', 'Checking')}</span>
+      <h2 className="mb-1 text-sm font-medium text-slate-800">{tr('Flow đang chạy', 'Active flow')}</h2>
+      <p className="mb-3 text-xs leading-5 text-slate-500">{tr('Cấu hình dưới đây bám đúng luồng package trong Workspace. Chỉ các bước đã có AI runtime mới có lựa chọn model.', 'These settings mirror the package flow in Workspace. Only stages with an AI runtime expose a model choice.')}</p>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <GateRow number="1" tone="bg-blue-500" title={tr('Brief · Gate 1', 'Brief · Gate 1')} description={tr('Nhận input/Discovery, extract & check, sau đó map EVP pillar và persona.', 'Receives input or Discovery, extracts and checks it, then maps EVP pillar and persona.')} status={tr('AI: extract & mapping', 'AI: extract & mapping')}>
+          {modelSelect(1, 'Brief gate')}
+          <span className="text-[10px] text-slate-400">{usage(1)}</span>
+        </GateRow>
+        <div className="border-t border-slate-200">
+          <GateRow number="2" tone="bg-amber-500" title={tr('Website article · Gate 2', 'Website article · Gate 2')} description={tr('Sau khi brief được duyệt: tạo Article Spec → Outline → Draft fab.careers và dừng để duyệt.', 'After brief approval: creates Article Spec → Outline → fab.careers draft, then stops for approval.')} status={tr('AI: 3 tác vụ nối tiếp', 'AI: 3 sequential stages')}>
+            <div className="w-full space-y-2.5">
+              {articleStages.map(stage => <div key={stage.step} className="flex flex-col gap-2 rounded-lg bg-slate-50 px-2.5 py-2 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-700">{language === 'vi' ? stage.labelVi : stage.labelEn}</p><p className="mt-0.5 text-[10px] text-slate-400">{language === 'vi' ? stage.detailVi : stage.detailEn} · {usage(stage.step)}</p></div>{modelSelect(stage.step, stage.labelEn)}{stage.step === 4 && <label className="flex items-center gap-1.5 text-[10px] text-slate-500"><input aria-label={tr('Số từ tiếng Anh mục tiêu', 'Target English words')} type="number" min={800} max={10000} step={100} value={Math.max(800, config.stepConfigs[4]?.maxDraftWords ?? config.stepConfigs[4]?.maxDraftCharacters ?? 1500)} onChange={event => updateDraftWordLimit(Number(event.target.value))} className="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700" />words</label>}</div>)}
+            </div>
+          </GateRow>
         </div>
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-800">Knowledge Base</p><p className="mt-0.5 truncate text-xs text-slate-400">{readyKb.map(file => file.name).join(', ') || tr('Chưa có dữ liệu', 'No data loaded')}</p></div>
-          <span className="text-sm font-medium text-slate-600">{readyKb.length}</span>
-        </div>
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-800">Skills & Rules</p><p className="mt-0.5 truncate text-xs text-slate-400">{readySkills.map(file => file.name).join(', ') || tr('Chưa có dữ liệu', 'No data loaded')}</p></div>
-          <span className="text-sm font-medium text-slate-600">{readySkills.length}</span>
-        </div>
+        <div className="border-t border-slate-200"><GateRow number="3" tone="bg-purple-500" title={tr('Adapt channel', 'Adapt channel')} description={tr('Từ article đã duyệt, tạo riêng output cho Threads, Facebook và LinkedIn theo Channel Rules.', 'From an approved article, creates distinct Threads, Facebook and LinkedIn outputs using Channel Rules.')} status={tr('Đang mô phỏng trong Shell mode', 'Simulated in Shell mode')}><RuntimeNotice icon={<Clock3 className="h-3.5 w-3.5"/>} text={tr('Chưa có AI call riêng — model sẽ được dùng khi Adapt runtime V2 được kết nối.', 'No separate AI call yet — a model will be used when Adapt runtime V2 is connected.')} /></GateRow></div>
+        <div className="border-t border-slate-200"><GateRow number="4" tone="bg-emerald-500" title={tr('Review · Gate 3', 'Review · Gate 3')} description={tr('Kiểm repetition, sau đó reviewer xác nhận Done, Reject hoặc Re-check cho từng channel.', 'Runs repetition checks; the reviewer then marks each channel Done, Reject or Re-check.')} status={tr('Human decision gate', 'Human decision gate')}><RuntimeNotice icon={<CheckCircle2 className="h-3.5 w-3.5"/>} text={tr('Không tự publish; action cuối do user quyết định.', 'Never auto-publishes; final action is always decided by the user.')} /></GateRow></div>
       </div>
     </section>
 
     <section>
-      <h2 className="mb-1 text-sm font-medium text-slate-800">{tr('Model theo workflow', 'Workflow models')}</h2>
-      <p className="mb-3 text-xs leading-5 text-slate-400">{tr('Chọn model cho từng bước và theo dõi usage đã ghi nhận.', 'Choose a model for each step and review recorded usage.')}</p>
-      <div className="settings-preference-group divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        {workflowSteps.map((step, index) => {
-          const calls = usageSummary[String(step)] ?? [];
-          const totalTokens = calls.reduce((sum, call) => sum + Number(call.totalTokens ?? 0), 0);
-          const title = language === 'vi' ? ({2:'Article Spec & Định hướng',3:'Dàn bài nháp',4:'Bản nháp & Kiểm tra'} as Record<number,string>)[step] : ({2:'Article Spec & Direction',3:'Draft Outline',4:'First Draft & Audit'} as Record<number,string>)[step];
-          return <div key={step} className="settings-preference-row flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center">
-            <div className="flex min-w-0 flex-1 items-center gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-medium text-slate-600">{index + 1}</span><div className="min-w-0"><p className="text-sm font-medium text-slate-800">{title}</p><p className="mt-0.5 text-xs text-slate-400">{totalTokens.toLocaleString()} tokens · {calls.length} AI calls</p></div></div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select aria-label={`${title} model`} value={config.stepConfigs[step]?.modelId ?? ''} onChange={event => updateStepModel(step, event.target.value)} className="h-10 min-w-52 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"><option value="">— {tr('Chọn model', 'Select model')} —</option>{enabledModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select>
-              {step === 4 && <label className="flex items-center gap-2"><span className="sr-only">{tr('Số từ tiếng Anh mục tiêu', 'Target English words')}</span><input aria-label={tr('Số từ tiếng Anh mục tiêu', 'Target English words')} title={tr('Mục tiêu độ dài; QC chấp nhận khoảng ±15%', 'Length target; QC accepts a ±15% range')} type="number" min={800} max={10000} step={100} value={Math.max(800, config.stepConfigs[4]?.maxDraftWords ?? config.stepConfigs[4]?.maxDraftCharacters ?? 1500)} onChange={event => updateDraftWordLimit(Number(event.target.value))} className="h-10 w-28 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700" /><span className="text-xs text-slate-400">target words</span></label>}
-            </div>
-          </div>;
-        })}
+      <h2 className="mb-3 text-sm font-medium text-slate-800">{tr('Context áp dụng cho flow', 'Flow context')}</h2>
+      <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <InfoRow icon={<FileText className="h-4 w-4 text-indigo-600"/>} title="EB Library" detail={readyKb.length ? readyKb.map(file => file.name).join(', ') : tr('Chưa có collection nào được nạp', 'No collections loaded')} value={`${readyKb.length}/4`} />
+        <InfoRow icon={<Sparkles className="h-4 w-4 text-indigo-600"/>} title={tr('Workflow Rules', 'Workflow Rules')} detail={enabledRules.length ? tr(`${enabledRules.length} rules đang Enabled; chỉnh sửa tại EB Knowledge & Rules.`, `${enabledRules.length} rules enabled; edit them in EB Knowledge & Rules.`) : tr('Chưa có rule được bật', 'No rules enabled')} value={String(enabledRules.length)} />
+        <InfoRow icon={<span className={`h-2 w-2 rounded-full ${backendOk ? 'bg-emerald-500' : backendOk === false ? 'bg-red-500' : 'animate-pulse bg-slate-300'}`} />} title={tr('AI backend', 'AI backend')} detail={config.railwayUrl || RAILWAY_URL} value={backendOk ? tr('Online', 'Online') : backendOk === false ? tr('Offline', 'Offline') : tr('Checking', 'Checking')} />
       </div>
     </section>
   </div>;
 }
+
+function GateRow({ number, tone, title, description, status, children }: { number: string; tone: string; title: string; description: string; status: string; children: React.ReactNode }) { return <div className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-start"><div className="flex min-w-0 flex-1 gap-3"><span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full ${tone} text-[10px] font-bold text-white`}>{number}</span><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-slate-800">{title}</p><span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">{status}</span></div><p className="mt-1 max-w-lg text-xs leading-5 text-slate-500">{description}</p></div></div><div className="flex shrink-0 flex-col items-end gap-1.5 lg:max-w-[570px]">{children}</div></div> }
+function RuntimeNotice({ icon, text }: { icon: React.ReactNode; text: string }) { return <p className="flex max-w-sm items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[10px] leading-4 text-slate-500">{icon}{text}</p> }
+function InfoRow({ icon, title, detail, value }: { icon: React.ReactNode; title: string; detail: string; value: string }) { return <div className="flex items-center gap-3 px-4 py-3"><span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-50">{icon}</span><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-700">{title}</p><p className="truncate text-[10px] text-slate-400">{detail}</p></div><span className="shrink-0 text-[10px] font-medium text-slate-500">{value}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300"/></div> }
