@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Archive, BookOpen, Download, Globe2, RefreshCw, ScrollText, Search, Square, X } from "lucide-react"
+import { Archive, BookOpen, BookOpenCheck, Download, Globe2, RefreshCw, ScrollText, Search, Square, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type {
   ActionDataSource,
@@ -10,7 +10,6 @@ import type {
   WebsiteContentRecord,
 } from "../../types"
 import SourceImportPanel from "./SourceImportPanel"
-import WorkflowRulesPanel from "./WorkflowRulesPanel"
 import {
   cancelAllWebsiteInventoryBatches,
   deleteWebsiteInventoryRecord,
@@ -29,20 +28,20 @@ const SUBTAB_META: Record<KbSubTab, {
   icon: LucideIcon
 }> = {
   kb: {
-    label: "Knowledge Base",
+    label: "EB Library",
     category: "kb",
-    hint: "Kiến thức cốt lõi, sản phẩm, nghiên cứu và tài liệu tham khảo",
+    hint: "EVP pillars, personas, article patterns và channel playbooks",
     icon: BookOpen,
   },
   rules: {
-    label: "Skills & Rules",
+    label: "EB Workflow Rules",
     category: "rules",
-    hint: "Taxonomy, tone of voice, cấu trúc và quy tắc bắt buộc",
+    hint: "Input checklist, Discovery routing, approval gates và evidence rules",
     icon: ScrollText,
   },
   website: {
     label: "Website Inventory",
-    hint: "Danh sách URL duy nhất AI được phép đề xuất làm internal link",
+    hint: "Nguồn website được phép tham chiếu khi cần link nội bộ",
     icon: Globe2,
   },
   "legacy-action": {
@@ -132,11 +131,7 @@ export default function TabKnowledgeBase({
       </div>
 
       {activeSubTab === "rules" ? (
-        <WorkflowRulesPanel
-          config={config}
-          files={files}
-          onChange={onConfigChange}
-        />
+        <EbWorkflowRulesPanel />
       ) : activeSubTab === "website" ? (
         <WebsiteInventoryPanel
           records={config.websiteInventory ?? []}
@@ -149,6 +144,7 @@ export default function TabKnowledgeBase({
         <LegacyActionPlanArchive files={files.filter(isLegacyActionPlan)} />
       ) : (
         <div className="space-y-4">
+          {activeSubTab === "kb" && <EbLibraryCollections files={files} />}
           <SourceImportPanel
             key={activeSubTab}
             category={meta.category ?? "kb"}
@@ -161,6 +157,29 @@ export default function TabKnowledgeBase({
       )}
     </div>
   )
+}
+
+function EbLibraryCollections({ files }: { files: DocumentFile[] }) {
+  const names = new Set(files.filter(file => file.category === "kb").map(file => file.name.toLocaleLowerCase()))
+  const collections = [
+    ["EVP Pillars", "pillar-library.md", "3 confirmed EVP pillars"],
+    ["Persona Library", "persona-library.md", "5 motivation-led personas"],
+    ["Article Library & repetition log", "article-library.md", "A/B/C patterns and approved log"],
+    ["Channel Rules", "channel-rules.md", "Threads, Facebook and LinkedIn constraints"],
+  ]
+  return <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center gap-2"><BookOpenCheck className="h-4 w-4 text-indigo-600"/><div><h2 className="text-xs font-bold text-slate-800">Required EB collections</h2><p className="mt-1 text-xs text-slate-500">Nạp 4 reference documents dưới đây vào EB Library. Repetition log nằm trong Article Library và chỉ ghi sau Gate 3.</p></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{collections.map(([title, file, detail]) => <div key={file} className="rounded-lg bg-slate-50 p-2.5"><div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-700">{title}</p><span className={`rounded-md px-1.5 py-0.5 text-[9px] font-semibold ${names.has(file) ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{names.has(file) ? "Loaded" : "Required"}</span></div><p className="mt-1 text-[10px] text-slate-500">{file} · {detail}</p></div>)}</div><p className="mt-3 text-[10px] text-slate-400">Company profile/publishing defaults là structured configuration của workflow, không phải file reference bắt buộc. Hướng dẫn fresher thuộc Help/onboarding, không đưa vào prompt.</p></section>
+}
+
+function EbWorkflowRulesPanel() {
+  const groups = [
+    ["Input validation", "7 must-have checks stop the run; 4 nice-to-have gaps are flagged. Ask every missing question once and preserve N/A as a gap."],
+    ["Discovery routing", "No raw input opens Discovery Mode. Suggestions are never auto-approved and must enter Brief · Gate 1 after selection."],
+    ["Classification", "Map one primary EVP pillar, persona, article type A/B/C1/C2, category and Facebook form. Ambiguous pillar fit requires reviewer confirmation."],
+    ["Approval gates", "Gate 1 Brief → Gate 2 fab.careers article → Gate 3 channel outputs plus repetition check. Pushback requires evidence."],
+    ["Channel constraints", "Threads: VN, 2 variants, ≤500 characters. Facebook: VN then EN. LinkedIn: English, credibility-led."],
+    ["Company defaults", "Set brand naming, careers URL, hashtags, CTA and default approver here once persistent EB V2 settings are connected."],
+  ]
+  return <div className="space-y-4"><section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-bold text-slate-800">F.Learning EB Article Writer</h2><p className="mt-1 text-xs leading-5 text-slate-500">Behavior is defined here. Models remain in AI Models / Workflow AI; reference documents remain in EB Library.</p></section><div className="overflow-hidden rounded-xl border border-slate-200 bg-white">{groups.map(([title, description], index) => <div key={title} className="border-b border-slate-200 px-4 py-3 last:border-b-0"><div className="flex items-start gap-3"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-500">{index + 1}</span><div><h3 className="text-xs font-bold text-slate-800">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></div></div></div>)}</div><p className="text-[10px] text-slate-400">Các rule trên đang là default của shell demo. Khi tạo Supabase V2, mỗi group sẽ được lưu phiên bản riêng để audit package cũ.</p></div>
 }
 
 function LegacyActionPlanArchive({ files }: { files: DocumentFile[] }) {
