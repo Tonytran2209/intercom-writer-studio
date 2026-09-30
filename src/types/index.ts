@@ -179,12 +179,23 @@ export interface EbWorkflowSettings {
   promptLog: EbPromptLogEntry[]
 }
 
+/** V2 runtime settings are declarative only until the V2 data adapter is deployed. */
+export interface EbRuntimeSettings {
+  tablePrefix: string
+  adaptModelId: string
+  repetitionModelId: string
+  enableAiRepetitionCheck: boolean
+  persistInputSnapshots: boolean
+  persistPromptLogs: boolean
+}
+
 export interface AppConfig {
   railwayUrl: string
   stepConfigs: Record<number, StepConfig>
   models: AIModel[]
   workflowRules?: WorkflowRuleSettings
   ebWorkflowSettings?: EbWorkflowSettings
+  ebRuntimeSettings?: EbRuntimeSettings
   websiteInventory?: WebsiteContentRecord[]
 }
 
