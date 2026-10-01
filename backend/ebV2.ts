@@ -128,10 +128,17 @@ export function registerEbV2Routes(app: express.Express) {
   app.post('/api/eb-v2/discovery', async (req, res) => {
     const model = modelFrom(req.body); if (!model) return res.status(400).json({ error: 'Choose a Brief AI model before running Discovery.' });
     try {
-      const docs = await libraryContext(); if (!docs.length) return res.status(409).json({ error: 'Load EB Library documents before running Discovery.' });
-      const result = await generate({ provider: model.provider, modelId: model.modelId, contextDocs: docs, maxTokens: 900, temperature: 0.7, prompt: 'Propose exactly 3 distinct employer-brand article ideas grounded in the supplied library. Return one title per line, with no numbering or commentary.' });
+      const libraryDocuments = await tableSelect<any>('eb_v2_library_documents', query => query.eq('status', 'ready'));
+      const docs = libraryDocuments.map(item => `${item.name}\n${String(item.content).slice(0, 12000)}`); if (!docs.length) return res.status(409).json({ error: 'Load EB Library documents before running Discovery.' });
+      const prompt = 'Propose exactly 3 distinct employer-brand article ideas grounded in the supplied library. Return one title per line, with no numbering or commentary.';
+      const generatedAt = new Date().toISOString();
+      const result = await generate({ provider: model.provider, modelId: model.modelId, contextDocs: docs, maxTokens: 900, temperature: 0.7, prompt });
       const titles = result.content.split(/\n+/).map(line => line.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter(Boolean).slice(0, 3);
-      const items = await Promise.all(titles.map(title => tableInsert<any>('eb_v2_discovery_items', { title, source_summary: 'EB Library discovery', status: 'suggested', evidence: [] })));
+      const evidence = [
+        ...libraryDocuments.map(document => ({ kind: 'library_document', slug: document.slug, name: document.name, sourcePath: document.source_path ?? null, updatedAt: document.updated_at ?? null })),
+        { kind: 'ai_run', provider: model.provider, modelId: model.modelId, prompt, generatedAt, usage: result.usage ?? null, output: result.content },
+      ];
+      const items = await Promise.all(titles.map(title => tableInsert<any>('eb_v2_discovery_items', { title, source_summary: `EB Library discovery · ${libraryDocuments.length} ready document(s)`, status: 'suggested', evidence })));
       res.status(201).json({ items });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to run Discovery.' }); }
   });
