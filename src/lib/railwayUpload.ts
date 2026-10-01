@@ -2,7 +2,7 @@ import type { ActionDataSource, DocumentFile, FileCategory } from '../types';
 import { isShellMode } from './appMode';
 
 interface UploadResponse {
-  target: 'writer:files';
+  target: 'eb_v2_library_documents';
   record: DocumentFile | ActionDataSource;
 }
 
@@ -21,7 +21,7 @@ export async function uploadDocumentToRailway(
   body.append('file', file);
   body.append('category', category);
 
-  const response = await fetch(`${baseUrl}/api/upload/document`, { method: 'POST', body });
+  const response = await fetch(`${baseUrl}/api/eb-v2/library-documents/upload`, { method: 'POST', body });
   const payload = await response.json().catch(() => ({ error: response.statusText }));
   if (!response.ok) throw new Error(payload.error || `Railway upload error ${response.status}`);
   return payload as UploadResponse;

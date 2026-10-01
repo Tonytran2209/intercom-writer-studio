@@ -19,6 +19,7 @@ import {
   scanWebsiteUrl,
   startWebsiteInventoryBatch,
   updateWebsiteInventoryRecord,
+  fetchEbV2LibraryDocuments,
 } from "../../lib/db"
 import { isLegacyActionPlan } from "../../lib/legacyCompatibility"
 
@@ -95,6 +96,20 @@ export default function TabKnowledgeBase({
 }: Props) {
   const [activeSubTab, setActiveSubTab] = useState<KbSubTab>("kb")
   const meta = SUBTAB_META[activeSubTab]
+
+  useEffect(() => {
+    void fetchEbV2LibraryDocuments().then(({ documents }) => {
+      const libraryFiles = (Array.isArray(documents) ? documents : []).map((document) => ({
+        id: String(document.id), name: String(document.name), category: "kb" as const,
+        size: `${document.metadata?.byteSize ?? String(document.content ?? "").length} B`,
+        uploadedAt: document.updated_at, contentUpdatedAt: document.updated_at,
+        fileType: "md" as const, content: String(document.content ?? ""),
+      }))
+      onChange([...files.filter((file) => file.category !== "kb"), ...libraryFiles])
+    }).catch(() => undefined)
+    // V2 documents are the source of truth for this tab; load once when it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sources = meta.category
     ? files.filter((file) => file.category === meta.category).map(toSource)

@@ -10,6 +10,11 @@ const stages = { brief: 'extract_mapping', article: ['article_spec', 'outline', 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 
 function text(value: unknown) { return String(value ?? '').trim(); }
+function librarySlug(filename: string) {
+  const normalized = filename.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const slug = normalized.replace(/-md$/, '');
+  return ['pillar-library', 'persona-library', 'article-library', 'channel-rules'].includes(slug) ? slug : null;
+}
 function modelFrom(body: any, key = 'model'): Required<ModelInput> | null {
   const input = body?.[key] ?? body?.model ?? {};
   const provider = text(input.provider); const modelId = text(input.id ?? input.modelId);
@@ -50,6 +55,23 @@ export function registerEbV2Routes(app: express.Express) {
       const row = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0] ?? null;
       res.json({ settings: row?.settings ?? null });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB V2 settings.' }); }
+  });
+  app.get('/api/eb-v2/library-documents', async (_req, res) => {
+    try { res.json({ documents: await tableSelect<any>('eb_v2_library_documents', query => query.order('updated_at', { ascending: false })) }); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB Library.' }); }
+  });
+  app.post('/api/eb-v2/library-documents/upload', upload.single('file'), async (req, res) => {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'A file is required.' });
+    const slug = librarySlug(file.originalname);
+    if (!slug) return res.status(400).json({ error: 'EB Library accepts only pillar-library.md, persona-library.md, article-library.md, or channel-rules.md.' });
+    try {
+      const content = (await extractDocumentText(file.buffer, file.originalname)).trim();
+      if (!content) return res.status(422).json({ error: 'The uploaded file did not contain readable text.' });
+      await tableUpsert('eb_v2_library_documents', { slug, name: file.originalname, content, source_path: `settings-upload/${file.originalname}`, status: 'ready', metadata: { mimeType: file.mimetype, byteSize: file.size, uploadedAt: new Date().toISOString() }, updated_at: new Date().toISOString() }, 'slug');
+      const document = (await tableSelect<any>('eb_v2_library_documents', query => query.eq('slug', slug).limit(1)))[0];
+      res.status(201).json({ target: 'eb_v2_library_documents', record: document });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save the EB Library document.' }); }
   });
   app.post('/api/eb-v2/settings', async (req: AuthRequest, res) => {
     try {

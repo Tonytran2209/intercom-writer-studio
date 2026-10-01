@@ -84,8 +84,8 @@ function FileForm({ onAdd, railwayUrl, category }: { onAdd: (sources: ActionData
     >
       <FolderUp className="mx-auto mb-2 h-8 w-8" aria-hidden="true" />
       <p className="text-xs font-bold text-slate-700">{reading ? tr('Railway đang scan và lưu Supabase...', 'Railway is scanning and saving to Supabase...') : tr('Kéo thả hoặc nhấp để chọn file', 'Drop files here or click to browse')}</p>
-      <p className="text-[11px] text-slate-400 mt-1">CSV · XLSX · JSON · PDF · TXT · XML</p>
-      <input ref={ref} type="file" multiple accept=".csv,.xlsx,.json,.pdf,.txt,.xml,.tsv" className="hidden" onChange={e => handle(e.target.files)} />
+      <p className="text-[11px] text-slate-400 mt-1">MD · DOCX · PDF · CSV · XLSX · JSON · TXT</p>
+      <input ref={ref} type="file" multiple accept=".md,.docx,.csv,.xlsx,.json,.pdf,.txt,.xml,.tsv" className="hidden" onChange={e => handle(e.target.files)} />
       {error && <p className="text-[11px] text-red-600 mt-2">{error}</p>}
     </div>
   );
