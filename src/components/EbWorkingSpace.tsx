@@ -124,7 +124,7 @@ function DiscoveryResearch({ status, onDiscover }: { status: { state: "idle" | "
   const running = status.state === "running"
   const statusClass = status.state === "error" ? "border-red-100 bg-red-50 text-red-700" : status.state === "success" ? "border-emerald-100 bg-emerald-50 text-emerald-700" : status.state === "empty" ? "border-amber-100 bg-amber-50 text-amber-700" : "border-purple-100 bg-purple-50 text-purple-700"
 
-  return <section className="sticky bottom-0 z-10 shrink-0 border-t border-purple-100 bg-purple-50/80 px-4 py-3 backdrop-blur-md">
+  return <section className="sticky bottom-0 z-10 shrink-0 px-4 py-3">
     <div className="mx-auto max-w-4xl rounded-xl border border-purple-100 bg-white p-3 shadow-2xs">
       <div className="flex items-start justify-between gap-3">
         <div><div className="flex items-center gap-2"><Lightbulb className="h-4 w-4 text-purple-600"/><h2 className="text-xs font-bold text-slate-800">Discovery research</h2></div><p className="mt-1 text-[10px] text-slate-500">Scan configured daily sources, or add social links as extra research evidence.</p></div>
