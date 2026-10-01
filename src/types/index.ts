@@ -194,7 +194,7 @@ export interface EbRuntimeSettings {
   discoveryRedditMinReplies: number
   discoveryTimeoutMs: number
   discoveryMaxUserUrls: number
-  discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean }
+  discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean; threads?: boolean }
   discoveryGoogleQueries?: string
   discoveryRedditQueries?: string
   discoveryFitIncludeTerms?: string
