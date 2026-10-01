@@ -12,7 +12,9 @@ export async function uploadDocumentToRailway(
   railwayUrl: string,
 ): Promise<UploadResponse> {
   if (isShellMode) throw new Error('Document upload is unavailable in shell mode.');
-  const baseUrl = railwayUrl.trim().replace(/\/$/, '');
+  // In the deployed app Settings must always talk to the same backend that
+  // served the UI, rather than a stale URL retained in an earlier config.
+  const baseUrl = (typeof window !== 'undefined' ? window.location.origin : railwayUrl).trim().replace(/\/$/, '');
   if (!baseUrl) throw new Error('Chưa cấu hình Railway URL.');
 
   const body = new FormData();

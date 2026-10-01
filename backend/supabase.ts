@@ -13,7 +13,6 @@ const DOCUMENT_BUCKET = 'writer-documents';
 
 // Singleton — created once when Railway boots, reused for all requests
 let _client: SupabaseClient | null = null;
-let _authClient: SupabaseClient | null = null;
 
 function getClient(): SupabaseClient {
   if (_client) return _client;
@@ -32,54 +31,6 @@ function getClient(): SupabaseClient {
   });
 
   return _client;
-}
-
-function getAuthClient(): SupabaseClient {
-  if (_authClient) return _authClient;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  if (!url || !key)
-    throw new Error('Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY for authentication.');
-  _authClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-  return _authClient;
-}
-
-export async function signInWithPassword(email: string, password: string) {
-  const { data, error } = await getAuthClient().auth.signInWithPassword({ email, password });
-  if (error || !data.session || !data.user) throw new Error('Email hoặc mật khẩu không đúng.');
-  return data;
-}
-
-export async function signUpWithPassword(email: string, password: string, emailRedirectTo?: string) {
-  const { data, error } = await getAuthClient().auth.signUp({
-    email,
-    password,
-    options: emailRedirectTo ? { emailRedirectTo } : undefined,
-  });
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-export async function sendPasswordReset(email: string, emailRedirectTo?: string) {
-  const { error } = await getAuthClient().auth.resetPasswordForEmail(
-    email,
-    emailRedirectTo ? { redirectTo: emailRedirectTo } : undefined,
-  );
-  if (error) throw new Error(error.message);
-}
-
-export async function updatePasswordFromRecovery(accessToken: string, password: string) {
-  const user = await getAuthenticatedUser(accessToken);
-  const { error } = await getClient().auth.admin.updateUserById(user.id, { password });
-  if (error) throw new Error(error.message);
-}
-
-export async function getAuthenticatedUser(accessToken: string) {
-  const { data, error } = await getAuthClient().auth.getUser(accessToken);
-  if (error || !data.user) throw new Error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn.');
-  return data.user;
 }
 
 // ── KV operations ────────────────────────────────────────────────────────────

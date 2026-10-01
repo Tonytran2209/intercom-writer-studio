@@ -22,11 +22,6 @@ import {
   tableUpsert,
   tableUpdate,
   tableDeleteWhere,
-  signInWithPassword,
-  signUpWithPassword,
-  sendPasswordReset,
-  updatePasswordFromRecovery,
-  getAuthenticatedUser,
 } from "./supabase.ts"
 import { extractDocumentText } from "./documentParser.ts"
 import { extractStructuredSections } from "./documentStructure.ts"
@@ -62,101 +57,11 @@ type AuthenticatedRequest = express.Request & {
   auth?: { userId: string; email: string; role: "user" | "admin" }
 }
 
-function userRole(user: any): "user" | "admin" {
-  const configuredAdmins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",").map((email) => email.trim().toLocaleLowerCase()).filter(Boolean)
-  return user?.app_metadata?.role === "admin" || configuredAdmins.includes(String(user?.email ?? "").toLocaleLowerCase())
-    ? "admin"
-    : "user"
-}
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const email = String(req.body?.email ?? "").trim()
-    const password = String(req.body?.password ?? "")
-    if (!email || !password) return res.status(400).json({ error: "Email và mật khẩu là bắt buộc." })
-    const { user, session } = await signInWithPassword(email, password)
-    res.json({
-      accessToken: session.access_token,
-      expiresAt: session.expires_at ?? null,
-      user: { id: user.id, email: user.email ?? email, role: userRole(user) },
-    })
-  } catch (error) {
-    res.status(401).json({ error: error instanceof Error ? error.message : "Không thể đăng nhập." })
-  }
-})
-
-function validAuthInput(req: express.Request, res: express.Response) {
-  const email = String(req.body?.email ?? "").trim()
-  const password = String(req.body?.password ?? "")
-  if (!email || !password || password.length < 8) {
-    res.status(400).json({ error: "Nhập email hợp lệ và mật khẩu ít nhất 8 ký tự." })
-    return null
-  }
-  return { email, password }
-}
-
-app.post("/api/auth/signup", async (req, res) => {
-  try {
-    const input = validAuthInput(req, res)
-    if (!input) return
-    const data = await signUpWithPassword(input.email, input.password, process.env.SUPABASE_AUTH_REDIRECT_URL)
-    res.status(201).json({
-      message: data.session ? "Đăng ký thành công. Bạn có thể đăng nhập ngay." : "Đăng ký thành công. Hãy kiểm tra email để xác nhận tài khoản.",
-    })
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Không thể đăng ký tài khoản." })
-  }
-})
-
-app.post("/api/auth/forgot-password", async (req, res) => {
-  try {
-    const email = String(req.body?.email ?? "").trim()
-    if (!email) return res.status(400).json({ error: "Email là bắt buộc." })
-    await sendPasswordReset(email, process.env.SUPABASE_AUTH_REDIRECT_URL)
-    // Keep this response deliberately neutral so it does not reveal whether
-    // an address has an account.
-    res.json({ message: "Nếu tài khoản tồn tại, email đặt lại mật khẩu đã được gửi." })
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Không thể gửi email đặt lại mật khẩu." })
-  }
-})
-
-app.post("/api/auth/reset-password", async (req, res) => {
-  try {
-    const password = String(req.body?.password ?? "")
-    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "").trim()
-    if (!token || password.length < 8) {
-      return res.status(400).json({ error: "Link đặt lại không hợp lệ hoặc mật khẩu phải có ít nhất 8 ký tự." })
-    }
-    await updatePasswordFromRecovery(token, password)
-    res.json({ message: "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới." })
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Không thể đặt lại mật khẩu." })
-  }
-})
-
 app.use("/api", async (req: AuthenticatedRequest, res, next) => {
-  if (["/auth/login", "/auth/signup", "/auth/forgot-password"].includes(req.path)) return next()
-  if (process.env.WRITER_AUTH_MODE !== "required") {
-    // Temporary shared-internal mode. This bypasses Supabase Auth only; all
-    // persistence still goes through the server-side Supabase service key.
-    req.auth = { userId: "00000000-0000-0000-0000-000000000000", email: "local@writer.studio", role: "admin" }
-    return next()
-  }
-  const token = req.header("authorization")?.replace(/^Bearer\s+/i, "").trim()
-  if (!token) return res.status(401).json({ error: "Vui lòng đăng nhập để tiếp tục." })
-  try {
-    const user = await getAuthenticatedUser(token)
-    req.auth = { userId: user.id, email: user.email ?? "", role: userRole(user) }
-    // Users need read access to workflow context, but only admins may mutate
-    // shared configuration, documents, or website inventory.
-    const adminOnly = req.method !== "GET" && (req.path === "/config" || req.path.startsWith("/files") || req.path.startsWith("/website-inventory"))
-    if (adminOnly && req.auth.role !== "admin") return res.status(403).json({ error: "Chỉ admin mới được phép quản trị cấu hình và knowledge base." })
-    next()
-  } catch (error) {
-    res.status(401).json({ error: error instanceof Error ? error.message : "Phiên đăng nhập không hợp lệ." })
-  }
+  // Writer Studio is a shared internal application. Supabase is used only by
+  // the server as persistence; no request is authenticated or role-gated.
+  req.auth = { userId: "00000000-0000-0000-0000-000000000000", email: "shared@writer.studio", role: "admin" }
+  next()
 })
 
 registerEbV2Routes(app)

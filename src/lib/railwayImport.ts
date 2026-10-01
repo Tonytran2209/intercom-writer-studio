@@ -12,7 +12,9 @@ export async function importSourceThroughRailway(
   railwayUrl: string,
 ): Promise<ImportResponse> {
   if (isShellMode) throw new Error('External imports are unavailable in shell mode.');
-  const baseUrl = railwayUrl.trim().replace(/\/$/, '') || window.location.origin;
+  // Keep imports on the current deployed backend for the same reason as file
+  // uploads; old Railway URLs must never reintroduce an obsolete auth flow.
+  const baseUrl = (typeof window !== 'undefined' ? window.location.origin : railwayUrl).trim().replace(/\/$/, '');
   const response = await fetch(`${baseUrl}/api/import/source`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

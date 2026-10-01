@@ -1,8 +1,6 @@
 import type { Article, AppConfig, DocumentFile, WebsiteContentRecord } from "../types"
 import { isShellMode } from "./appMode"
 
-const AUTH_STORAGE_KEY = "writer:auth-session"
-
 export type UserRole = "user" | "admin"
 export interface AuthSession {
   accessToken: string
@@ -11,23 +9,10 @@ export interface AuthSession {
 }
 
 export function getAuthSession(): AuthSession | null {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
-    if (!raw) return null
-    const session = JSON.parse(raw) as AuthSession
-    if (!session.accessToken || !session.user?.role || (session.expiresAt && session.expiresAt * 1000 <= Date.now())) {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-      return null
-    }
-    return session
-  } catch {
-    return null
-  }
+  return { accessToken: "local", expiresAt: null, user: { id: "shared-writer", email: "shared@writer.studio", role: "admin" } }
 }
 
-export function clearAuthSession() {
-  localStorage.removeItem(AUTH_STORAGE_KEY)
-}
+export function clearAuthSession() {}
 
 function resolveRailwayUrl(explicitUrl?: string): string {
   const saved =
@@ -55,9 +40,7 @@ async function railwayRequest<T>(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     let response: Response
     try {
-      const session = getAuthSession()
       const headers = new Headers(init?.headers)
-      if (session?.accessToken && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${session.accessToken}`)
       response = await fetch(url, { ...init, headers })
     } catch (error) {
       lastError = error
@@ -83,39 +66,6 @@ async function railwayRequest<T>(
   throw lastError instanceof Error
     ? lastError
     : new Error("Không thể kết nối Railway.")
-}
-
-export async function login(email: string, password: string): Promise<AuthSession> {
-  const session = await railwayRequest<AuthSession>(
-    "/api/auth/login",
-    jsonRequest("POST", { email, password }),
-  )
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
-  return session
-}
-
-export async function signUp(email: string, password: string): Promise<string> {
-  const result = await railwayRequest<{ message: string }>(
-    "/api/auth/signup",
-    jsonRequest("POST", { email, password }),
-  )
-  return result.message
-}
-
-export async function requestPasswordReset(email: string): Promise<string> {
-  const result = await railwayRequest<{ message: string }>(
-    "/api/auth/forgot-password",
-    jsonRequest("POST", { email }),
-  )
-  return result.message
-}
-
-export async function resetPassword(accessToken: string, password: string): Promise<string> {
-  const result = await railwayRequest<{ message: string }>(
-    "/api/auth/reset-password",
-    { ...jsonRequest("POST", { password }), headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` } },
-  )
-  return result.message
 }
 
 // ── Articles ──────────────────────────────────────────────────────────────────

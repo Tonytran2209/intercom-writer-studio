@@ -24,7 +24,7 @@ import ActivityLauncher from "./components/ActivityLauncher"
 import BatchActivity from "./components/BatchActivity"
 import { clampArticleStep, gateArticleStep, gateStepCompletion } from "./lib/workflowGuards"
 import { isLegacyArticle } from "./lib/legacyCompatibility"
-import { isAuthDisabled, isShellMode, shellUser } from "./lib/appMode"
+import { isShellMode, shellUser } from "./lib/appMode"
 import EbWorkingSpace from "./components/EbWorkingSpace"
 import EbSidebar from "./components/EbSidebar"
 
@@ -43,11 +43,6 @@ function createNewArticle(): Article {
   }
 }
 
-function hasPasswordRecoveryLink() {
-  if (typeof window === "undefined") return false
-  return new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery"
-}
-
 type SyncStatus = "idle" | "loading" | "saving" | "error"
 type ArticleUpdateOptions = { silent?: boolean }
 
@@ -56,14 +51,7 @@ export default function App() {
   // screens remain in the codebase only for historical data, never as the V2 entry point.
   const useEbWorkspace = true
   const { tr } = useI18n()
-  const [authSession, setAuthSession] = useState<db.AuthSession | null>(() => {
-    if (isShellMode || isAuthDisabled) return { accessToken: "local", expiresAt: null, user: shellUser }
-    if (hasPasswordRecoveryLink()) {
-      db.clearAuthSession()
-      return null
-    }
-    return db.getAuthSession()
-  })
+  const [authSession] = useState<db.AuthSession | null>({ accessToken: "local", expiresAt: null, user: shellUser })
   const [articles, setArticles] = useState<Article[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
@@ -636,8 +624,6 @@ export default function App() {
     undefined
 
   // ── Loading screen ──
-  if (!authSession && !isAuthDisabled) return null
-
   if (syncStatus === "loading") {
     return (
       <div className="writer-light h-dvh flex items-center justify-center bg-[#f7f7f5]">
@@ -719,10 +705,7 @@ export default function App() {
         onOpenConfig={() => setShowConfig(true)}
         canManageSettings={authSession?.user.role === "admin"}
         currentUser={authSession?.user ?? shellUser}
-        onSignOut={() => {
-          if (isShellMode) return
-          db.clearAuthSession(); setAuthSession(null); setArticles([]); setFiles([]); setActiveId(null)
-        }}
+        onSignOut={() => undefined}
         onToggleComplete={handleToggleComplete}
         completionSavingId={completionSavingId}
         onDeleteArticle={handleDeleteArticle}
