@@ -82,6 +82,25 @@ export function registerEbV2Routes(app: express.Express) {
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save EB V2 settings.' }); }
   });
   app.get('/api/eb-v2/workspace', async (_req, res) => { try { res.json(await workspace()); } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB workspace.' }); } });
+  app.get('/api/eb-v2/activity/:id', async (req, res) => {
+    try {
+      const kind = text(req.query.kind);
+      const channel = kind === 'channel' ? await one<any>('eb_v2_channel_outputs', text(req.params.id)) : null;
+      const packageId = channel?.package_id ?? text(req.params.id);
+      const item = await one<any>('eb_v2_packages', packageId);
+      if (!item) return res.status(404).json({ error: 'Package not found.' });
+      const [inputs, runs, articles, channels, discoveries] = await Promise.all([
+        tableSelect<any>('eb_v2_package_inputs', query => query.eq('package_id', packageId).order('created_at', { ascending: false })),
+        tableSelect<any>('eb_v2_gate_runs', query => query.eq('package_id', packageId).order('created_at', { ascending: false })),
+        tableSelect<any>('eb_v2_articles', query => query.eq('package_id', packageId).order('revision', { ascending: false })),
+        tableSelect<any>('eb_v2_channel_outputs', query => query.eq('package_id', packageId).order('updated_at', { ascending: false })),
+        tableSelect<any>('eb_v2_discovery_items', query => query.eq('package_id', packageId).order('updated_at', { ascending: false })),
+      ]);
+      const ids = new Set(channels.map(row => row.id));
+      const actions = (await tableSelect<any>('eb_v2_review_actions', query => query.order('created_at', { ascending: false }))).filter(row => ids.has(row.channel_output_id));
+      res.json({ package: item, selectedChannel: channel, inputs, runs, articles, channels, discoveries, actions });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load package activity.' }); }
+  });
 
   app.post('/api/eb-v2/packages', async (req: AuthRequest, res) => {
     const inputText = text(req.body?.inputText); const title = text(req.body?.title) || inputText.slice(0, 120) || 'Untitled EB package'; const model = modelFrom(req.body);
