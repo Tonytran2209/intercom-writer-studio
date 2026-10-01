@@ -1,8 +1,10 @@
 import type express from 'express';
 import multer from 'multer';
+import { jsonrepair } from 'jsonrepair';
 import { generate } from './providers.ts';
 import { tableAvailable, tableDeleteWhere, tableInsert, tableSelect, tableUpdate, tableUpsert } from './supabase.ts';
 import { extractDocumentText } from './documentParser.ts';
+import { collectDiscoveryResearch } from './discoveryResearch.ts';
 
 type AuthRequest = express.Request & { auth?: { userId: string; email: string; role: 'user' | 'admin' } };
 type ModelInput = { provider?: string; modelId?: string };
@@ -48,7 +50,7 @@ async function workspace() {
 
 export function registerEbV2Routes(app: express.Express) {
   app.get('/api/eb-v2/health', async (_req, res) => {
-    const tables = ['eb_v2_library_documents', 'eb_v2_packages', 'eb_v2_package_inputs', 'eb_v2_discovery_items', 'eb_v2_gate_runs', 'eb_v2_articles', 'eb_v2_channel_outputs', 'eb_v2_review_actions', 'eb_v2_app_settings'];
+    const tables = ['eb_v2_library_documents', 'eb_v2_packages', 'eb_v2_package_inputs', 'eb_v2_discovery_items', 'eb_v2_discovery_runs', 'eb_v2_discovery_sources', 'eb_v2_gate_runs', 'eb_v2_articles', 'eb_v2_channel_outputs', 'eb_v2_review_actions', 'eb_v2_app_settings'];
     try { const availability = Object.fromEntries(await Promise.all(tables.map(async table => [table, await tableAvailable(table)]))); const ok = Object.values(availability).every(Boolean); res.status(ok ? 200 : 503).json({ status: ok ? 'ok' : 'degraded', tables: availability }); } catch (error) { res.status(503).json({ status: 'degraded', error: error instanceof Error ? error.message : 'Unable to inspect EB V2 tables.' }); }
   });
   app.get('/api/eb-v2/settings', async (_req, res) => {
@@ -110,6 +112,7 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await tableInsert<any>('eb_v2_packages', { title, state: 'brief', source_type: text(req.body?.sourceType) || 'input', created_by: req.auth?.userId ?? null });
       await tableInsert('eb_v2_package_inputs', { package_id: item.id, input_text: inputText, raw_snapshot: { sourceType: req.body?.sourceType ?? 'input' } });
+      if (text(req.body?.sourceType) === 'discovery' && text(req.body?.discoveryId)) await tableUpdate('eb_v2_discovery_items', text(req.body.discoveryId), { status: 'used', package_id: item.id });
       void (async () => { try { await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText}`, model, await libraryContext()); await tableUpdate('eb_v2_packages', item.id, { title, updated_at: new Date().toISOString() }); } catch (error) { console.error('[eb-v2] brief failed:', error); } })();
       res.status(201).json({ package: item });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to create Brief.' }); }
@@ -128,18 +131,20 @@ export function registerEbV2Routes(app: express.Express) {
   app.post('/api/eb-v2/discovery', async (req, res) => {
     const model = modelFrom(req.body); if (!model) return res.status(400).json({ error: 'Choose a Brief AI model before running Discovery.' });
     try {
-      const libraryDocuments = await tableSelect<any>('eb_v2_library_documents', query => query.eq('status', 'ready'));
-      const docs = libraryDocuments.map(item => `${item.name}\n${String(item.content).slice(0, 12000)}`); if (!docs.length) return res.status(409).json({ error: 'Load EB Library documents before running Discovery.' });
-      const prompt = 'Propose exactly 3 distinct employer-brand article ideas grounded in the supplied library. Return one title per line, with no numbering or commentary.';
-      const generatedAt = new Date().toISOString();
-      const result = await generate({ provider: model.provider, modelId: model.modelId, contextDocs: docs, maxTokens: 900, temperature: 0.7, prompt });
-      const titles = result.content.split(/\n+/).map(line => line.replace(/^\s*[-*\d.)]+\s*/, '').trim()).filter(Boolean).slice(0, 3);
-      const evidence = [
-        ...libraryDocuments.map(document => ({ kind: 'library_document', slug: document.slug, name: document.name, sourcePath: document.source_path ?? null, updatedAt: document.updated_at ?? null })),
-        { kind: 'ai_run', provider: model.provider, modelId: model.modelId, prompt, generatedAt, usage: result.usage ?? null, output: result.content },
-      ];
-      const items = await Promise.all(titles.map(title => tableInsert<any>('eb_v2_discovery_items', { title, source_summary: `EB Library discovery · ${libraryDocuments.length} ready document(s)`, status: 'suggested', evidence })));
-      res.status(201).json({ items });
+      const extraUrls = Array.isArray(req.body?.sourceUrls) ? req.body.sourceUrls.map(text).filter((value: string) => /^https?:\/\//i.test(value)).slice(0, 8) : [];
+      const run = await tableInsert<any>('eb_v2_discovery_runs', { model_provider: model.provider, model_id: model.modelId, requested_sources: ['Brands Vietnam', 'Vietcetera', 'Google News VN', 'Reddit', ...extraUrls] });
+      const research = await collectDiscoveryResearch(extraUrls);
+      const savedSources = await Promise.all(research.sources.map(source => tableInsert<any>('eb_v2_discovery_sources', { run_id: run.id, source_type: source.sourceType, source_name: source.sourceName, url: source.url, title: source.title, excerpt: source.excerpt ?? null, language: source.language, published_at: source.publishedAt ?? null, engagement: source.engagement ?? {}, eligibility: source.eligibility })));
+      const eligible = savedSources.filter(source => source.eligibility === 'eligible');
+      const library = await libraryContext();
+      const prompt = `Use ONLY the dated source records below. A topic is trending only when it cites at least two independent source IDs, including one Vietnamese source. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. Return at most 5; use an empty list if evidence is thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map(source => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ''}`).join('\n')}\n\nEB LIBRARY:\n${library.join('\n\n')}`;
+      const result = eligible.length ? await generate({ provider: model.provider, modelId: model.modelId, maxTokens: 1100, temperature: 0.25, prompt }) : { content: '{"trending":[]}', usage: null };
+      let topics: any[] = []; try { const parsed = JSON.parse(jsonrepair(String(result.content).replace(/^```(?:json)?|```$/g, '').trim())); topics = Array.isArray(parsed?.trending) ? parsed.trending : []; } catch {}
+      const sourceById = new Map(savedSources.map(source => [source.id, source]));
+      const items = await Promise.all(topics.slice(0, 5).flatMap((topic: any) => { const ids: string[] = Array.isArray(topic?.sourceIds) ? topic.sourceIds.filter((id: unknown): id is string => typeof id === 'string' && sourceById.has(id)) : []; const sources: any[] = ids.map((id: string) => sourceById.get(id)!); if (!text(topic?.title) || new Set(sources.map((source: any) => source.source_name)).size < 2 || !sources.some((source: any) => source.language === 'vi')) return []; return [tableInsert<any>('eb_v2_discovery_items', { run_id: run.id, title: text(topic.title).slice(0, 220), source_summary: text(topic.reason), pillar_candidate: text(topic.pillarCandidate) || null, status: 'suggested', evidence: [{ kind: 'research_topic', sourceIds: ids, ebAngle: text(topic.ebAngle) }, { kind: 'ai_run', provider: model.provider, modelId: model.modelId, prompt, generatedAt: new Date().toISOString(), usage: result.usage ?? null, output: result.content }] })]; }));
+      const uncategorized = savedSources.filter(source => source.eligibility === 'undated').slice(0, 5).map(source => ({ id: source.id, title: source.title, url: source.url, sourceName: source.source_name, excerpt: source.excerpt, classification: 'uncategorized' }));
+      await tableUpdate('eb_v2_discovery_runs', run.id, { coverage: research.coverage, prompt, raw_output: String(result.content), completed_at: new Date().toISOString() });
+      res.status(201).json({ items, uncategorized, coverage: research.coverage, runId: run.id });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to run Discovery.' }); }
   });
 
