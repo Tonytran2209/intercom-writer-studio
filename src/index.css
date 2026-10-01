@@ -2723,11 +2723,12 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light .eb-workspace .glow-input-container > div { background: #ffffff !important; }
 .writer-light .eb-workspace > .eb-input-engine {
   position: relative;
+  pointer-events: none;
   background: linear-gradient(to top, rgb(248 250 252 / .82) 0%, rgb(248 250 252 / .48) 48%, transparent 100%) !important;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
-.writer-light .eb-workspace > .eb-input-engine > * { position: relative; z-index: 1; }
+.writer-light .eb-workspace > .eb-input-engine > * { position: relative; z-index: 1; pointer-events: auto; }
 .writer-light .eb-workspace .kanban-column { color: #1e293b !important; }
 .writer-light .eb-workspace .demo-column-blue { background: #eff6ff !important; border-color: rgb(191 219 254 / 80%) !important; }
 .writer-light .eb-workspace .demo-column-amber { background: #fffbeb !important; border-color: rgb(253 230 138 / 80%) !important; }
