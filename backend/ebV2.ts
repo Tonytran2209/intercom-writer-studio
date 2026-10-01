@@ -36,13 +36,14 @@ async function runGate(packageId: string, gate: 'brief' | 'article' | 'adapt' | 
   }
 }
 async function workspace() {
-  const [packages, articles, channels, discovery] = await Promise.all([
+  const [packages, articles, channels, discovery, runs] = await Promise.all([
     tableSelect<any>('eb_v2_packages', query => query.order('updated_at', { ascending: false })),
     tableSelect<any>('eb_v2_articles', query => query.order('revision', { ascending: false })),
     tableSelect<any>('eb_v2_channel_outputs', query => query.order('updated_at', { ascending: false })),
     tableSelect<any>('eb_v2_discovery_items', query => query.order('updated_at', { ascending: false })),
+    tableSelect<any>('eb_v2_gate_runs', query => query.order('created_at', { ascending: false })),
   ]);
-  return { packages, articles, channels, discovery };
+  return { packages, articles, channels, discovery, runs };
 }
 
 export function registerEbV2Routes(app: express.Express) {
@@ -109,9 +110,8 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await tableInsert<any>('eb_v2_packages', { title, state: 'brief', source_type: text(req.body?.sourceType) || 'input', created_by: req.auth?.userId ?? null });
       await tableInsert('eb_v2_package_inputs', { package_id: item.id, input_text: inputText, raw_snapshot: { sourceType: req.body?.sourceType ?? 'input' } });
-      const result = await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText}`, model, await libraryContext());
-      await tableUpdate('eb_v2_packages', item.id, { title, updated_at: new Date().toISOString() });
-      res.status(201).json({ package: { ...item, brief: result.content } });
+      void (async () => { try { await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText}`, model, await libraryContext()); await tableUpdate('eb_v2_packages', item.id, { title, updated_at: new Date().toISOString() }); } catch (error) { console.error('[eb-v2] brief failed:', error); } })();
+      res.status(201).json({ package: item });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to create Brief.' }); }
   });
   app.post('/api/eb-v2/packages/upload', upload.single('file'), async (req: AuthRequest, res) => {
@@ -121,7 +121,7 @@ export function registerEbV2Routes(app: express.Express) {
       const inputText = await extractDocumentText(file.buffer, file.originalname); if (!inputText.trim()) return res.status(400).json({ error: 'The uploaded file did not contain readable text.' });
       const item = await tableInsert<any>('eb_v2_packages', { title: file.originalname, state: 'brief', source_type: 'upload', created_by: req.auth?.userId ?? null });
       await tableInsert('eb_v2_package_inputs', { package_id: item.id, input_text: inputText, upload_name: file.originalname, raw_snapshot: { mimeType: file.mimetype, byteSize: file.size } });
-      await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand input from ${file.originalname}. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText.slice(0, 60000)}`, model, await libraryContext());
+      void (async () => { try { await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand input from ${file.originalname}. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText.slice(0, 60000)}`, model, await libraryContext()); } catch (error) { console.error('[eb-v2] uploaded brief failed:', error); } })();
       res.status(201).json({ package: item });
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to analyse uploaded file.' }); }
   });
@@ -140,15 +140,9 @@ export function registerEbV2Routes(app: express.Express) {
     const model = modelFrom(req.body); if (!model) return res.status(400).json({ error: 'Choose a Gate 2 AI model.' });
     try {
       const item = await one<any>('eb_v2_packages', req.params.id); if (!item) return res.status(404).json({ error: 'Package not found.' });
-      const input = (await tableSelect<any>('eb_v2_package_inputs', query => query.eq('package_id', item.id).order('created_at', { ascending: false }).limit(1)))[0];
-      const briefRuns = await tableSelect<any>('eb_v2_gate_runs', query => query.eq('package_id', item.id).eq('gate', 'brief').eq('status', 'completed').order('created_at', { ascending: false }).limit(1));
-      const brief = briefRuns[0]?.output_snapshot?.content ?? ''; const source = input?.input_text ?? item.title; const docs = await libraryContext();
-      const spec = await runGate(item.id, 'article', stages.article[0], `Create an Article Spec for fab.careers from this approved brief.\nBRIEF:\n${brief}\nSOURCE:\n${source}`, model, docs);
-      const outline = await runGate(item.id, 'article', stages.article[1], `Create a structured, evidence-led outline using this Article Spec.\n${spec.content}`, model, docs);
-      const draft = await runGate(item.id, 'article', stages.article[2], `Write the fab.careers article in Markdown from this outline. Do not invent facts.\nOUTLINE:\n${outline.content}`, model, docs);
-      const article = await tableInsert<any>('eb_v2_articles', { package_id: item.id, revision: 1, status: 'draft', article_spec: { content: spec.content }, outline: [{ content: outline.content }], body_markdown: draft.content, quality_report: {} });
       await tableUpdate('eb_v2_packages', item.id, { state: 'article', brief_approved_at: new Date().toISOString() });
-      res.json({ article, workspace: await workspace() });
+      void (async () => { try { const input = (await tableSelect<any>('eb_v2_package_inputs', query => query.eq('package_id', item.id).order('created_at', { ascending: false }).limit(1)))[0]; const briefRuns = await tableSelect<any>('eb_v2_gate_runs', query => query.eq('package_id', item.id).eq('gate', 'brief').eq('status', 'completed').order('created_at', { ascending: false }).limit(1)); const brief = briefRuns[0]?.output_snapshot?.content ?? ''; const source = input?.input_text ?? item.title; const docs = await libraryContext(); const spec = await runGate(item.id, 'article', stages.article[0], `Create an Article Spec for fab.careers from this approved brief.\nBRIEF:\n${brief}\nSOURCE:\n${source}`, model, docs); const outline = await runGate(item.id, 'article', stages.article[1], `Create a structured, evidence-led outline using this Article Spec.\n${spec.content}`, model, docs); const draft = await runGate(item.id, 'article', stages.article[2], `Write the fab.careers article in Markdown from this outline. Do not invent facts.\nOUTLINE:\n${outline.content}`, model, docs); await tableInsert<any>('eb_v2_articles', { package_id: item.id, revision: 1, status: 'draft', article_spec: { content: spec.content }, outline: [{ content: outline.content }], body_markdown: draft.content, quality_report: {} }); } catch (error) { console.error('[eb-v2] article draft failed:', error); } })();
+      res.json(await workspace());
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to generate website article.' }); }
   });
 
