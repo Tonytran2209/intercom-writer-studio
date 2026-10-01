@@ -1,4 +1,4 @@
-import { ArrowLeft, AlertTriangle, Bell, Check, CheckCircle2, ChevronDown, Download, FileText, Filter, Grid2X2, Lightbulb, List, LoaderCircle, Paperclip, RefreshCw, Search, Send, Sparkles, Trash2, Upload, X } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Bell, Check, CheckCircle2, ChevronDown, Download, FileText, Filter, Grid2X2, Lightbulb, List, LoaderCircle, RefreshCw, Search, Send, Sparkles, Trash2, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
@@ -83,29 +83,27 @@ function InputEngine({ input, setInput, fileName, setFileName, setFile, analyze 
   return <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
     <div className="glow-input-container mx-auto max-w-4xl rounded-xl p-px">
       <div className="rounded-[11px] bg-white p-2 shadow-sm">
-        <div className="flex gap-2">
-          <Sparkles className="mt-1 h-4 w-4 shrink-0 text-indigo-600"/>
-          <textarea
+        <div className="flex h-10 items-center gap-2">
+          <Sparkles className="h-4 w-4 shrink-0 text-indigo-600"/>
+          <input
             id="eb-input"
             value={input}
             onChange={event => setInput(event.target.value)}
-            rows={2}
             placeholder="Nhập một khoảnh khắc, ý tưởng hoặc câu chuyện thật từ F.Learning…"
-            className="min-h-12 flex-1 resize-none bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+            className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
           />
-          <label className="grid h-8 w-8 cursor-pointer place-items-center self-end rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+          <label title={fileName || "Upload material"} className={`grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border hover:bg-slate-50 ${fileName ? "border-indigo-200 bg-indigo-50 text-indigo-600" : "border-slate-200 text-slate-500"}`}>
             <Upload className="h-3.5 w-3.5"/>
             <input type="file" className="hidden" accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md" onChange={event => { const next = event.target.files?.[0] ?? null; setFile(next); setFileName(next?.name ?? "") }}/>
           </label>
           <button
             disabled={!input.trim() && !fileName}
             onClick={analyze}
-            className="self-end inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white disabled:opacity-40"
           >
             <Send className="h-3.5 w-3.5"/>Analyze
           </button>
         </div>
-        {fileName && <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-500"><Paperclip className="h-3 w-3"/>{fileName}</p>}
       </div>
     </div>
   </div>
