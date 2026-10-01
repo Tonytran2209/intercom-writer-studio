@@ -187,6 +187,14 @@ export interface EbRuntimeSettings {
   enableAiRepetitionCheck: boolean
   persistInputSnapshots: boolean
   persistPromptLogs: boolean
+  discoveryModelId: string
+  discoveryWindowMonths: number
+  discoveryMaxTopics: number
+  discoveryRedditMinUpvotes: number
+  discoveryRedditMinReplies: number
+  discoveryTimeoutMs: number
+  discoveryMaxUserUrls: number
+  discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean }
 }
 
 export interface AppConfig {

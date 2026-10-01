@@ -11,19 +11,20 @@ export type DiscoverySourceDraft = {
 };
 export type Coverage = { source: string; status: 'scanned' | 'empty' | 'failed'; note?: string };
 
-const FOUR_MONTHS_MS = 122 * 24 * 60 * 60 * 1000;
 const WORK_TERMS = /(work|workplace|career|employee|office|culture|talent|gen\s*z|lao động|đi làm|công sở|nhân sự|việc làm|nghề nghiệp|văn hoá)/i;
+export type DiscoveryResearchOptions = { windowMonths?: number; redditMinUpvotes?: number; redditMinReplies?: number; timeoutMs?: number; sources?: Partial<{ brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean }> };
+let options: Required<DiscoveryResearchOptions> = { windowMonths: 4, redditMinUpvotes: 20, redditMinReplies: 5, timeoutMs: 9000, sources: { brandsVietnam: true, vietcetera: true, googleNews: true, reddit: true } };
 
 function clean(value: string) { return value.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim(); }
 function decode(value: string) { return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'"); }
 function date(value?: string | null) { const parsed = value ? new Date(value) : null; return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : undefined; }
 function eligibility(publishedAt?: string, engagement?: Record<string, number>, sourceType?: string): DiscoverySourceDraft['eligibility'] {
-  if (sourceType === 'reddit' && (Number(engagement?.upvotes ?? 0) < 20 && Number(engagement?.replies ?? 0) < 5)) return 'low_engagement';
+  if (sourceType === 'reddit' && (Number(engagement?.upvotes ?? 0) < options.redditMinUpvotes && Number(engagement?.replies ?? 0) < options.redditMinReplies)) return 'low_engagement';
   if (!publishedAt) return 'undated';
-  return Date.now() - new Date(publishedAt).getTime() <= FOUR_MONTHS_MS ? 'eligible' : 'outdated';
+  return Date.now() - new Date(publishedAt).getTime() <= options.windowMonths * 31 * 24 * 60 * 60 * 1000 ? 'eligible' : 'outdated';
 }
 async function fetchText(url: string) {
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 9000);
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), options.timeoutMs);
   try { const response = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'F-Learning-EB-Research/1.0 (+https://fab.careers)' } }); if (!response.ok) throw new Error(`HTTP ${response.status}`); return await response.text(); }
   finally { clearTimeout(timer); }
 }
@@ -38,13 +39,14 @@ function rssItems(xml: string, sourceName: string): DiscoverySourceDraft[] { con
 async function redditSources() { const queries = ['gen z work', 'gen z workplace', 'career advice gen z']; const responses = await Promise.all(queries.map(async query => { const raw = await fetchText(`https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&t=year&limit=12`); const json = JSON.parse(raw); return (json.data?.children ?? []).map((item: any) => item.data); })); return responses.flat().map((item: any) => { const publishedAt = date(item.created_utc ? new Date(item.created_utc * 1000).toISOString() : undefined); const engagement = { upvotes: Number(item.ups ?? 0), replies: Number(item.num_comments ?? 0) }; return { sourceType: 'reddit', sourceName: 'Reddit', url: `https://www.reddit.com${item.permalink}`, title: String(item.title ?? ''), excerpt: String(item.selftext ?? '').slice(0, 500), language: 'en', publishedAt, engagement, eligibility: eligibility(publishedAt, engagement, 'reddit') } satisfies DiscoverySourceDraft; }).filter(item => item.title && WORK_TERMS.test(item.title)); }
 async function userLink(url: string) { const html = await fetchText(url); const title = clean(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? url); const publishedAt = htmlDate(html); return { sourceType: 'user_link', sourceName: new URL(url).hostname, url, title, excerpt: clean(html).slice(0, 500), language: /[à-ỹđ]/i.test(`${title} ${html.slice(0, 1000)}`) ? 'vi' : 'unknown', publishedAt, eligibility: eligibility(publishedAt) } satisfies DiscoverySourceDraft; }
 
-export async function collectDiscoveryResearch(extraUrls: string[] = []) {
+export async function collectDiscoveryResearch(extraUrls: string[] = [], nextOptions: DiscoveryResearchOptions = {}) {
+  options = { ...options, ...nextOptions, sources: { ...options.sources, ...nextOptions.sources } };
   const coverage: Coverage[] = []; const sources: DiscoverySourceDraft[] = [];
   const tasks: Array<[string, () => Promise<DiscoverySourceDraft[]>]> = [
-    ['Brands Vietnam', () => listingSource('Brands Vietnam', 'brandsvietnam', 'https://www.brandsvietnam.com/featured/', 'vi')],
-    ['Vietcetera', () => listingSource('Vietcetera', 'vietcetera', 'https://vietcetera.com/en', 'en')],
-    ['Google News VN', async () => rssItems(await fetchText('https://news.google.com/rss/search?q=' + encodeURIComponent('tin tức lao động genz OR genz đi làm OR genz tìm việc') + '&hl=vi&gl=VN&ceid=VN:vi'), 'Google News VN')],
-    ['Reddit', redditSources],
+    ...(options.sources.brandsVietnam ? [['Brands Vietnam', () => listingSource('Brands Vietnam', 'brandsvietnam', 'https://www.brandsvietnam.com/featured/', 'vi')] as [string, () => Promise<DiscoverySourceDraft[]>]] : []),
+    ...(options.sources.vietcetera ? [['Vietcetera', () => listingSource('Vietcetera', 'vietcetera', 'https://vietcetera.com/en', 'en')] as [string, () => Promise<DiscoverySourceDraft[]>]] : []),
+    ...(options.sources.googleNews ? [['Google News VN', async () => rssItems(await fetchText('https://news.google.com/rss/search?q=' + encodeURIComponent('tin tức lao động genz OR genz đi làm OR genz tìm việc') + '&hl=vi&gl=VN&ceid=VN:vi'), 'Google News VN')] as [string, () => Promise<DiscoverySourceDraft[]>]] : []),
+    ...(options.sources.reddit ? [['Reddit', redditSources] as [string, () => Promise<DiscoverySourceDraft[]>]] : []),
   ];
   for (const [name, task] of tasks) { try { const result = await task(); sources.push(...result); coverage.push({ source: name, status: result.length ? 'scanned' : 'empty', note: result.length ? `${result.length} relevant candidates` : 'No usable candidates' }); } catch (error) { coverage.push({ source: name, status: 'failed', note: error instanceof Error ? error.message : 'Fetch failed' }); } }
   for (const url of extraUrls) { try { sources.push(await userLink(url)); coverage.push({ source: url, status: 'scanned' }); } catch (error) { coverage.push({ source: url, status: 'failed', note: error instanceof Error ? error.message : 'Fetch failed' }); } }
