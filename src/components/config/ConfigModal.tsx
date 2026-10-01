@@ -42,6 +42,11 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
     onSave(sanitized, localFiles);
     onClose();
   };
+  const persistRuleConfig = async (nextConfig: AppConfig) => {
+    const sanitized = sanitizeConfigFileAccess(nextConfig, localFiles);
+    setLocalConfig(sanitized);
+    await onSave(sanitized, localFiles);
+  };
 
   return (
     <div className="minimal-settings fixed inset-0 z-50 bg-[#e9ecef] p-3">
@@ -89,7 +94,7 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
             <div className="mx-auto max-w-[760px]">
               {activeTab === 'step-setup' && <TabStepSetup config={localConfig} files={localFiles} articles={articles} onChange={setLocalConfig} />}
               {activeTab === 'models' && <TabModels config={localConfig} onChange={setLocalConfig} />}
-              {activeTab === 'knowledge-base' && <TabKnowledgeBase files={localFiles} onChange={setLocalFiles} railwayUrl={localConfig.railwayUrl} config={localConfig} onConfigChange={setLocalConfig} />}
+              {activeTab === 'knowledge-base' && <TabKnowledgeBase files={localFiles} onChange={setLocalFiles} railwayUrl={localConfig.railwayUrl} config={localConfig} onConfigChange={setLocalConfig} onConfigPersist={persistRuleConfig} />}
             </div>
           </div>
 
