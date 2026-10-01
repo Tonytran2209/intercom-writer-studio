@@ -158,12 +158,19 @@ export function registerEbV2Routes(app: express.Express) {
       const item = await one<any>('eb_v2_packages', req.params.id); if (!item) return res.status(404).json({ error: 'Package not found.' });
       const article = (await tableSelect<any>('eb_v2_articles', query => query.eq('package_id', item.id).eq('status', 'draft').order('revision', { ascending: false }).limit(1)))[0]; if (!article) return res.status(409).json({ error: 'No draft article available.' });
       await tableUpdate('eb_v2_articles', article.id, { status: 'approved', approved_at: new Date().toISOString() });
-      const docs = await libraryContext();
-      for (const channel of ['threads', 'facebook', 'linkedin']) {
-        const output = await runGate(item.id, 'adapt', `${stages.adapt}:${channel}`, `Adapt this approved fab.careers article for ${channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`, model, docs);
-        await tableInsert('eb_v2_channel_outputs', { package_id: item.id, article_id: article.id, channel, revision: 1, status: 'ready_for_review', content: { text: output.content }, model_provider: model.provider, model_id: model.modelId, generated_at: new Date().toISOString() });
-      }
-      await tableUpdate('eb_v2_packages', item.id, { state: 'review', article_approved_at: new Date().toISOString() });
+      const outputs = await Promise.all(['threads', 'facebook', 'linkedin'].map(channel => tableInsert<any>('eb_v2_channel_outputs', { package_id: item.id, article_id: article.id, channel, revision: 1, status: 'queued', content: {}, model_provider: model.provider, model_id: model.modelId })));
+      await tableUpdate('eb_v2_packages', item.id, { state: 'adapt', article_approved_at: new Date().toISOString() });
+      void (async () => {
+        const docs = await libraryContext();
+        try {
+          await Promise.all(outputs.map(async output => {
+            await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'generating' });
+            const result = await runGate(item.id, 'adapt', `${stages.adapt}:${output.channel}`, `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`, model, docs);
+            await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'ready_for_review', content: { text: result.content }, generated_at: new Date().toISOString() });
+          }));
+          await tableUpdate('eb_v2_packages', item.id, { state: 'review' });
+        } catch (error) { console.error('[eb-v2] channel adaptation failed:', error); }
+      })();
       res.json(await workspace());
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to adapt channels.' }); }
   });
