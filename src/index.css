@@ -2724,6 +2724,11 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .writer-light .eb-workspace .eb-input-engine {
   background: transparent !important;
 }
+.writer-light .eb-workspace > .eb-overlay {
+  background: rgb(255 255 255 / .38) !important;
+  -webkit-backdrop-filter: blur(6px) saturate(.9);
+  backdrop-filter: blur(6px) saturate(.9);
+}
 .writer-light .eb-workspace > .eb-input-engine > * { position: relative; z-index: 1; }
 .writer-light .eb-workspace .kanban-column { color: #1e293b !important; }
 .writer-light .eb-workspace .demo-column-blue { background: #eff6ff !important; border-color: rgb(191 219 254 / 80%) !important; }
