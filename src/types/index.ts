@@ -195,6 +195,10 @@ export interface EbRuntimeSettings {
   discoveryTimeoutMs: number
   discoveryMaxUserUrls: number
   discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean }
+  discoveryGoogleQueries?: string
+  discoveryRedditQueries?: string
+  discoveryFitIncludeTerms?: string
+  discoveryFitExcludeTerms?: string
 }
 
 export interface AppConfig {
