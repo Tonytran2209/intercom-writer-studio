@@ -169,6 +169,9 @@ export async function uploadEbV2Package(file: File, model: { provider: string; i
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
 export async function fetchEbV2LibraryDocuments() { return railwayRequest<{ documents: any[] }>("/api/eb-v2/library-documents", undefined, ebV2Origin()) }
 export async function fetchEbV2Activity(id: string, kind: "package" | "channel") { return railwayRequest<any>(`/api/eb-v2/activity/${encodeURIComponent(id)}?kind=${kind}`, undefined, ebV2Origin()) }
+export async function fetchEbV2DiscoveryDetail(id: string) { return railwayRequest<any>(`/api/eb-v2/discovery/${encodeURIComponent(id)}/details`, undefined, ebV2Origin()) }
+export async function deleteEbV2Discovery(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/discovery/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
+export async function clearEbV2Discovery() { return railwayRequest<EbV2Workspace>("/api/eb-v2/discovery", { method: "DELETE" }, ebV2Origin()) }
 export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin()) }
 export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel }), ebV2Origin()) }
 export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action }), ebV2Origin()) }

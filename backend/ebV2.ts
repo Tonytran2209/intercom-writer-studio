@@ -85,6 +85,22 @@ export function registerEbV2Routes(app: express.Express) {
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save EB V2 settings.' }); }
   });
   app.get('/api/eb-v2/workspace', async (_req, res) => { try { res.json(await workspace()); } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load EB workspace.' }); } });
+  app.get('/api/eb-v2/discovery/:id/details', async (req, res) => {
+    try {
+      const item = await one<any>('eb_v2_discovery_items', text(req.params.id)); if (!item) return res.status(404).json({ error: 'Discovery suggestion not found.' });
+      const run = item.run_id ? await one<any>('eb_v2_discovery_runs', item.run_id) : null;
+      const sources = item.run_id ? await tableSelect<any>('eb_v2_discovery_sources', query => query.eq('run_id', item.run_id).order('created_at', { ascending: true })) : [];
+      res.json({ item, run, sources });
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load Discovery detail.' }); }
+  });
+  app.delete('/api/eb-v2/discovery/:id', async (req, res) => {
+    try { await tableDeleteWhere('eb_v2_discovery_items', 'id', text(req.params.id)); res.json(await workspace()); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to delete Discovery suggestion.' }); }
+  });
+  app.delete('/api/eb-v2/discovery', async (_req, res) => {
+    try { await tableDeleteWhere('eb_v2_discovery_items', 'status', 'suggested'); res.json(await workspace()); }
+    catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to clear Discovery suggestions.' }); }
+  });
   app.get('/api/eb-v2/activity/:id', async (req, res) => {
     try {
       const kind = text(req.query.kind);
