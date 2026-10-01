@@ -81,7 +81,7 @@ function GateGroup({ gate, tasks, view, onBrief, onArticle, onDecision, onDelete
   const isList = view === "list"
 
   return <section className={isList ? "relative scroll-mt-2" : `gate-column gate-${config.tone} rounded-2xl border p-3`}>
-    <div className={`mb-3 flex items-center justify-between ${isList ? "sticky top-0 z-20 -mx-1 border-y border-slate-200/80 bg-white/95 px-1 py-2 shadow-sm backdrop-blur-md" : ""}`}>
+    <div className={`mb-3 flex items-center justify-between ${isList ? "sticky top-0 z-20 -mx-1 bg-white px-1 py-2" : ""}`}>
       <div><div className="flex items-center gap-1.5"><span className={`gate-dot gate-dot-${config.tone}`}><Check className="h-2.5 w-2.5"/></span><h2 className="text-xs font-bold text-slate-800">{config.title}</h2></div><p className="mt-1 text-[10px] text-slate-500">{config.subtitle}</p></div>
       <span className="text-xs text-slate-400">{tasks.length}</span>
     </div>
