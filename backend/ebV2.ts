@@ -127,6 +127,14 @@ function executionContract(gate: "brief" | "article" | "adapt" | "review") {
     return `REVIEW OUTPUT CONTRACT\nReturn a concise evidence-based repetition assessment. Do not make a publishing decision; a human reviewer decides.`
   return `OUTPUT CONTRACT\nReturn only the requested, channel-ready content. Do not ask the user follow-up questions.`
 }
+function adaptTask(channel: string, article: string) {
+  const channelContract = channel === "threads"
+    ? `THREADS DELIVERY CONTRACT\nWrite in Vietnamese only. Do not include English translation, English headings, or explanatory notes. Return exactly two labelled variants: Variant A — Company account and Variant B — Employee-shareable. Each variant must be at most 500 characters, be ready to publish, and preserve the approved article's factual limits.`
+    : channel === "facebook"
+      ? `FACEBOOK DELIVERY CONTRACT\nReturn a Vietnamese post first, followed by its English translation. Keep the tone reflective and publish-ready. Do not add process notes.`
+      : `LINKEDIN DELIVERY CONTRACT\nWrite in English only. Return one credibility-led, publish-ready LinkedIn post without process notes.`
+  return `Adapt this approved fab.careers article for ${channel}. Follow the relevant Channel Rules.\n\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
+}
 async function runGate(
   packageId: string,
   gate: "brief" | "article" | "adapt" | "review",
@@ -1076,7 +1084,7 @@ export function registerEbV2Routes(app: express.Express) {
                 item.id,
                 "adapt",
                 `${stages.adapt}:${output.channel}`,
-                `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`,
+                adaptTask(output.channel, article.body_markdown),
                 model,
                 docs,
               )
@@ -1323,7 +1331,7 @@ export function registerEbV2Routes(app: express.Express) {
             output.package_id,
             "adapt",
             `${stages.adapt}:${output.channel}`,
-            `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`,
+            adaptTask(output.channel, article.body_markdown),
             model,
             await libraryContext(["channel-rules"]),
           )
