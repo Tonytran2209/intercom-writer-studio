@@ -24,12 +24,22 @@ function modelFrom(body: any, key = 'model'): Required<ModelInput> | null {
 }
 async function one<T>(table: string, id: string): Promise<T | null> { return (await tableSelect<T>(table, query => query.eq('id', id).limit(1)))[0] ?? null; }
 async function libraryContext() { const documents = await tableSelect<any>('eb_v2_library_documents', query => query.eq('status', 'ready')); return documents.map(item => `${item.name}\n${String(item.content).slice(0, 12000)}`); }
-async function workflowRuleContext() { const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings?.ebWorkflowSettings; const rules = Array.isArray(settings?.rules) ? settings.rules.filter((rule: any) => rule?.enabled && text(rule?.instruction)) : []; if (!rules.length) return ''; return `EB WORKFLOW RULES\n${rules.map((rule: any) => `[${text(rule.enforcement).toUpperCase() || 'GUIDED'}] ${text(rule.title)}: ${text(rule.instruction)}${text(rule.advanced) && text(rule.advanced) !== '{}' ? `\nParameters: ${text(rule.advanced)}` : ''}`).join('\n\n')}`; }
+function ruleAppliesToGate(rule: any, gate: 'brief' | 'article' | 'adapt' | 'review') {
+  let configuredGates: string[] = [];
+  try { const advanced = JSON.parse(text(rule?.advanced) || '{}'); configuredGates = Array.isArray(advanced?.gates) ? advanced.gates.map(text) : []; } catch {}
+  if (configuredGates.length) return configuredGates.includes(gate);
+  const id = text(rule?.id).toLowerCase();
+  if (id === 'input-validation' || id === 'discovery-routing' || id === 'classification') return gate === 'brief';
+  if (id === 'channel-constraints') return gate === 'adapt';
+  if (id === 'approval-gates') return ['brief', 'article', 'review'].includes(gate);
+  return true;
+}
+async function workflowRuleContext(gate: 'brief' | 'article' | 'adapt' | 'review') { const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings?.ebWorkflowSettings; const rules = Array.isArray(settings?.rules) ? settings.rules.filter((rule: any) => rule?.enabled && text(rule?.instruction) && ruleAppliesToGate(rule, gate)) : []; if (!rules.length) return ''; return `EB WORKFLOW RULES FOR ${gate.toUpperCase()}\n${rules.map((rule: any) => `[${text(rule.enforcement).toUpperCase() || 'GUIDED'}] ${text(rule.title)}: ${text(rule.instruction)}${text(rule.advanced) && text(rule.advanced) !== '{}' ? `\nParameters: ${text(rule.advanced)}` : ''}`).join('\n\n')}`; }
 async function runGate(packageId: string, gate: 'brief' | 'article' | 'adapt' | 'review', stage: string, prompt: string, model: Required<ModelInput>, contextDocs: string[], ruleSnapshot: Record<string, unknown> = {}) {
   const startedAt = new Date().toISOString();
   const run = await tableInsert<any>('eb_v2_gate_runs', { package_id: packageId, gate, stage, status: 'running', input_snapshot: { prompt }, rule_snapshot: ruleSnapshot, model_provider: model.provider, model_id: model.modelId, started_at: startedAt });
   try {
-    const rules = await workflowRuleContext();
+    const rules = await workflowRuleContext(gate);
     const response = await generate({ provider: model.provider, modelId: model.modelId, prompt: rules ? `${rules}\n\n--- TASK ---\n${prompt}` : prompt, contextDocs, maxTokens: gate === 'article' && stage === 'draft' ? 2600 : 1400, temperature: 0.65 });
     const usage = response.usage ?? { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
     await tableUpdate('eb_v2_gate_runs', run.id, { status: 'completed', output_snapshot: { content: response.content }, input_tokens: usage.inputTokens ?? 0, cached_input_tokens: usage.cachedInputTokens ?? 0, output_tokens: usage.outputTokens ?? 0, total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0), completed_at: new Date().toISOString() });
