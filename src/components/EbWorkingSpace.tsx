@@ -1,21 +1,19 @@
 import {
   ArrowLeft,
-  AlertTriangle,
   Bell,
   Check,
-  CheckCircle2,
   ChevronDown,
   Download,
   FileText,
-  Filter,
   Grid2X2,
   Lightbulb,
   List,
   LoaderCircle,
+  MoreHorizontal,
   RefreshCw,
   RotateCcw,
-  Search,
   Send,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Upload,
@@ -285,7 +283,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             gate: task.gate,
             channel: task.channel,
             title: task.title,
-            color: colors[task.gate],
+            color:
+              task.decision === "done"
+                ? "bg-emerald-500"
+                : task.decision === "reject"
+                  ? "bg-red-500"
+                  : colors[task.gate],
           }))
           .slice(0, 20),
       }),
@@ -765,7 +768,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const filterGroups = [
     { label: "Workflow state", options: ["Brief · Gate 1", "Website article · Gate 2", "Adapt channel", "Review · Gate 3"] },
     { label: "Channel", options: ["Threads", "Facebook", "LinkedIn"] },
-    { label: "Decision", options: ["Needs review", "Done", "Re-check", "Rejected"] },
+    { label: "Decision", options: ["Needs review", "Done", "Rejected"] },
   ]
   const toggleFilter = (filter: string) =>
     setActiveFilters((current) =>
@@ -773,20 +776,17 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         ? current.filter((item) => item !== filter)
         : [...current, filter],
     )
-  const filteredTasks = tasks.filter(
-    (task) =>
-      !activeFilters.length ||
-      activeFilters.some(
-        (filter) =>
-          filter === gateConfig[task.gate].title ||
-          filter === task.pillar ||
-          filter === task.persona ||
-          filter === task.channel ||
-          (filter === "Needs review" && task.gate === "review" && !task.decision) ||
-          (filter === "Done" && task.decision === "done") ||
-          (filter === "Re-check" && task.decision === "recheck") ||
-          (filter === "Rejected" && task.decision === "reject"),
-      ),
+  const matchesFilter = (task: Task, filter: string) =>
+    filter === gateConfig[task.gate].title ||
+    filter === task.channel ||
+    (filter === "Needs review" && task.gate === "review" && !task.decision) ||
+    (filter === "Done" && task.decision === "done") ||
+    (filter === "Rejected" && task.decision === "reject")
+  const filteredTasks = tasks.filter((task) =>
+    filterGroups.every((group) => {
+      const selected = group.options.filter((option) => activeFilters.includes(option))
+      return selected.length === 0 || selected.some((filter) => matchesFilter(task, filter))
+    }),
   )
   const notices = [
     { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError ? "V2 workspace connection needs attention." : "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
@@ -826,6 +826,21 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 ? "Discovery archive"
                 : "Library Article"}
           </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setNotificationOpen(true)}
+            title="Notifications"
+            aria-label="Notifications"
+            className="relative grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+          >
+            <Bell className="h-3.5 w-3.5" />
+            {notices.filter((notice) => notice.id !== "connection" || notice.error).length > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
+                {notices.filter((notice) => notice.id !== "connection" || notice.error).length}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => void refresh()}
             disabled={syncing}
@@ -837,23 +852,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
             }`}
           >
-            <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-2.5 w-2.5 ${syncing ? "animate-spin" : ""}`} />
             {!syncing && (runtimeError ? "V2 error" : "V2 live")}
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setNotificationOpen(true)}
-            title="Notifications"
-            aria-label="Notifications"
-            className="relative grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
-          >
-            <Bell className="h-3.5 w-3.5" />
-            {notices.length > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
-                {notices.length}
-              </span>
-            )}
           </button>
         </div>
       </header>
@@ -872,7 +872,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         </div>
       )}
       {page === "board" && <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div ref={filterRef} className="relative">
             <button
               onClick={(event) => {
@@ -881,7 +881,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700"
             >
-              <Filter className="h-3.5 w-3.5" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
               Filter
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -890,7 +890,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Filter packages
                 </p>
-                {filterGroups.map((group) => <div key={group.label} className="mb-1 last:mb-0"><p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>{group.options.map((label) => <button key={label} onClick={() => toggleFilter(label)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-slate-600 hover:bg-slate-50"><span className={`filter-checkbox ${activeFilters.includes(label) ? "is-selected" : ""}`}>{activeFilters.includes(label) && <Check className="h-2.5 w-2.5" />}</span>{label}</button>)}</div>)}
+                {filterGroups.map((group) => <div key={group.label} className="mb-1 last:mb-0"><p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>{group.options.map((label) => <button key={label} onClick={() => toggleFilter(label)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left ${activeFilters.includes(label) ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}><span>{label}</span><span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} /></button>)}</div>)}
                 {activeFilters.length > 0 && (
                   <button
                     onClick={() => setActiveFilters([])}
@@ -906,7 +906,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             <button
               key={filter}
               onClick={() => toggleFilter(filter)}
-              className="hidden items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600 sm:inline-flex"
+              className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-200"
             >
               {filter}
               <X className="h-3 w-3 text-slate-400" />
@@ -1169,6 +1169,7 @@ function TaskCard({
 }) {
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
   const canRegenerate = !isWorking
+  const [actionsOpen, setActionsOpen] = useState(false)
   return (
     <article
       className={`rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs ${
@@ -1242,62 +1243,65 @@ function TaskCard({
           <>
             <button
               onClick={() => onDecision(task.id, "done")}
-              className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white"
+              title="Mark done"
+              aria-label="Mark done"
+              className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
             >
-              Done
-            </button>
-            <button
-              onClick={() => onDecision(task.id, "recheck")}
-              className="rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-600"
-            >
-              Re-check
+              <Check className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => onDecision(task.id, "reject")}
-              className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600"
+              title="Reject"
+              aria-label="Reject"
+              className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
             >
-              Reject
+              <X className="h-3.5 w-3.5" />
             </button>
           </>
         )}
-        {canRegenerate && (
-          <button
-            onClick={() => onRegenerate(task)}
-            title="Run this step again"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Regenerate
-          </button>
+        {task.gate === "review" && task.decision === "done" && (
+          <span title="Done" className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
+            <Check className="h-3.5 w-3.5" />
+          </span>
         )}
-        {task.gate !== "brief" && (
-          <button
-            onClick={() =>
-              onMove(task, task.gate === "article" ? "brief" : "article")
-            }
-            title="Move back to an earlier step"
-            className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-          >
-            {task.gate === "article" ? "Back to Brief" : "Back to Article"}
-          </button>
+        {task.gate === "review" && task.decision === "reject" && (
+          <span title="Rejected" className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600">
+            <X className="h-3.5 w-3.5" />
+          </span>
         )}
-        {task.gate === "review" && (
+        <div className="relative ml-auto">
           <button
-            onClick={() => onMove(task, "brief")}
-            className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+            onClick={() => setActionsOpen((open) => !open)}
+            title="More item actions"
+            aria-label="More item actions"
+            aria-expanded={actionsOpen}
+            className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
           >
-            Back to Brief
+            <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
-        )}
-        {task.decision && <Tag>{task.decision}</Tag>}
-        <button
-          onClick={() => onDelete(task)}
-          title="Delete item"
-          aria-label="Delete item"
-          className="ml-auto grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+          {actionsOpen && (
+            <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+              {canRegenerate && (
+                <button onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                  <RotateCcw className="h-3.5 w-3.5" /> Regenerate
+                </button>
+              )}
+              {task.gate !== "brief" && (
+                <button onClick={() => { setActionsOpen(false); onMove(task, task.gate === "article" ? "brief" : "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                  <ArrowLeft className="h-3.5 w-3.5" /> {task.gate === "article" ? "Move to Brief · Gate 1" : "Move to Article · Gate 2"}
+                </button>
+              )}
+              {task.gate === "review" && (
+                <button onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
+                </button>
+              )}
+              <button onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 hover:bg-red-50">
+                <Trash2 className="h-3.5 w-3.5" /> Delete item
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </article>
   )
