@@ -1170,6 +1170,23 @@ function TaskCard({
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
   const canRegenerate = !isWorking
   const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!actionsOpen) return
+    const closeActions = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setActionsOpen(false)
+        return
+      }
+      if (!actionsRef.current?.contains(event.target as Node)) setActionsOpen(false)
+    }
+    window.addEventListener("mousedown", closeActions)
+    window.addEventListener("keydown", closeActions)
+    return () => {
+      window.removeEventListener("mousedown", closeActions)
+      window.removeEventListener("keydown", closeActions)
+    }
+  }, [actionsOpen])
   return (
     <article
       className={`rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs ${
@@ -1269,7 +1286,7 @@ function TaskCard({
             <X className="h-3.5 w-3.5" />
           </span>
         )}
-        <div className="relative ml-auto">
+        <div ref={actionsRef} className="relative ml-auto">
           <button
             onClick={() => setActionsOpen((open) => !open)}
             title="More item actions"
@@ -1286,12 +1303,17 @@ function TaskCard({
                   <RotateCcw className="h-3.5 w-3.5" /> Regenerate
                 </button>
               )}
-              {task.gate !== "brief" && (
-                <button onClick={() => { setActionsOpen(false); onMove(task, task.gate === "article" ? "brief" : "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
-                  <ArrowLeft className="h-3.5 w-3.5" /> {task.gate === "article" ? "Move to Brief · Gate 1" : "Move to Article · Gate 2"}
+              {task.gate === "article" && (
+                <button onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
               )}
-              {task.gate === "review" && (
+              {(task.gate === "adapt" || task.gate === "review") && (
+                <button onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Article · Gate 2
+                </button>
+              )}
+              {(task.gate === "adapt" || task.gate === "review") && (
                 <button onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
