@@ -78,7 +78,15 @@ async function workspace() {
     tableSelect<any>('eb_v2_discovery_items', query => query.order('updated_at', { ascending: false })),
     tableSelect<any>('eb_v2_gate_runs', query => query.order('created_at', { ascending: false })),
   ]);
-  return { packages, articles, channels, discovery, runs };
+  return { packages, articles, channels: channels.filter(row => row.status !== 'superseded'), discovery, runs };
+}
+async function archiveOutputs(packageId: string) {
+  const outputs = await tableSelect<any>('eb_v2_channel_outputs', query => query.eq('package_id', packageId));
+  await Promise.all(outputs.filter(output => output.status !== 'superseded').map(output => tableUpdate('eb_v2_channel_outputs', output.id, { status: 'superseded', updated_at: new Date().toISOString() })));
+}
+async function archiveArticles(packageId: string) {
+  const articles = await tableSelect<any>('eb_v2_articles', query => query.eq('package_id', packageId));
+  await Promise.all(articles.filter(article => article.status !== 'superseded').map(article => tableUpdate('eb_v2_articles', article.id, { status: 'superseded', updated_at: new Date().toISOString() })));
 }
 async function repetitionModel(fallback: Required<ModelInput>) {
   const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings ?? {};
@@ -261,12 +269,12 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await one<any>('eb_v2_packages', text(req.params.id)); if (!item) return res.status(404).json({ error: 'Package not found.' });
       if (stage === 'brief') {
-        await tableDeleteWhere('eb_v2_channel_outputs', 'package_id', item.id);
-        await tableDeleteWhere('eb_v2_articles', 'package_id', item.id);
+        await archiveOutputs(item.id);
+        await archiveArticles(item.id);
         await tableUpdate('eb_v2_packages', item.id, { state: 'brief', updated_at: new Date().toISOString() });
         void (async () => { try { const input = (await tableSelect<any>('eb_v2_package_inputs', query => query.eq('package_id', item.id).order('created_at', { ascending: false }).limit(1)))[0]; await runGate(item.id, 'brief', stages.brief, `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${input?.input_text ?? item.title}`, model, await libraryContext()); } catch (error) { console.error('[eb-v2] brief regeneration failed:', error); } })();
       } else {
-        await tableDeleteWhere('eb_v2_channel_outputs', 'package_id', item.id);
+        await archiveOutputs(item.id);
         await tableUpdate('eb_v2_packages', item.id, { state: 'article', updated_at: new Date().toISOString() });
         void (async () => { try { const input = (await tableSelect<any>('eb_v2_package_inputs', query => query.eq('package_id', item.id).order('created_at', { ascending: false }).limit(1)))[0]; const briefRuns = await tableSelect<any>('eb_v2_gate_runs', query => query.eq('package_id', item.id).eq('gate', 'brief').eq('status', 'completed').order('created_at', { ascending: false }).limit(1)); const brief = briefRuns[0]?.output_snapshot?.content ?? ''; const docs = await libraryContext(); const spec = await runGate(item.id, 'article', stages.article[0], `Create an Article Spec for fab.careers from this approved brief.\nBRIEF:\n${brief}\nSOURCE:\n${input?.input_text ?? item.title}`, model, docs); const outline = await runGate(item.id, 'article', stages.article[1], `Create a structured, evidence-led outline using this Article Spec.\n${spec.content}`, model, docs); const draft = await runGate(item.id, 'article', stages.article[2], `Write the fab.careers article in Markdown from this outline. Do not invent facts.\nOUTLINE:\n${outline.content}`, model, docs); const latest = (await tableSelect<any>('eb_v2_articles', query => query.eq('package_id', item.id).order('revision', { ascending: false }).limit(1)))[0]; await tableInsert<any>('eb_v2_articles', { package_id: item.id, revision: Number(latest?.revision ?? 0) + 1, status: 'draft', article_spec: { content: spec.content }, outline: [{ content: outline.content }], body_markdown: draft.content, quality_report: {} }); } catch (error) { console.error('[eb-v2] article regeneration failed:', error); } })();
       }
@@ -278,8 +286,8 @@ export function registerEbV2Routes(app: express.Express) {
     const target = text(req.body?.target); if (!['brief', 'article'].includes(target)) return res.status(400).json({ error: 'Choose Brief or Website article as the destination.' });
     try {
       const item = await one<any>('eb_v2_packages', text(req.params.id)); if (!item) return res.status(404).json({ error: 'Package not found.' });
-      await tableDeleteWhere('eb_v2_channel_outputs', 'package_id', item.id);
-      if (target === 'brief') await tableDeleteWhere('eb_v2_articles', 'package_id', item.id);
+      await archiveOutputs(item.id);
+      if (target === 'brief') await archiveArticles(item.id);
       await tableUpdate('eb_v2_packages', item.id, { state: target, updated_at: new Date().toISOString() });
       res.json(await workspace());
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to move package.' }); }
@@ -290,8 +298,9 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const output = await one<any>('eb_v2_channel_outputs', text(req.params.id)); if (!output) return res.status(404).json({ error: 'Channel output not found.' });
       const article = output.article_id ? await one<any>('eb_v2_articles', output.article_id) : (await tableSelect<any>('eb_v2_articles', query => query.eq('package_id', output.package_id).order('revision', { ascending: false }).limit(1)))[0]; if (!article) return res.status(409).json({ error: 'No website article is available for this channel.' });
-      await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'generating', content: {}, completed_at: null, updated_at: new Date().toISOString() });
-      void (async () => { try { const result = await runGate(output.package_id, 'adapt', `${stages.adapt}:${output.channel}`, `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`, model, await libraryContext()); await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'ready_for_review', content: { text: result.content }, model_provider: model.provider, model_id: model.modelId, generated_at: new Date().toISOString() }); } catch (error) { console.error('[eb-v2] channel regeneration failed:', error); } })();
+      await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'superseded', updated_at: new Date().toISOString() });
+      const replacement = await tableInsert<any>('eb_v2_channel_outputs', { package_id: output.package_id, article_id: article.id, channel: output.channel, revision: Number(output.revision ?? 0) + 1, status: 'generating', content: {}, model_provider: model.provider, model_id: model.modelId });
+      void (async () => { try { const result = await runGate(output.package_id, 'adapt', `${stages.adapt}:${output.channel}`, `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`, model, await libraryContext()); await tableUpdate('eb_v2_channel_outputs', replacement.id, { status: 'ready_for_review', content: { text: result.content }, model_provider: model.provider, model_id: result.model, generated_at: new Date().toISOString() }); } catch (error) { await tableUpdate('eb_v2_channel_outputs', replacement.id, { status: 'failed', updated_at: new Date().toISOString() }); console.error('[eb-v2] channel regeneration failed:', error); } })();
       res.json(await workspace());
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to regenerate channel output.' }); }
   });
