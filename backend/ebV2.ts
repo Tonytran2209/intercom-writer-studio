@@ -294,6 +294,25 @@ async function reopenLatestArticle(packageId: string) {
     })
   return article
 }
+async function reserveArticleRevision(packageId: string) {
+  const latest = (
+    await tableSelect<any>("eb_v2_articles", (query) =>
+      query
+        .eq("package_id", packageId)
+        .order("revision", { ascending: false })
+        .limit(1),
+    )
+  )[0]
+  return tableInsert<any>("eb_v2_articles", {
+    package_id: packageId,
+    revision: Number(latest?.revision ?? 0) + 1,
+    status: "draft",
+    article_spec: {},
+    outline: [],
+    body_markdown: "",
+    quality_report: { generationStatus: "running" },
+  })
+}
 async function repetitionModel(fallback: Required<ModelInput>) {
   const settings =
     (await tableSelect<any>("eb_v2_app_settings", (query) => query.limit(1)))[0]
@@ -923,6 +942,8 @@ export function registerEbV2Routes(app: express.Express) {
         state: "article",
         brief_approved_at: new Date().toISOString(),
       })
+      await archiveArticles(item.id)
+      const articleRevision = await reserveArticleRevision(item.id)
       void (async () => {
         try {
           const input = (
@@ -968,16 +989,18 @@ export function registerEbV2Routes(app: express.Express) {
             model,
             [],
           )
-          await tableInsert<any>("eb_v2_articles", {
-            package_id: item.id,
-            revision: 1,
-            status: "draft",
+          await tableUpdate("eb_v2_articles", articleRevision.id, {
             article_spec: { content: spec.content },
             outline: [{ content: outline.content }],
             body_markdown: draft.content,
-            quality_report: {},
+            quality_report: { generationStatus: "completed" },
+            updated_at: new Date().toISOString(),
           })
         } catch (error) {
+          await tableUpdate("eb_v2_articles", articleRevision.id, {
+            quality_report: { generationStatus: "failed", error: error instanceof Error ? error.message : String(error) },
+            updated_at: new Date().toISOString(),
+          })
           console.error("[eb-v2] article draft failed:", error)
         }
       })()
@@ -1145,6 +1168,8 @@ export function registerEbV2Routes(app: express.Express) {
         })()
       } else {
         await archiveOutputs(item.id)
+        await archiveArticles(item.id)
+        const articleRevision = await reserveArticleRevision(item.id)
         await tableUpdate("eb_v2_packages", item.id, {
           state: "article",
           updated_at: new Date().toISOString(),
@@ -1195,24 +1220,18 @@ export function registerEbV2Routes(app: express.Express) {
               model,
               [],
             )
-            const latest = (
-              await tableSelect<any>("eb_v2_articles", (query) =>
-                query
-                  .eq("package_id", item.id)
-                  .order("revision", { ascending: false })
-                  .limit(1),
-              )
-            )[0]
-            await tableInsert<any>("eb_v2_articles", {
-              package_id: item.id,
-              revision: Number(latest?.revision ?? 0) + 1,
-              status: "draft",
+            await tableUpdate("eb_v2_articles", articleRevision.id, {
               article_spec: { content: spec.content },
               outline: [{ content: outline.content }],
               body_markdown: draft.content,
-              quality_report: {},
+              quality_report: { generationStatus: "completed" },
+              updated_at: new Date().toISOString(),
             })
           } catch (error) {
+            await tableUpdate("eb_v2_articles", articleRevision.id, {
+              quality_report: { generationStatus: "failed", error: error instanceof Error ? error.message : String(error) },
+              updated_at: new Date().toISOString(),
+            })
             console.error("[eb-v2] article regeneration failed:", error)
           }
         })()
