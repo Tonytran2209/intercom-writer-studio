@@ -3,6 +3,7 @@ import {
   Bell,
   Check,
   ChevronDown,
+  Copy,
   Download,
   FileText,
   Grid2X2,
@@ -1784,6 +1785,7 @@ function TaskDetail({
   const [activity, setActivity] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   useEffect(() => {
     if (!task || isShellMode) {
       setActivity(null)
@@ -1819,6 +1821,22 @@ function TaskDetail({
   const sources = activity?.inputs ?? []
   const runs = activity?.runs ?? []
   const actions = activity?.actions ?? []
+  const copyResult = async () => {
+    try {
+      await navigator.clipboard.writeText(output)
+    } catch {
+      const textarea = document.createElement("textarea")
+      textarea.value = output
+      textarea.style.position = "fixed"
+      textarea.style.opacity = "0"
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand("copy")
+      textarea.remove()
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
   return (
     <div
       onClick={(event) => {
@@ -1846,7 +1864,7 @@ function TaskDetail({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
           {loading ? (
             <p className="text-xs text-slate-500">
               Loading source and AI activity…
@@ -1856,7 +1874,17 @@ function TaskDetail({
           ) : (
             <>
               <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
-                <h3 className="text-xs font-bold text-slate-800">Result</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold text-slate-800">Result</h3>
+                  <button
+                    onClick={() => void copyResult()}
+                    title="Copy result as formatted Markdown"
+                    className="inline-flex select-none items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
                 <MarkdownContent value={output} />
               </section>
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
@@ -1944,6 +1972,13 @@ function TaskDetail({
           )}
         </div>
         <footer className="flex justify-end gap-2 border-t border-slate-200/80 p-3">
+          <button
+            onClick={() => void copyResult()}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy result"}
+          </button>
           <button
             onClick={() => {
               const link = document.createElement("a")
