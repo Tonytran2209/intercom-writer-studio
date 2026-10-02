@@ -253,7 +253,9 @@ async function workspace() {
   return {
     packages,
     articles,
-    channels: channels.filter((row) => row.status !== "superseded"),
+    channels: channels.filter(
+      (row) => row.status !== "superseded" && !row.content?.archived,
+    ),
     discovery,
     runs,
   }
@@ -264,10 +266,18 @@ async function archiveOutputs(packageId: string) {
   )
   await Promise.all(
     outputs
-      .filter((output) => output.status !== "superseded")
+      .filter((output) => !output.content?.archived)
       .map((output) =>
         tableUpdate("eb_v2_channel_outputs", output.id, {
-          status: "superseded",
+          // eb_v2_channel_outputs has a database check constraint and does not
+          // permit the article-only `superseded` status. Keep the old revision
+          // as a valid review state and hide it by its archival marker instead.
+          status: "rejected",
+          content: {
+            ...(output.content ?? {}),
+            archived: true,
+            archivedAt: new Date().toISOString(),
+          },
           updated_at: new Date().toISOString(),
         }),
       ),
@@ -1312,7 +1322,12 @@ export function registerEbV2Routes(app: express.Express) {
           .status(409)
           .json({ error: "No website article is available for this channel." })
       await tableUpdate("eb_v2_channel_outputs", output.id, {
-        status: "superseded",
+        status: "rejected",
+        content: {
+          ...(output.content ?? {}),
+          archived: true,
+          archivedAt: new Date().toISOString(),
+        },
         updated_at: new Date().toISOString(),
       })
       const replacement = await tableInsert<any>("eb_v2_channel_outputs", {
