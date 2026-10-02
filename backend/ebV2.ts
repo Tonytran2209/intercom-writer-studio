@@ -34,13 +34,27 @@ function ruleAppliesToGate(rule: any, gate: 'brief' | 'article' | 'adapt' | 'rev
   if (id === 'approval-gates') return ['brief', 'article', 'review'].includes(gate);
   return true;
 }
-async function workflowRuleContext(gate: 'brief' | 'article' | 'adapt' | 'review') { const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings?.ebWorkflowSettings; const rules = Array.isArray(settings?.rules) ? settings.rules.filter((rule: any) => rule?.enabled && text(rule?.instruction) && ruleAppliesToGate(rule, gate)) : []; if (!rules.length) return ''; return `EB WORKFLOW RULES FOR ${gate.toUpperCase()}\n${rules.map((rule: any) => `[${text(rule.enforcement).toUpperCase() || 'GUIDED'}] ${text(rule.title)}: ${text(rule.instruction)}${text(rule.advanced) && text(rule.advanced) !== '{}' ? `\nParameters: ${text(rule.advanced)}` : ''}`).join('\n\n')}`; }
+async function workflowRuleContext(gate: 'brief' | 'article' | 'adapt' | 'review') {
+  const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings?.ebWorkflowSettings;
+  const rules = Array.isArray(settings?.rules) ? settings.rules.filter((rule: any) => rule?.enabled && text(rule?.instruction) && ruleAppliesToGate(rule, gate)) : [];
+  const snapshot = rules.map((rule: any) => ({ id: text(rule.id), title: text(rule.title), enforcement: text(rule.enforcement) || 'guided', instruction: text(rule.instruction), advanced: text(rule.advanced) || '{}' }));
+  if (!rules.length) return { prompt: '', snapshot };
+  return { prompt: `EB WORKFLOW RULES FOR ${gate.toUpperCase()}\n${snapshot.map((rule: { enforcement: string; title: string; instruction: string; advanced: string }) => `[${rule.enforcement.toUpperCase()}] ${rule.title}: ${rule.instruction}${rule.advanced !== '{}' ? `\nParameters: ${rule.advanced}` : ''}`).join('\n\n')}`, snapshot };
+}
+function executionContract(gate: 'brief' | 'article' | 'adapt' | 'review') {
+  if (gate === 'brief') return `BRIEF OUTPUT CONTRACT\nAlways produce a usable brief; never refuse, pause, or ask the user to reply. Mark unavailable facts as N/A. Return concise Markdown only with: ## Brief summary, ## Evidence & gaps (only material gaps), ## Suggested EVP pillar, ## Suggested persona, and ## Article angle.`;
+  if (gate === 'article') return `ARTICLE OUTPUT CONTRACT\nUse the approved brief as the source of truth. Do not ask for additional input; retain unknown facts as N/A and never invent them.`;
+  if (gate === 'review') return `REVIEW OUTPUT CONTRACT\nReturn a concise evidence-based repetition assessment. Do not make a publishing decision; a human reviewer decides.`;
+  return `OUTPUT CONTRACT\nReturn only the requested, channel-ready content. Do not ask the user follow-up questions.`;
+}
 async function runGate(packageId: string, gate: 'brief' | 'article' | 'adapt' | 'review', stage: string, prompt: string, model: Required<ModelInput>, contextDocs: string[], ruleSnapshot: Record<string, unknown> = {}) {
   const startedAt = new Date().toISOString();
   const run = await tableInsert<any>('eb_v2_gate_runs', { package_id: packageId, gate, stage, status: 'running', input_snapshot: { prompt }, rule_snapshot: ruleSnapshot, model_provider: model.provider, model_id: model.modelId, started_at: startedAt });
   try {
     const rules = await workflowRuleContext(gate);
-    const response = await generate({ provider: model.provider, modelId: model.modelId, prompt: rules ? `${rules}\n\n--- TASK ---\n${prompt}` : prompt, contextDocs, maxTokens: gate === 'article' && stage === 'draft' ? 2600 : 1400, temperature: 0.65 });
+    const compiledPrompt = [rules.prompt, executionContract(gate), '--- TASK ---', prompt].filter(Boolean).join('\n\n');
+    await tableUpdate('eb_v2_gate_runs', run.id, { input_snapshot: { prompt, compiledPrompt }, rule_snapshot: { ...ruleSnapshot, rules: rules.snapshot } });
+    const response = await generate({ provider: model.provider, modelId: model.modelId, prompt: compiledPrompt, contextDocs, maxTokens: gate === 'article' && stage === 'draft' ? 2600 : 1400, temperature: 0.65 });
     const usage = response.usage ?? { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
     await tableUpdate('eb_v2_gate_runs', run.id, { status: 'completed', output_snapshot: { content: response.content }, input_tokens: usage.inputTokens ?? 0, cached_input_tokens: usage.cachedInputTokens ?? 0, output_tokens: usage.outputTokens ?? 0, total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0), completed_at: new Date().toISOString() });
     return { content: response.content, model: response.model, usage };
@@ -58,6 +72,14 @@ async function workspace() {
     tableSelect<any>('eb_v2_gate_runs', query => query.order('created_at', { ascending: false })),
   ]);
   return { packages, articles, channels, discovery, runs };
+}
+async function repetitionModel(fallback: Required<ModelInput>) {
+  const settings = (await tableSelect<any>('eb_v2_app_settings', query => query.limit(1)))[0]?.settings ?? {};
+  const runtime = settings.ebRuntimeSettings ?? {};
+  if (!runtime.enableAiRepetitionCheck) return null;
+  const configuredId = text(runtime.repetitionModelId);
+  const configured = Array.isArray(settings.models) ? settings.models.find((model: any) => model?.enabled && text(model.id) === configuredId) : null;
+  return configured ? { provider: text(configured.provider), modelId: text(configured.id) } : fallback;
 }
 
 export function registerEbV2Routes(app: express.Express) {
@@ -213,6 +235,11 @@ export function registerEbV2Routes(app: express.Express) {
             const result = await runGate(item.id, 'adapt', `${stages.adapt}:${output.channel}`, `Adapt this approved fab.careers article for ${output.channel}. Follow the relevant Channel Rules. Return only the channel-ready copy.\n\n${article.body_markdown}`, model, docs);
             await tableUpdate('eb_v2_channel_outputs', output.id, { status: 'ready_for_review', content: { text: result.content }, generated_at: new Date().toISOString() });
           }));
+          const reviewModel = await repetitionModel(model);
+          if (reviewModel) {
+            const completed = await tableSelect<any>('eb_v2_channel_outputs', query => query.eq('package_id', item.id).eq('status', 'ready_for_review'));
+            await runGate(item.id, 'review', stages.review, `Check these channel outputs against the approved article for repetition of the idea, hook, claims and format. List concrete overlaps and a short recommendation for the human reviewer.\n\nARTICLE:\n${article.body_markdown}\n\nCHANNEL OUTPUTS:\n${completed.map(output => `${output.channel}: ${output.content?.text ?? ''}`).join('\n\n')}`, reviewModel, docs);
+          }
           await tableUpdate('eb_v2_packages', item.id, { state: 'review' });
         } catch (error) { console.error('[eb-v2] channel adaptation failed:', error); }
       })();
