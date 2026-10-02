@@ -762,16 +762,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       window.removeEventListener("writer:eb-delete", removeFromSidebar)
   }, [tasks])
   const gates: Gate[] = ["brief", "article", "adapt", "review"]
-  const filterOptions = [
-    "Brief · Gate 1",
-    "Website article · Gate 2",
-    "Adapt channel",
-    "Review · Gate 3",
-    "Analytical & Clarity-driven",
-    "L&D Executive",
-    "Threads",
-    "Facebook",
-    "LinkedIn",
+  const filterGroups = [
+    { label: "Workflow state", options: ["Brief · Gate 1", "Website article · Gate 2", "Adapt channel", "Review · Gate 3"] },
+    { label: "Channel", options: ["Threads", "Facebook", "LinkedIn"] },
+    { label: "Decision", options: ["Needs review", "Done", "Re-check", "Rejected"] },
   ]
   const toggleFilter = (filter: string) =>
     setActiveFilters((current) =>
@@ -787,10 +781,16 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           filter === gateConfig[task.gate].title ||
           filter === task.pillar ||
           filter === task.persona ||
-          filter === task.channel,
+          filter === task.channel ||
+          (filter === "Needs review" && task.gate === "review" && !task.decision) ||
+          (filter === "Done" && task.decision === "done") ||
+          (filter === "Re-check" && task.decision === "recheck") ||
+          (filter === "Rejected" && task.decision === "reject"),
       ),
   )
   const notices = [
+    { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError ? "V2 workspace connection needs attention." : "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
+    { id: "article", text: `${tasks.filter((task) => task.gate === "article" && task.status === "drafting").length} website article(s) are being generated`, active: tasks.some((task) => task.gate === "article" && task.status === "drafting") },
     {
       id: "adapt",
       text: `${tasks.filter((task) => task.gate === "adapt").length} channel output(s) are running`,
@@ -830,17 +830,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             onClick={() => void refresh()}
             disabled={syncing}
             title={runtimeError || "Refresh V2 workspace"}
-            className={`hidden rounded-md px-1.5 py-0.5 text-[9px] font-medium sm:inline disabled:cursor-not-allowed ${
+            aria-label={runtimeError ? "Retry V2 connection" : "Refresh V2 workspace"}
+            className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-medium disabled:cursor-not-allowed ${
               runtimeError
                 ? "bg-red-50 text-red-600 hover:bg-red-100"
                 : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
             }`}
           >
-            {runtimeError
-              ? "V2 connection error · Retry"
-              : syncing
-                ? "Syncing V2"
-                : "V2 connected"}
+            <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
+            {!syncing && (runtimeError ? "V2 error" : "V2 live")}
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -856,28 +854,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 {notices.length}
               </span>
             )}
-          </button>
-          <button
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("writer:eb-open", { detail: "new" }),
-              )
-            }
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            New activity
-          </button>
-          <button
-            onClick={() => void refresh()}
-            disabled={syncing}
-            title="Refresh V2 workspace"
-            aria-label="Refresh V2 workspace"
-            className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
-            />
           </button>
         </div>
       </header>
@@ -895,7 +871,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           </button>
         </div>
       )}
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
+      {page === "board" && <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <div ref={filterRef} className="relative">
             <button
@@ -914,24 +890,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Filter packages
                 </p>
-                {filterOptions.map((label) => (
-                  <button
-                    key={label}
-                    onClick={() => toggleFilter(label)}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-slate-600 hover:bg-slate-50"
-                  >
-                    <span
-                      className={`filter-checkbox ${
-                        activeFilters.includes(label) ? "is-selected" : ""
-                      }`}
-                    >
-                      {activeFilters.includes(label) && (
-                        <Check className="h-2.5 w-2.5" />
-                      )}
-                    </span>
-                    {label}
-                  </button>
-                ))}
+                {filterGroups.map((group) => <div key={group.label} className="mb-1 last:mb-0"><p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>{group.options.map((label) => <button key={label} onClick={() => toggleFilter(label)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-slate-600 hover:bg-slate-50"><span className={`filter-checkbox ${activeFilters.includes(label) ? "is-selected" : ""}`}>{activeFilters.includes(label) && <Check className="h-2.5 w-2.5" />}</span>{label}</button>)}</div>)}
                 {activeFilters.length > 0 && (
                   <button
                     onClick={() => setActiveFilters([])}
@@ -953,15 +912,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               <X className="h-3 w-3 text-slate-400" />
             </button>
           ))}
-          <span
-            className={`hidden rounded-md px-2 py-1 text-[10px] lg:inline ${
-              isShellMode
-                ? "bg-slate-100 text-slate-500"
-                : "bg-emerald-50 text-emerald-600"
-            }`}
-          >
-            {isShellMode ? "Shell mode · simulated" : "V2 data · live"}
-          </span>
         </div>
         <div className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
           <button
@@ -981,7 +931,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             <Grid2X2 className="h-3.5 w-3.5" />
           </button>
         </div>
-      </div>
+      </div>}
       <>
         {page === "board" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -1087,7 +1037,7 @@ function NotificationPanel({
               Notification center
             </p>
             <p className="mt-1 text-[10px] text-slate-500">
-              Live updates from the EB workspace
+              Connection, workflow, AI runs and saved-data status
             </p>
           </div>
           <button
