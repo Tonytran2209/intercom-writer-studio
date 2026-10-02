@@ -58,9 +58,12 @@ async function runGate(packageId: string, gate: 'brief' | 'article' | 'adapt' | 
     // A provider can occasionally report token usage while returning an empty text
     // segment. Never persist that as a successfully generated channel output.
     if (!text(response.content)) response = await generate({ provider: model.provider, modelId: model.modelId, prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`, contextDocs, maxTokens: gate === 'article' && stage === 'draft' ? 2600 : 1400, temperature: 0.45 });
-    if (!text(response.content)) throw new Error(`${gate}/${stage} completed without returned text; the provider response was empty after one retry.`);
+    if (!text(response.content) && model.provider === 'openai' && model.modelId !== 'gpt-5.4-mini') {
+      response = await generate({ provider: 'openai', modelId: 'gpt-5.4-mini', prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`, contextDocs, maxTokens: gate === 'article' && stage === 'draft' ? 2600 : 1400, temperature: 0.45 });
+    }
+    if (!text(response.content)) throw new Error(`${gate}/${stage} completed without returned text after retry and fallback.`);
     const usage = response.usage ?? { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
-    await tableUpdate('eb_v2_gate_runs', run.id, { status: 'completed', output_snapshot: { content: response.content }, input_tokens: usage.inputTokens ?? 0, cached_input_tokens: usage.cachedInputTokens ?? 0, output_tokens: usage.outputTokens ?? 0, total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0), completed_at: new Date().toISOString() });
+    await tableUpdate('eb_v2_gate_runs', run.id, { status: 'completed', output_snapshot: { content: response.content }, model_id: response.model, input_tokens: usage.inputTokens ?? 0, cached_input_tokens: usage.cachedInputTokens ?? 0, output_tokens: usage.outputTokens ?? 0, total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0), completed_at: new Date().toISOString() });
     return { content: response.content, model: response.model, usage };
   } catch (error) {
     await tableUpdate('eb_v2_gate_runs', run.id, { status: 'failed', error_message: error instanceof Error ? error.message : String(error), completed_at: new Date().toISOString() });
