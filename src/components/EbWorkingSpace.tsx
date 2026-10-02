@@ -890,7 +890,19 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Filter packages
                 </p>
-                {filterGroups.map((group) => <div key={group.label} className="mb-1 last:mb-0"><p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>{group.options.map((label) => <button key={label} onClick={() => toggleFilter(label)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left ${activeFilters.includes(label) ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}><span>{label}</span><span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} /></button>)}</div>)}
+                {filterGroups.map((group) => (
+                  <div key={group.label} className="mb-2 last:mb-0">
+                    <p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+                    <div className="space-y-1">
+                      {group.options.map((label) => (
+                        <button key={label} onClick={() => toggleFilter(label)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left ${activeFilters.includes(label) ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}>
+                          <span>{label}</span>
+                          <span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
                 {activeFilters.length > 0 && (
                   <button
                     onClick={() => setActiveFilters([])}
