@@ -1900,7 +1900,7 @@ function TaskDetail({
       setActivity(
         await db.fetchEbV2Activity(
           task.id,
-          "package",
+          task.gate === "adapt" || task.gate === "review" ? "channel" : "package",
         ),
       )
     } catch (reason) {
