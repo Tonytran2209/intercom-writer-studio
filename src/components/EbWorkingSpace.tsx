@@ -1021,6 +1021,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             })()}
             onWorkspaceChange={(data) => setTasks(workspaceTasks(data))}
             onDecision={decide}
+            onRegenerate={regenerate}
             onClose={() => setSelectedId(null)}
           />
         )}
@@ -1800,12 +1801,14 @@ function TaskDetail({
   model,
   onWorkspaceChange,
   onDecision,
+  onRegenerate,
   onClose,
 }: {
   task: Task | null
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
   onDecision: (id: string, decision: Exclude<Decision, null>) => void
+  onRegenerate: (task: Task) => void
   onClose: () => void
 }) {
   const [activity, setActivity] = useState<any>(null)
@@ -1987,36 +1990,75 @@ function TaskDetail({
           ) : (
             <>
               {task.channels && (
-                <section className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2">
-                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                    Final review channels
-                  </p>
-                  <div className="mt-2 grid grid-cols-3 gap-1">
+                <section className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        Final review by channel
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        Select one output, then all actions below apply only to that channel.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-emerald-700">
+                      {task.channels.filter((channel) => !channel.decision).length} pending
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {task.channels.map((channel) => (
                       <button
                         key={channel.id}
                         onClick={() => setSelectedChannelId(channel.id)}
-                        className={`rounded-lg px-2 py-1.5 text-[10px] font-semibold ${activeChannelId === channel.id ? "bg-emerald-600 text-white" : "bg-white text-slate-600 hover:bg-emerald-50"}`}
+                        className={`rounded-lg border p-2 text-left transition-colors ${activeChannelId === channel.id ? "border-emerald-600 bg-emerald-600 text-white shadow-sm" : "border-white bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"}`}
                       >
-                        {channel.channel}
-                        {channel.decision === "done" ? " · Done" : channel.decision === "reject" ? " · Rejected" : ""}
+                        <span className="block text-[11px] font-bold">{channel.channel}</span>
+                        <span className={`mt-1 block text-[9px] font-medium ${activeChannelId === channel.id ? "text-emerald-50" : channel.decision === "done" ? "text-emerald-700" : channel.decision === "reject" ? "text-red-600" : "text-amber-600"}`}>
+                          {channel.decision === "done" ? "Approved" : channel.decision === "reject" ? "Rejected" : channel.decision === "recheck" ? "Needs recheck" : "Awaiting decision"}
+                        </span>
                       </button>
                     ))}
                   </div>
                   {activeChannelId && (
-                    <div className="mt-2 flex justify-end gap-1">
+                    <div className="mt-3 rounded-lg border border-emerald-100 bg-white p-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-800">
+                            Reviewing {task.channels.find((channel) => channel.id === activeChannelId)?.channel}
+                          </p>
+                          <p className="mt-0.5 text-[9px] text-slate-500">
+                            These actions affect this channel only.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <button
+                            onClick={() => onDecision(activeChannelId, "recheck")}
+                            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+                          >
+                            Send to recheck
+                          </button>
+                          <button
+                            onClick={() => onRegenerate({ ...task, id: activeChannelId, channel: task.channels?.find((channel) => channel.id === activeChannelId)?.channel, channels: undefined })}
+                            disabled={!model}
+                            className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap justify-end gap-1.5 border-t border-slate-100 pt-2">
                       <button
                         onClick={() => onDecision(activeChannelId, "done")}
                         className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700"
                       >
-                        Mark done
+                        Mark {task.channels.find((channel) => channel.id === activeChannelId)?.channel} done
                       </button>
                       <button
                         onClick={() => onDecision(activeChannelId, "reject")}
                         className="rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100"
                       >
-                        Reject
+                        Reject {task.channels.find((channel) => channel.id === activeChannelId)?.channel}
                       </button>
+                      </div>
                     </div>
                   )}
                 </section>
