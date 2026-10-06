@@ -178,6 +178,11 @@ export async function reviewEbV2Channel(id: string, action: "done" | "reject" | 
 export async function regenerateEbV2Package(id: string, stage: "brief" | "article", model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { stage, model }), ebV2Origin()) }
 export async function moveEbV2Package(id: string, target: "brief" | "article") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/move`, jsonRequest("POST", { target }), ebV2Origin()) }
 export async function regenerateEbV2Channel(id: string, model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { model }), ebV2Origin()) }
+export async function createEbV2Feedback(input: { itemId: string; kind: "article" | "channel"; message: string; model: { provider: string; id: string } }) { return railwayRequest<any>("/api/eb-v2/feedback", jsonRequest("POST", input), ebV2Origin()) }
+export async function acceptEbV2Feedback(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/feedback/${encodeURIComponent(id)}/accept`, { method: "POST" }, ebV2Origin()) }
+export async function fetchEbV2LearningSignals() { return railwayRequest<{ signals: any[] }>("/api/eb-v2/learning-signals", undefined, ebV2Origin()) }
+export async function updateEbV2LearningSignal(id: string, input: { active?: boolean; instruction?: string }) { return railwayRequest<{ signal: any }>(`/api/eb-v2/learning-signals/${encodeURIComponent(id)}`, jsonRequest("PATCH", input), ebV2Origin()) }
+export async function deleteEbV2LearningSignal(id: string) { await railwayRequest(`/api/eb-v2/learning-signals/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 export async function deleteEbV2Package(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 export async function deleteEbV2ChannelOutput(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 

@@ -20,6 +20,9 @@ import {
   startWebsiteInventoryBatch,
   updateWebsiteInventoryRecord,
   fetchEbV2LibraryDocuments,
+  deleteEbV2LearningSignal,
+  fetchEbV2LearningSignals,
+  updateEbV2LearningSignal,
 } from "../../lib/db"
 import { isLegacyActionPlan } from "../../lib/legacyCompatibility"
 
@@ -149,7 +152,7 @@ export default function TabKnowledgeBase({
       </div>
 
       {activeSubTab === "rules" ? (
-        <EbWorkflowRulesPanel config={config} onChange={onConfigChange} onPersist={onConfigPersist} />
+        <><EbWorkflowRulesPanel config={config} onChange={onConfigChange} onPersist={onConfigPersist} /><EditorialLearningsPanel /></>
       ) : activeSubTab === "website" ? (
         <WebsiteInventoryPanel
           records={config.websiteInventory ?? []}
@@ -227,6 +230,38 @@ function EbWorkflowRulesPanel({ config, onChange, onPersist }: { config: AppConf
   const persistSelected = async () => { if (!onPersist || saving) return; setSaving(true); setSaved(false); try { await onPersist(config); setSaved(true); window.setTimeout(() => setSaved(false), 1800) } finally { setSaving(false) } }
   const promptPreview = settings.rules.filter(rule => rule.enabled).map(rule => `[${rule.enforcement.toUpperCase()}] ${rule.title}: ${rule.instruction}`).join("\n\n")
   return <div className="space-y-4"><section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-bold text-slate-800">F.Learning EB Article Writer</h2><p className="mt-1 text-xs leading-5 text-slate-500">Rules are versioned in App Config. Strict rules are intended for the system prompt; guided rules become task guidance.</p></section><div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]"><nav className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-3 py-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rules</span><button onClick={add} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Add workflow rule" aria-label="Add workflow rule"><Plus className="h-3.5 w-3.5"/></button></div>{settings.rules.map(rule => <button key={rule.id} onClick={() => setSelectedId(rule.id)} className={`flex w-full items-center gap-2 border-b border-slate-200 px-3 py-2.5 text-left last:border-b-0 ${selected?.id === rule.id ? "bg-slate-100" : "hover:bg-slate-50"}`}><span className={`h-2 w-2 rounded-full ${rule.enabled ? "bg-emerald-500" : "bg-slate-300"}`}/><span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{rule.title}</span></button>)}</nav>{selected && <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={selected.enabled} onChange={event => update(selected.id, { enabled: event.target.checked })}/>{selected.enabled ? "Enabled" : "Disabled"}</label><div className="flex items-center gap-1"><button onClick={() => void persistSelected()} disabled={!onPersist || saving} title={saved ? "Saved" : "Save rule"} aria-label={saved ? "Saved" : "Save rule"} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40">{saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin"/> : saved ? <Check className="h-3.5 w-3.5 text-emerald-600"/> : <Save className="h-3.5 w-3.5"/>}</button><button onClick={() => remove(selected.id)} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete rule" aria-label="Delete rule"><Trash2 className="h-3.5 w-3.5"/></button></div></div><label className="mt-4 block text-xs font-semibold text-slate-700">Rule name<input value={selected.title} onChange={event => update(selected.id, { title: event.target.value })} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 px-2.5 text-xs"/></label><label className="mt-3 block text-xs font-semibold text-slate-700">Enforcement<select value={selected.enforcement} onChange={event => update(selected.id, { enforcement: event.target.value as EbWorkflowRule["enforcement"] })} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs"><option value="strict">Strict · system prompt</option><option value="guided">Guided · task guidance</option></select></label><label className="mt-3 block text-xs font-semibold text-slate-700">Instruction<textarea rows={5} value={selected.instruction} onChange={event => updateInstruction(event.target.value)} className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 text-xs leading-5"/></label><details className="mt-3 rounded-lg border border-slate-200"><summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">Advanced parameters</summary><label className="block border-t border-slate-200 p-3 text-[10px] text-slate-500">JSON parameters<span className="mt-1 block text-[9px] leading-4 text-slate-400">Structured runtime constraints. Recognized Threads limits in Instruction sync here automatically; edit JSON for any additional controls.</span><textarea rows={4} value={selected.advanced} onChange={event => update(selected.id, { advanced: event.target.value })} className="mt-1.5 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono text-[10px] text-slate-700"/></label></details></section>}</div><details className="overflow-hidden rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-slate-700">Prompt preview & log</summary><div className="border-t border-slate-200 p-4"><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-[10px] leading-5 text-slate-600">{promptPreview || "No enabled workflow rules."}</pre><p className="mt-3 text-[10px] text-slate-400">{settings.promptLog.length ? `${settings.promptLog.length} stored prompt log entries.` : "No prompt run logged yet in shell mode. Runtime V2 will append a snapshot when each gate starts."}</p></div></details></div>
+}
+
+function EditorialLearningsPanel() {
+  const [signals, setSignals] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState("")
+  const load = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await fetchEbV2LearningSignals()
+      setSignals(Array.isArray(result.signals) ? result.signals : [])
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load editorial learnings.")
+    } finally { setLoading(false) }
+  }
+  useEffect(() => { void load() }, [])
+  const save = async (id: string, patch: { active?: boolean; instruction?: string }) => {
+    try {
+      const { signal } = await updateEbV2LearningSignal(id, patch)
+      setSignals(current => current.map(item => item.id === id ? signal : item))
+      setEditing(null)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to update editorial learning.") }
+  }
+  const remove = async (id: string) => {
+    if (!window.confirm("Delete this editorial learning? It will no longer be used in future prompts.")) return
+    try { await deleteEbV2LearningSignal(id); setSignals(current => current.filter(item => item.id !== id)) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to delete editorial learning.") }
+  }
+  return <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-xs font-bold text-slate-800">Editorial learnings</h2><p className="mt-1 text-xs leading-5 text-slate-500">Only feedback revisions explicitly accepted in a package appear here. Active learnings are used as short guidance for relevant future article or channel runs.</p></div><button onClick={() => void load()} title="Refresh editorial learnings" className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-100"><RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/></button></div>{error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[10px] text-red-700">{error}</p>}<div className="mt-3 space-y-2">{!loading && !signals.length && <p className="rounded-lg bg-slate-50 px-3 py-3 text-[10px] text-slate-500">No accepted feedback revisions yet.</p>}{signals.map(signal => <div key={signal.id} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{signal.gate}{signal.channel ? ` · ${signal.channel}` : ""}</span><div className="flex items-center gap-1"><button onClick={() => void save(signal.id, { active: !signal.active })} className={`rounded-md px-2 py-1 text-[9px] font-semibold ${signal.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{signal.active ? "Active" : "Disabled"}</button><button onClick={() => { setEditing(signal.id); setDraft(signal.instruction) }} className="rounded-md px-2 py-1 text-[9px] font-semibold text-slate-500 hover:bg-slate-100">Edit</button><button onClick={() => void remove(signal.id)} title="Delete learning" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3 w-3"/></button></div></div>{editing === signal.id ? <div className="mt-2"><textarea value={draft} onChange={event => setDraft(event.target.value)} rows={3} className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[10px] text-slate-700"/><div className="mt-2 flex justify-end gap-1"><button onClick={() => setEditing(null)} className="rounded-md px-2 py-1 text-[9px] font-semibold text-slate-500">Cancel</button><button onClick={() => void save(signal.id, { instruction: draft })} disabled={!draft.trim()} className="rounded-md bg-indigo-600 px-2 py-1 text-[9px] font-semibold text-white disabled:opacity-40">Save</button></div></div> : <p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{signal.instruction}</p>}</div>)}</div></section>
 }
 
 function LegacyActionPlanArchive({ files }: { files: DocumentFile[] }) {

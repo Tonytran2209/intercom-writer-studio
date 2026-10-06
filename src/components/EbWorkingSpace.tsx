@@ -95,7 +95,8 @@ function workspaceTasks(
 ): Task[] {
   const packageRows = Array.isArray(data?.packages) ? data.packages : []
   const articleRows = (Array.isArray(data?.articles) ? data.articles : []).filter(
-    (article: any) => article.status !== "superseded",
+    (article: any) =>
+      article.status !== "superseded" && !article.quality_report?.feedbackPending,
   )
   const channelRows = Array.isArray(data?.channels) ? data.channels : []
   const runRows = Array.isArray((data as any)?.runs) ? (data as any).runs : []
@@ -1006,6 +1007,17 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {selectedId && (
           <TaskDetail
             task={tasks.find((task) => task.id === selectedId) ?? null}
+            model={(() => {
+              const task = tasks.find((item) => item.id === selectedId)
+              if (!task) return null
+              const model = selectedModel(
+                config,
+                task.gate === "article" ? 2 : 4,
+                task.gate === "review" ? config.ebRuntimeSettings?.adaptModelId : undefined,
+              )
+              return model ? { provider: model.provider, id: model.id } : null
+            })()}
+            onWorkspaceChange={(data) => setTasks(workspaceTasks(data))}
             onClose={() => setSelectedId(null)}
           />
         )}
@@ -1777,15 +1789,23 @@ function MarkdownContent({ value }: { value: string }) {
 }
 function TaskDetail({
   task,
+  model,
+  onWorkspaceChange,
   onClose,
 }: {
   task: Task | null
+  model: { provider: string; id: string } | null
+  onWorkspaceChange: (data: db.EbV2Workspace) => void
   onClose: () => void
 }) {
   const [activity, setActivity] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [feedback, setFeedback] = useState("")
+  const [feedbackSending, setFeedbackSending] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
   useEffect(() => {
     if (!task || isShellMode) {
       setActivity(null)
@@ -1806,6 +1826,22 @@ function TaskDetail({
       )
       .finally(() => setLoading(false))
   }, [task?.id, task?.gate])
+  const hasPendingFeedback = Array.isArray(activity?.feedback) && activity.feedback.some(
+    (item: any) => item.status === "queued" || item.status === "running",
+  )
+  useEffect(() => {
+    if (!task || isShellMode || !hasPendingFeedback) return
+    const timer = window.setTimeout(() => {
+      void db
+        .fetchEbV2Activity(
+          task.id,
+          task.gate === "adapt" || task.gate === "review" ? "channel" : "package",
+        )
+        .then(setActivity)
+        .catch(() => undefined)
+    }, 1600)
+    return () => window.clearTimeout(timer)
+  }, [task?.id, task?.gate, hasPendingFeedback])
   if (!task) return null
   const selectedOutput =
     activity?.selectedChannel ??
@@ -1813,7 +1849,12 @@ function TaskDetail({
   const latestRun = activity?.runs?.[0]
   const output =
     selectedOutput?.content?.text ??
-    (task.gate === "article" ? activity?.articles?.[0]?.body_markdown : null) ??
+    (task.gate === "article"
+      ? activity?.articles?.find(
+          (article: any) =>
+            !article?.quality_report?.feedbackPending && article?.body_markdown,
+        )?.body_markdown
+      : null) ??
     latestRun?.output_snapshot?.content ??
     (isShellMode
       ? "Shell-mode simulation: no persistent source or AI activity exists for this item."
@@ -1821,6 +1862,12 @@ function TaskDetail({
   const sources = activity?.inputs ?? []
   const runs = activity?.runs ?? []
   const actions = activity?.actions ?? []
+  const feedbackThread = (activity?.feedback ?? []).filter((item: any) =>
+    task.gate === "article"
+      ? item.gate === "article"
+      : item.gate === "review" && item.channel_output_id === task.id,
+  )
+  const feedbackEnabled = task.gate === "article" || task.gate === "review"
   const copyResult = async () => {
     try {
       await navigator.clipboard.writeText(output)
@@ -1836,6 +1883,56 @@ function TaskDetail({
     }
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1800)
+  }
+  const submitFeedback = async () => {
+    const message = feedback.trim()
+    if (!message || !model) return
+    setFeedbackSending(true)
+    setFeedbackError(null)
+    try {
+      await db.createEbV2Feedback({
+        itemId: task.id,
+        kind: task.gate === "article" ? "article" : "channel",
+        message,
+        model,
+      })
+      setFeedback("")
+      setActivity(
+        await db.fetchEbV2Activity(
+          task.id,
+          "package",
+        ),
+      )
+    } catch (reason) {
+      setFeedbackError(
+        reason instanceof Error ? reason.message : "Unable to submit feedback.",
+      )
+    } finally {
+      setFeedbackSending(false)
+    }
+  }
+  const acceptFeedback = async (id: string) => {
+    setAcceptingFeedbackId(id)
+    setFeedbackError(null)
+    try {
+      onWorkspaceChange(await db.acceptEbV2Feedback(id))
+      if (task.gate === "review") {
+        onClose()
+        return
+      }
+      setActivity(
+        await db.fetchEbV2Activity(
+          task.id,
+          "package",
+        ),
+      )
+    } catch (reason) {
+      setFeedbackError(
+        reason instanceof Error ? reason.message : "Unable to use this revision.",
+      )
+    } finally {
+      setAcceptingFeedbackId(null)
+    }
   }
   return (
     <div
@@ -1887,6 +1984,45 @@ function TaskDetail({
                 </div>
                 <MarkdownContent value={output} />
               </section>
+              {feedbackEnabled && (
+                <section className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/30 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-800">Refine with AI</h3>
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Your request and each AI revision are saved to this item.
+                      </p>
+                    </div>
+                    {hasPendingFeedback && <LoaderCircle className="h-3.5 w-3.5 animate-spin text-indigo-600" />}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {feedbackThread.map((entry: any) => (
+                      <div key={entry.id} className={`max-w-[92%] rounded-xl px-3 py-2 text-[11px] leading-relaxed ${entry.role === "user" ? "ml-auto bg-indigo-600 text-white" : entry.status === "failed" ? "border border-red-100 bg-red-50 text-red-700" : "bg-white text-slate-700 shadow-2xs"}`}>
+                        {entry.role === "assistant" && <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">AI revision {entry.status === "running" ? "· generating" : ""}</p>}
+                        {entry.status === "running" ? <span className="inline-flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3 w-3 animate-spin" /> Writing revision…</span> : entry.status === "failed" ? <span>{entry.error_message || "The revision could not be generated."}</span> : <div className="whitespace-pre-wrap">{entry.message_markdown}</div>}
+                        {entry.role === "assistant" && entry.status === "completed" && (
+                          <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[9px] text-slate-400">
+                            <span>{entry.model_provider}/{entry.model_id} · {entry.total_tokens ?? 0} tokens</span>
+                            <button onClick={() => void acceptFeedback(entry.id)} disabled={acceptingFeedbackId === entry.id} className="rounded-md bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                              {acceptingFeedbackId === entry.id ? "Using…" : "Use this version"}
+                            </button>
+                          </div>
+                        )}
+                        {entry.status === "accepted" && <p className="mt-2 text-[9px] font-semibold text-emerald-600">Accepted as the active revision and editorial learning.</p>}
+                      </div>
+                    ))}
+                    {!feedbackThread.length && <p className="rounded-lg border border-dashed border-indigo-100 bg-white/70 px-2.5 py-2 text-[10px] text-slate-500">Request a focused rewrite. The current version remains unchanged until you choose a new revision.</p>}
+                  </div>
+                  <div className="mt-3 flex items-end gap-2">
+                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 text-[11px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
+                    <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
+                      {feedbackSending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  {!model && <p className="mt-2 text-[10px] text-amber-700">Configure the Gate AI model in Workflow AI to use feedback.</p>}
+                  {feedbackError && <p className="mt-2 text-[10px] text-red-600">{feedbackError}</p>}
+                </section>
+              )}
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
                 <h3 className="text-xs font-bold text-slate-800">
                   Source & evidence

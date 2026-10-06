@@ -118,6 +118,27 @@ async function workflowRuleContext(
     snapshot,
   }
 }
+async function learningContext(
+  gate: "brief" | "article" | "adapt" | "review",
+  channel?: string,
+) {
+  const learningGate = gate === "adapt" ? "review" : gate
+  if (!(["article", "review"] as string[]).includes(learningGate)) return ""
+  // The feedback migration may be deployed independently of the application.
+  // Existing content generation must keep working until it is available.
+  if (!(await tableAvailable("eb_v2_learning_signals"))) return ""
+  const signals = await tableSelect<any>("eb_v2_learning_signals", (query) =>
+    query.eq("active", true).eq("gate", learningGate).order("created_at", { ascending: false }).limit(12),
+  )
+  const applicable = signals
+    .filter((signal) => !signal.channel || !channel || signal.channel === channel)
+    .slice(0, 4)
+    .map((signal) => text(signal.instruction))
+    .filter(Boolean)
+  return applicable.length
+    ? `APPROVED EDITORIAL LEARNINGS\n${applicable.map((instruction, index) => `${index + 1}. ${instruction}`).join("\n")}`
+    : ""
+}
 function executionContract(gate: "brief" | "article" | "adapt" | "review") {
   if (gate === "brief")
     return `BRIEF OUTPUT CONTRACT\nAlways produce a usable brief; never refuse, pause, or ask the user to reply. Mark unavailable facts as N/A. Return concise Markdown only with: ## Brief summary, ## Evidence & gaps (only material gaps), ## Suggested EVP pillar, ## Suggested persona, and ## Article angle.`
@@ -157,9 +178,13 @@ async function runGate(
     started_at: startedAt,
   })
   try {
-    const rules = await workflowRuleContext(gate)
+    const [rules, learnings] = await Promise.all([
+      workflowRuleContext(gate),
+      learningContext(gate, stage.split(":")[1]),
+    ])
     const compiledPrompt = [
       rules.prompt,
+      learnings,
       executionContract(gate),
       "--- TASK ---",
       prompt,
@@ -175,7 +200,7 @@ async function runGate(
       modelId: model.modelId,
       prompt: compiledPrompt,
       contextDocs,
-      maxTokens: gate === "article" && stage === "draft" ? 2600 : 1400,
+      maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
       temperature: 0.65,
     })
     // A provider can occasionally report token usage while returning an empty text
@@ -186,7 +211,7 @@ async function runGate(
         modelId: model.modelId,
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
         contextDocs,
-        maxTokens: gate === "article" && stage === "draft" ? 2600 : 1400,
+        maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
         temperature: 0.45,
       })
     if (
@@ -199,7 +224,7 @@ async function runGate(
         modelId: "gpt-5.4-mini",
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
         contextDocs,
-        maxTokens: gate === "article" && stage === "draft" ? 2600 : 1400,
+        maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
         temperature: 0.45,
       })
     }
@@ -252,7 +277,7 @@ async function workspace() {
   ])
   return {
     packages,
-    articles,
+    articles: articles.filter((row) => !row.quality_report?.feedbackPending),
     channels: channels.filter(
       (row) => row.status !== "superseded" && !row.content?.archived,
     ),
@@ -627,6 +652,11 @@ export function registerEbV2Routes(app: express.Express) {
           query.order("created_at", { ascending: false }),
         )
       ).filter((row) => ids.has(row.channel_output_id))
+      const feedback = (await tableAvailable("eb_v2_feedback_threads"))
+        ? await tableSelect<any>("eb_v2_feedback_threads", (query) =>
+            query.eq("package_id", packageId).order("created_at", { ascending: true }),
+          )
+        : []
       res.json({
         package: item,
         selectedChannel: channel,
@@ -636,6 +666,7 @@ export function registerEbV2Routes(app: express.Express) {
         channels,
         discoveries,
         actions,
+        feedback,
       })
     } catch (error) {
       res
@@ -646,6 +677,205 @@ export function registerEbV2Routes(app: express.Express) {
               ? error.message
               : "Unable to load package activity.",
         })
+    }
+  })
+
+  app.post("/api/eb-v2/feedback", async (req: AuthRequest, res) => {
+    const itemId = text(req.body?.itemId)
+    const kind = text(req.body?.kind)
+    const message = text(req.body?.message)
+    const model = modelFrom(req.body)
+    if (!itemId || !["article", "channel"].includes(kind) || !message)
+      return res.status(400).json({ error: "Choose an item and enter feedback." })
+    if (!model)
+      return res.status(400).json({ error: "Choose a configured AI model before refining." })
+    if (!(await tableAvailable("eb_v2_feedback_threads")))
+      return res.status(409).json({ error: "Feedback storage is not ready. Apply migration 009_eb_v2_feedback_learning.sql first." })
+    try {
+      let article = kind === "article" ? await one<any>("eb_v2_articles", itemId) : null
+      // Workspace Gate 2 cards are keyed by package id, while the article itself
+      // has a separate revision id. Accept either identifier without forcing the
+      // client to guess which revision is active.
+      if (!article && kind === "article")
+        article = (
+          await tableSelect<any>("eb_v2_articles", (query) =>
+            query.eq("package_id", itemId).order("revision", { ascending: false }),
+          )
+        ).find((candidate) => !candidate.quality_report?.feedbackPending && text(candidate.body_markdown)) ?? null
+      const channel = kind === "channel" ? await one<any>("eb_v2_channel_outputs", itemId) : null
+      const packageId = article?.package_id ?? channel?.package_id
+      if (!packageId)
+        return res.status(404).json({ error: "The item to refine was not found." })
+      const gate = kind === "article" ? "article" : "review"
+      const userRequest = await tableInsert<any>("eb_v2_feedback_threads", {
+        package_id: packageId,
+        article_id: article?.id ?? channel?.article_id ?? null,
+        channel_output_id: channel?.id ?? null,
+        gate,
+        channel: channel?.channel ?? null,
+        role: "user",
+        message_markdown: message,
+        status: "completed",
+        model_provider: model.provider,
+        model_id: model.modelId,
+      })
+      const assistantResponse = await tableInsert<any>("eb_v2_feedback_threads", {
+        package_id: packageId,
+        article_id: article?.id ?? channel?.article_id ?? null,
+        channel_output_id: channel?.id ?? null,
+        parent_feedback_id: userRequest.id,
+        gate,
+        channel: channel?.channel ?? null,
+        role: "assistant",
+        status: "running",
+        model_provider: model.provider,
+        model_id: model.modelId,
+      })
+      void (async () => {
+        try {
+          if (article) {
+            const staged = await reserveArticleRevision(packageId)
+            await tableUpdate("eb_v2_articles", staged.id, {
+              quality_report: { generationStatus: "feedback-running", feedbackPending: true, parentArticleId: article.id },
+            })
+            const result = await runGate(
+              packageId,
+              "article",
+              "feedback",
+              `Revise the website article below according to the editor feedback. Return the complete replacement article in Markdown only. Preserve supported facts; do not add process notes.\n\nCURRENT ARTICLE:\n${article.body_markdown}\n\nEDITOR FEEDBACK:\n${message}`,
+              model,
+              [],
+              { feedbackRequestId: userRequest.id, parentArticleId: article.id },
+            )
+            await tableUpdate("eb_v2_articles", staged.id, {
+              body_markdown: result.content,
+              quality_report: { generationStatus: "feedback-ready", feedbackPending: true, parentArticleId: article.id },
+            })
+            await tableUpdate("eb_v2_feedback_threads", assistantResponse.id, {
+              status: "completed",
+              message_markdown: result.content,
+              result_article_id: staged.id,
+              model_id: result.model,
+              input_tokens: result.usage.inputTokens ?? 0,
+              output_tokens: result.usage.outputTokens ?? 0,
+              total_tokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
+            })
+          } else if (channel) {
+            const articleForChannel = channel.article_id
+              ? await one<any>("eb_v2_articles", channel.article_id)
+              : null
+            const revisions = await tableSelect<any>("eb_v2_channel_outputs", (query) =>
+              query.eq("package_id", packageId).eq("channel", channel.channel).order("revision", { ascending: false }).limit(1),
+            )
+            const staged = await tableInsert<any>("eb_v2_channel_outputs", {
+              package_id: packageId,
+              article_id: channel.article_id,
+              channel: channel.channel,
+              revision: Number(revisions[0]?.revision ?? 0) + 1,
+              status: "ready_for_review",
+              content: { archived: true, feedbackPending: true },
+              model_provider: model.provider,
+              model_id: model.modelId,
+            })
+            const result = await runGate(
+              packageId,
+              "adapt",
+              `feedback:${channel.channel}`,
+              `Revise this ${channel.channel} channel output according to the editor feedback. Return the complete replacement channel-ready output only. Follow all channel requirements and preserve supported facts.\n\nAPPROVED ARTICLE:\n${articleForChannel?.body_markdown ?? ""}\n\nCURRENT CHANNEL OUTPUT:\n${channel.content?.text ?? ""}\n\nEDITOR FEEDBACK:\n${message}`,
+              model,
+              await libraryContext(["channel-rules"]),
+              { feedbackRequestId: userRequest.id, parentChannelOutputId: channel.id },
+            )
+            await tableUpdate("eb_v2_channel_outputs", staged.id, {
+              content: { text: result.content, archived: true, feedbackPending: true, parentChannelOutputId: channel.id },
+              generated_at: new Date().toISOString(),
+            })
+            await tableUpdate("eb_v2_feedback_threads", assistantResponse.id, {
+              status: "completed",
+              message_markdown: result.content,
+              result_channel_output_id: staged.id,
+              model_id: result.model,
+              input_tokens: result.usage.inputTokens ?? 0,
+              output_tokens: result.usage.outputTokens ?? 0,
+              total_tokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
+            })
+          }
+        } catch (error) {
+          await tableUpdate("eb_v2_feedback_threads", assistantResponse.id, {
+            status: "failed",
+            error_message: error instanceof Error ? error.message : String(error),
+          })
+        }
+      })()
+      res.status(201).json({ request: userRequest, response: assistantResponse })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unable to start feedback refinement." })
+    }
+  })
+
+  app.post("/api/eb-v2/feedback/:id/accept", async (_req, res) => {
+    try {
+      const feedback = await one<any>("eb_v2_feedback_threads", text(_req.params.id))
+      if (!feedback || feedback.role !== "assistant" || feedback.status !== "completed")
+        return res.status(404).json({ error: "A completed feedback response was not found." })
+      if (feedback.result_article_id) {
+        const staged = await one<any>("eb_v2_articles", feedback.result_article_id)
+        if (!staged) return res.status(404).json({ error: "The feedback article revision was not found." })
+        const articles = await tableSelect<any>("eb_v2_articles", (query) => query.eq("package_id", feedback.package_id))
+        await Promise.all(articles.filter((article) => article.id !== staged.id && article.status !== "superseded").map((article) => tableUpdate("eb_v2_articles", article.id, { status: "superseded" })))
+        await tableUpdate("eb_v2_articles", staged.id, { status: "draft", quality_report: { ...(staged.quality_report ?? {}), feedbackPending: false, acceptedFeedbackId: feedback.id } })
+        await tableUpdate("eb_v2_packages", feedback.package_id, { state: "article" })
+      }
+      if (feedback.result_channel_output_id) {
+        const staged = await one<any>("eb_v2_channel_outputs", feedback.result_channel_output_id)
+        if (!staged) return res.status(404).json({ error: "The feedback channel revision was not found." })
+        const outputs = await tableSelect<any>("eb_v2_channel_outputs", (query) => query.eq("package_id", feedback.package_id).eq("channel", staged.channel))
+        await Promise.all(outputs.filter((output) => output.id !== staged.id && !output.content?.archived).map((output) => tableUpdate("eb_v2_channel_outputs", output.id, { status: "rejected", content: { ...(output.content ?? {}), archived: true, archivedAt: new Date().toISOString() } })))
+        await tableUpdate("eb_v2_channel_outputs", staged.id, { content: { ...(staged.content ?? {}), archived: false, feedbackPending: false, acceptedFeedbackId: feedback.id }, status: "ready_for_review" })
+        await tableUpdate("eb_v2_packages", feedback.package_id, { state: "review" })
+      }
+      const parent = feedback.parent_feedback_id ? await one<any>("eb_v2_feedback_threads", feedback.parent_feedback_id) : null
+      await tableUpdate("eb_v2_feedback_threads", feedback.id, { status: "accepted" })
+      await tableUpsert("eb_v2_learning_signals", {
+        feedback_id: feedback.id,
+        package_id: feedback.package_id,
+        gate: feedback.gate,
+        channel: feedback.channel,
+        instruction: text(parent?.message_markdown),
+        active: true,
+      }, "feedback_id")
+      res.json(await workspace())
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unable to accept feedback revision." })
+    }
+  })
+
+  app.get("/api/eb-v2/learning-signals", async (_req, res) => {
+    try {
+      if (!(await tableAvailable("eb_v2_learning_signals")))
+        return res.status(409).json({ error: "Feedback storage is not ready. Apply migration 009_eb_v2_feedback_learning.sql first." })
+      res.json({ signals: await tableSelect<any>("eb_v2_learning_signals", (query) => query.order("created_at", { ascending: false })) })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load editorial learnings." })
+    }
+  })
+  app.patch("/api/eb-v2/learning-signals/:id", async (req, res) => {
+    try {
+      const signal = await tableUpdate("eb_v2_learning_signals", text(req.params.id), {
+        ...(typeof req.body?.active === "boolean" ? { active: req.body.active } : {}),
+        ...(text(req.body?.instruction) ? { instruction: text(req.body.instruction) } : {}),
+      })
+      res.json({ signal })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unable to update editorial learning." })
+    }
+  })
+  app.delete("/api/eb-v2/learning-signals/:id", async (req, res) => {
+    try {
+      await tableDeleteWhere("eb_v2_learning_signals", "id", text(req.params.id))
+      res.status(204).end()
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unable to delete editorial learning." })
     }
   })
 
