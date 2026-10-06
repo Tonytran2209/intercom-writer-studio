@@ -782,16 +782,36 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const matchesFilter = (task: Task, filter: string) =>
     filter === gateConfig[task.gate].title ||
     filter === task.channel ||
-    Boolean(task.channels?.some((channel) => filter === channel.channel)) ||
-    (filter === "Needs review" && task.gate === "review" && (task.channels?.some((channel) => !channel.decision) ?? !task.decision)) ||
-    (filter === "Done" && (task.decision === "done" || task.channels?.some((channel) => channel.decision === "done"))) ||
-    (filter === "Rejected" && (task.decision === "reject" || task.channels?.some((channel) => channel.decision === "reject")))
-  const filteredTasks = tasks.filter((task) =>
-    filterGroups.every((group) => {
+    (filter === "Needs review" && task.gate === "review" && !task.decision) ||
+    (filter === "Done" && task.decision === "done") ||
+    (filter === "Rejected" && task.decision === "reject")
+  const channelFilters = filterGroups[1].options.filter((option) => activeFilters.includes(option))
+  const decisionFilters = filterGroups[2].options.filter((option) => activeFilters.includes(option))
+  const filteredTasks = tasks.flatMap((task) => {
+    const workflowMatches = filterGroups.slice(0, 1).every((group) => {
       const selected = group.options.filter((option) => activeFilters.includes(option))
       return selected.length === 0 || selected.some((filter) => matchesFilter(task, filter))
-    }),
-  )
+    })
+    if (!workflowMatches) return []
+    if (!task.channels) {
+      const channelMatches = channelFilters.length === 0 || channelFilters.includes(task.channel ?? "")
+      const decisionMatches = decisionFilters.length === 0 || decisionFilters.some((filter) => matchesFilter(task, filter))
+      return channelMatches && decisionMatches ? [task] : []
+    }
+    const channels = task.channels.filter((channel) => {
+      const channelMatches = channelFilters.length === 0 || channelFilters.includes(channel.channel)
+      const decisionMatches = decisionFilters.length === 0 || decisionFilters.some((filter) =>
+        (filter === "Needs review" && !channel.decision) ||
+        (filter === "Done" && channel.decision === "done") ||
+        (filter === "Rejected" && channel.decision === "reject"),
+      )
+      return channelMatches && decisionMatches
+    })
+    return channels.length ? [{ ...task, channels }] : []
+  })
+  const selectedTask = selectedId
+    ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
+    : null
   const notices = [
     { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError ? "V2 workspace connection needs attention." : "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
     { id: "article", text: `${tasks.filter((task) => task.gate === "article" && task.status === "drafting").length} website article(s) are being generated`, active: tasks.some((task) => task.gate === "article" && task.status === "drafting") },
@@ -1008,9 +1028,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )}
         {selectedId && (
           <TaskDetail
-            task={tasks.find((task) => task.id === selectedId) ?? null}
+            task={selectedTask}
             model={(() => {
-              const task = tasks.find((item) => item.id === selectedId)
+              const task = selectedTask
               if (!task) return null
               const model = selectedModel(
                 config,
