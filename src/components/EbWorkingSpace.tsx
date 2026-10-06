@@ -31,6 +31,11 @@ type Gate = "brief" | "article" | "adapt" | "review"
 type View = "grid" | "list"
 type WorkspacePage = "board" | "discovery" | "library"
 type Decision = "done" | "reject" | "recheck" | null
+type ReviewChannel = {
+  id: string
+  channel: "Threads" | "Facebook" | "LinkedIn"
+  decision?: Decision
+}
 type Task = {
   id: string
   packageId?: string
@@ -41,6 +46,7 @@ type Task = {
   persona?: string
   type?: string
   channel?: "Threads" | "Facebook" | "LinkedIn"
+  channels?: ReviewChannel[]
   decision?: Decision
   source?: "input" | "discovery"
 }
@@ -151,6 +157,7 @@ function workspaceTasks(
           : "Draft ready",
     })
   }
+  const reviewChannelsByPackage = new Map<string, ReviewChannel[]>()
   for (const output of channelRows) {
     const item = packages.get(output.package_id)
     if (!item || !["adapt", "review"].includes(item.state)) continue
@@ -158,27 +165,20 @@ function workspaceTasks(
       output.status === "generating" || output.status === "queued"
         ? "adapting"
         : "review"
-    tasks.push({
-      id: output.id,
-      packageId: output.package_id,
-      gate: state === "adapting" ? "adapt" : "review",
-      title: item.title,
-      status: state,
-      channel:
-        output.channel === "threads"
-          ? "Threads"
-          : output.channel === "facebook"
-            ? "Facebook"
-            : "LinkedIn",
-      decision:
-        output.status === "done"
-          ? "done"
-          : output.status === "rejected"
-            ? "reject"
-            : output.status === "recheck"
-              ? "recheck"
-              : null,
-    })
+    const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
+    const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
+    if (state === "adapting") {
+      tasks.push({ id: output.id, packageId: output.package_id, gate: "adapt", title: item.title, status: state, channel, decision })
+    } else {
+      const current = reviewChannelsByPackage.get(output.package_id) ?? []
+      current.push({ id: output.id, channel, decision })
+      reviewChannelsByPackage.set(output.package_id, current)
+    }
+  }
+  for (const [packageId, channels] of reviewChannelsByPackage) {
+    const item = packages.get(packageId)
+    if (!item) continue
+    tasks.push({ id: packageId, packageId, gate: "review", title: item.title, status: "review", channels })
   }
   return tasks
 }
@@ -700,9 +700,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     }
     setSyncing(true)
     const request =
-      task.gate === "review"
+      task.gate === "review" && !task.channels
         ? db.deleteEbV2ChannelOutput(task.id)
-        : db.deleteEbV2Package(task.id)
+        : db.deleteEbV2Package(task.packageId ?? task.id)
     void request
       .then((data) => {
         setTasks(workspaceTasks(data))
@@ -782,9 +782,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const matchesFilter = (task: Task, filter: string) =>
     filter === gateConfig[task.gate].title ||
     filter === task.channel ||
-    (filter === "Needs review" && task.gate === "review" && !task.decision) ||
-    (filter === "Done" && task.decision === "done") ||
-    (filter === "Rejected" && task.decision === "reject")
+    Boolean(task.channels?.some((channel) => filter === channel.channel)) ||
+    (filter === "Needs review" && task.gate === "review" && (task.channels?.some((channel) => !channel.decision) ?? !task.decision)) ||
+    (filter === "Done" && (task.decision === "done" || task.channels?.some((channel) => channel.decision === "done"))) ||
+    (filter === "Rejected" && (task.decision === "reject" || task.channels?.some((channel) => channel.decision === "reject")))
   const filteredTasks = tasks.filter((task) =>
     filterGroups.every((group) => {
       const selected = group.options.filter((option) => activeFilters.includes(option))
@@ -949,13 +950,13 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </div>}
       <>
         {page === "board" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <section className="bg-slate-50/30 p-3 pb-36">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <section className="min-h-0 flex-1 overflow-hidden bg-slate-50/30 p-3">
               <div
                 className={
                   view === "grid"
-                    ? "grid items-start gap-3 xl:grid-cols-4"
-                    : "space-y-4"
+                    ? "grid gap-3 overflow-y-auto pr-1 xl:h-full xl:min-h-0 xl:grid-cols-4 xl:overflow-hidden xl:pr-0"
+                    : "h-full overflow-y-auto space-y-4 pr-1"
                 }
               >
                 {gates.map((gate) => (
@@ -1019,6 +1020,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               return model ? { provider: model.provider, id: model.id } : null
             })()}
             onWorkspaceChange={(data) => setTasks(workspaceTasks(data))}
+            onDecision={decide}
             onClose={() => setSelectedId(null)}
           />
         )}
@@ -1128,7 +1130,7 @@ function GateGroup({
       className={
         isList
           ? "relative scroll-mt-2"
-          : `gate-column gate-${config.tone} rounded-2xl border p-3`
+          : `gate-column gate-${config.tone} rounded-2xl border p-3 xl:flex xl:min-h-0 xl:flex-col`
       }
     >
       <div
@@ -1147,7 +1149,7 @@ function GateGroup({
         </div>
         <span className="text-xs text-slate-400">{tasks.length}</span>
       </div>
-      <div className="space-y-2">
+      <div className={isList ? "space-y-2" : "space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"}>
         {tasks.length ? (
           tasks.map((task) => (
             <TaskCard
@@ -1194,7 +1196,7 @@ function TaskCard({
   onOpen: (id: string) => void
 }) {
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
-  const canRegenerate = !isWorking
+  const canRegenerate = !isWorking && !task.channels?.length
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -1222,6 +1224,7 @@ function TaskCard({
       <button onClick={() => onOpen(task.id)} className="min-w-0 text-left">
         <div className="flex flex-wrap gap-1">
           {task.channel && <Tag>{task.channel}</Tag>}
+          {task.channels && <Tag>{task.channels.length} channels</Tag>}
           {task.type && <Tag>{task.type}</Tag>}
           {task.source === "discovery" && <Tag>Discovery suggestion</Tag>}
           {isWorking && (
@@ -1246,7 +1249,9 @@ function TaskCard({
         )}
         {task.gate === "review" && (
           <p className="mt-1 text-[10px] text-slate-500">
-            Ready for repetition check and reviewer action.
+            {task.channels
+              ? `${task.channels.filter((channel) => !channel.decision).length} channel(s) await reviewer action.`
+              : "Ready for repetition check and reviewer action."}
           </p>
         )}
       </button>
@@ -1282,7 +1287,7 @@ function TaskCard({
               Open article
             </button>
           )}
-        {task.gate === "review" && !task.decision && (
+        {task.gate === "review" && !task.channels && !task.decision && (
           <>
             <button
               onClick={() => onDecision(task.id, "done")}
@@ -1302,12 +1307,12 @@ function TaskCard({
             </button>
           </>
         )}
-        {task.gate === "review" && task.decision === "done" && (
+        {task.gate === "review" && !task.channels && task.decision === "done" && (
           <span title="Done" className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
             <Check className="h-3.5 w-3.5" />
           </span>
         )}
-        {task.gate === "review" && task.decision === "reject" && (
+        {task.gate === "review" && !task.channels && task.decision === "reject" && (
           <span title="Rejected" className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600">
             <X className="h-3.5 w-3.5" />
           </span>
@@ -1794,11 +1799,13 @@ function TaskDetail({
   task,
   model,
   onWorkspaceChange,
+  onDecision,
   onClose,
 }: {
   task: Task | null
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
+  onDecision: (id: string, decision: Exclude<Decision, null>) => void
   onClose: () => void
 }) {
   const [activity, setActivity] = useState<any>(null)
@@ -1809,6 +1816,8 @@ function TaskDetail({
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
+  const activeChannelId = selectedChannelId ?? task?.channels?.find((channel) => !channel.decision)?.id ?? task?.channels?.[0]?.id
   useEffect(() => {
     if (!task || isShellMode) {
       setActivity(null)
@@ -1819,7 +1828,7 @@ function TaskDetail({
     void db
       .fetchEbV2Activity(
         task.id,
-        task.gate === "adapt" || task.gate === "review" ? "channel" : "package",
+        task.gate === "adapt" ? "channel" : "package",
       )
       .then(setActivity)
       .catch((reason) =>
@@ -1829,6 +1838,7 @@ function TaskDetail({
       )
       .finally(() => setLoading(false))
   }, [task?.id, task?.gate])
+  useEffect(() => setSelectedChannelId(null), [task?.id])
   const hasPendingFeedback = Array.isArray(activity?.feedback) && activity.feedback.some(
     (item: any) => item.status === "queued" || item.status === "running",
   )
@@ -1838,7 +1848,7 @@ function TaskDetail({
       void db
         .fetchEbV2Activity(
           task.id,
-          task.gate === "adapt" || task.gate === "review" ? "channel" : "package",
+          task.gate === "adapt" ? "channel" : "package",
         )
         .then(setActivity)
         .catch(() => undefined)
@@ -1847,6 +1857,7 @@ function TaskDetail({
   }, [task?.id, task?.gate, hasPendingFeedback])
   if (!task) return null
   const selectedOutput =
+    (activeChannelId ? activity?.channels?.find((item: any) => item.id === activeChannelId) : null) ??
     activity?.selectedChannel ??
     activity?.channels?.find((item: any) => item.id === task.id)
   const latestRun = activity?.runs?.[0]
@@ -1864,11 +1875,13 @@ function TaskDetail({
       : "This item has not produced output yet.")
   const sources = activity?.inputs ?? []
   const runs = activity?.runs ?? []
-  const actions = activity?.actions ?? []
+  const actions = activeChannelId
+    ? (activity?.actions ?? []).filter((action: any) => action.channel_output_id === activeChannelId)
+    : activity?.actions ?? []
   const feedbackThread = (activity?.feedback ?? []).filter((item: any) =>
     task.gate === "article"
       ? item.gate === "article"
-      : item.gate === "review" && item.channel_output_id === task.id,
+    : item.gate === "review" && item.channel_output_id === (activeChannelId ?? task.id),
   )
   const feedbackEnabled = task.gate === "article" || task.gate === "review"
   const copyResult = async () => {
@@ -1894,7 +1907,7 @@ function TaskDetail({
     setFeedbackError(null)
     try {
       await db.createEbV2Feedback({
-        itemId: task.id,
+        itemId: activeChannelId ?? task.id,
         kind: task.gate === "article" ? "article" : "channel",
         message,
         model,
@@ -1903,7 +1916,7 @@ function TaskDetail({
       setActivity(
         await db.fetchEbV2Activity(
           task.id,
-          task.gate === "adapt" || task.gate === "review" ? "channel" : "package",
+          task.gate === "adapt" ? "channel" : "package",
         ),
       )
     } catch (reason) {
@@ -1973,6 +1986,41 @@ function TaskDetail({
             <p className="text-xs text-red-600">{error}</p>
           ) : (
             <>
+              {task.channels && (
+                <section className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2">
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    Final review channels
+                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1">
+                    {task.channels.map((channel) => (
+                      <button
+                        key={channel.id}
+                        onClick={() => setSelectedChannelId(channel.id)}
+                        className={`rounded-lg px-2 py-1.5 text-[10px] font-semibold ${activeChannelId === channel.id ? "bg-emerald-600 text-white" : "bg-white text-slate-600 hover:bg-emerald-50"}`}
+                      >
+                        {channel.channel}
+                        {channel.decision === "done" ? " · Done" : channel.decision === "reject" ? " · Rejected" : ""}
+                      </button>
+                    ))}
+                  </div>
+                  {activeChannelId && (
+                    <div className="mt-2 flex justify-end gap-1">
+                      <button
+                        onClick={() => onDecision(activeChannelId, "done")}
+                        className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700"
+                      >
+                        Mark done
+                      </button>
+                      <button
+                        onClick={() => onDecision(activeChannelId, "reject")}
+                        className="rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </section>
+              )}
               <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-bold text-slate-800">Result</h3>
