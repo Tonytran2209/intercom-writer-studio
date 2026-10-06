@@ -1820,6 +1820,7 @@ function TaskDetail({
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
+  const [channelActionsOpen, setChannelActionsOpen] = useState<string | null>(null)
   const activeChannelId = selectedChannelId ?? task?.channels?.find((channel) => !channel.decision)?.id ?? task?.channels?.[0]?.id
   useEffect(() => {
     if (!task || isShellMode) {
@@ -1990,77 +1991,43 @@ function TaskDetail({
           ) : (
             <>
               {task.channels && (
-                <section className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-                  <div className="flex items-start justify-between gap-3">
+                <section className="mb-3">
+                  <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                        Final review by channel
-                      </p>
-                      <p className="mt-1 text-[10px] text-slate-500">
-                        Select one output, then all actions below apply only to that channel.
-                      </p>
+                      <h3 className="text-xs font-bold text-slate-800">Channel outputs</h3>
+                      <p className="mt-0.5 text-[10px] text-slate-500">Choose an output to inspect. Actions always apply to its channel only.</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-emerald-700">
-                      {task.channels.filter((channel) => !channel.decision).length} pending
-                    </span>
+                    <span className="text-[10px] text-slate-400">{task.channels.length} outputs</span>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {task.channels.map((channel) => (
-                      <button
-                        key={channel.id}
-                        onClick={() => setSelectedChannelId(channel.id)}
-                        className={`rounded-lg border p-2 text-left transition-colors ${activeChannelId === channel.id ? "border-emerald-600 bg-emerald-600 text-white shadow-sm" : "border-white bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"}`}
-                      >
-                        <span className="block text-[11px] font-bold">{channel.channel}</span>
-                        <span className={`mt-1 block text-[9px] font-medium ${activeChannelId === channel.id ? "text-emerald-50" : channel.decision === "done" ? "text-emerald-700" : channel.decision === "reject" ? "text-red-600" : "text-amber-600"}`}>
-                          {channel.decision === "done" ? "Approved" : channel.decision === "reject" ? "Rejected" : channel.decision === "recheck" ? "Needs recheck" : "Awaiting decision"}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="space-y-2">
+                    {task.channels.map((channel) => {
+                      const isActive = activeChannelId === channel.id
+                      const status = channel.decision === "done" ? "Done" : channel.decision === "reject" ? "Rejected" : channel.decision === "recheck" ? "Needs recheck" : "Needs review"
+                      return (
+                        <article key={channel.id} className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs ${isActive ? "border-slate-400" : "border-slate-200/80"}`}>
+                          <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
+                            <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag></div>
+                            <p className="mt-1 text-[10px] text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
+                          </button>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {!channel.decision && <>
+                              <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "done") }} title={`Mark ${channel.channel} done`} aria-label={`Mark ${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"><Check className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "reject") }} title={`Reject ${channel.channel}`} aria-label={`Reject ${channel.channel}`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"><X className="h-3.5 w-3.5" /></button>
+                            </>}
+                            {channel.decision === "done" && <span title={`${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Check className="h-3.5 w-3.5" /></span>}
+                            {channel.decision === "reject" && <span title={`${channel.channel} rejected`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600"><X className="h-3.5 w-3.5" /></span>}
+                            <div className="relative">
+                              <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen((current) => current === channel.id ? null : channel.id) }} title={`More actions for ${channel.channel}`} aria-label={`More actions for ${channel.channel}`} aria-expanded={channelActionsOpen === channel.id} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><MoreHorizontal className="h-3.5 w-3.5" /></button>
+                              {channelActionsOpen === channel.id && <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                                <button onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
+                                <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={!model} className="flex w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
+                              </div>}
+                            </div>
+                          </div>
+                        </article>
+                      )
+                    })}
                   </div>
-                  {activeChannelId && (
-                    <div className="mt-3 rounded-lg border border-emerald-100 bg-white p-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-800">
-                            Reviewing {task.channels.find((channel) => channel.id === activeChannelId)?.channel}
-                          </p>
-                          <p className="mt-0.5 text-[9px] text-slate-500">
-                            These actions affect this channel only.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          <button
-                            onClick={() => onDecision(activeChannelId, "recheck")}
-                            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
-                          >
-                            Send to recheck
-                          </button>
-                          <button
-                            onClick={() => onRegenerate({ ...task, id: activeChannelId, channel: task.channels?.find((channel) => channel.id === activeChannelId)?.channel, channels: undefined })}
-                            disabled={!model}
-                            className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
-                          >
-                            Regenerate
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-2 flex flex-wrap justify-end gap-1.5 border-t border-slate-100 pt-2">
-                      <button
-                        onClick={() => onDecision(activeChannelId, "done")}
-                        className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700"
-                      >
-                        Mark {task.channels.find((channel) => channel.id === activeChannelId)?.channel} done
-                      </button>
-                      <button
-                        onClick={() => onDecision(activeChannelId, "reject")}
-                        className="rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100"
-                      >
-                        Reject {task.channels.find((channel) => channel.id === activeChannelId)?.channel}
-                      </button>
-                      </div>
-                    </div>
-                  )}
                 </section>
               )}
               <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
