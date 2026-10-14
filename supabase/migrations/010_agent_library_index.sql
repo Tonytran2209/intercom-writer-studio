@@ -25,15 +25,31 @@ CREATE TABLE IF NOT EXISTS agent_library_chunks (
   position INTEGER NOT NULL CHECK (position >= 0),
   content TEXT NOT NULL,
   content_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (document_id, position)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- `IF NOT EXISTS` does not alter a table created by an earlier partial run.
+-- Reconcile that case before referencing the index column below.
+ALTER TABLE agent_library_chunks ADD COLUMN IF NOT EXISTS position INTEGER;
+WITH numbered_chunks AS (
+  SELECT id, row_number() OVER (PARTITION BY document_id ORDER BY created_at, id) - 1 AS next_position
+  FROM agent_library_chunks
+  WHERE position IS NULL
+)
+UPDATE agent_library_chunks AS chunk
+SET position = numbered_chunks.next_position
+FROM numbered_chunks
+WHERE chunk.id = numbered_chunks.id;
+ALTER TABLE agent_library_chunks ALTER COLUMN position SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS agent_library_chunks_document_position_idx ON agent_library_chunks(document_id, position);
 CREATE INDEX IF NOT EXISTS agent_library_chunks_layer_idx ON agent_library_chunks(layer, position);
 CREATE INDEX IF NOT EXISTS agent_library_chunks_document_idx ON agent_library_chunks(document_id, position);
 
 ALTER TABLE agent_library_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_library_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_library_chunks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS agent_library_versions_service_role_all ON agent_library_versions;
+DROP POLICY IF EXISTS agent_library_documents_service_role_all ON agent_library_documents;
+DROP POLICY IF EXISTS agent_library_chunks_service_role_all ON agent_library_chunks;
 CREATE POLICY agent_library_versions_service_role_all ON agent_library_versions FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY agent_library_documents_service_role_all ON agent_library_documents FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY agent_library_chunks_service_role_all ON agent_library_chunks FOR ALL TO service_role USING (true) WITH CHECK (true);
