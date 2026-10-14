@@ -19,9 +19,9 @@ Most EB V2 records retain snapshots, status, timestamps, and foreign keys so con
 
 Migration `010_agent_library_index.sql` adds cache/index tables only:
 
-- `agent_library_versions`: Git commit/content-index run metadata.
-- `agent_library_documents`: allow-listed canonical path, layer, content hash and size.
-- `agent_library_chunks`: heading-based retrieval text with ordering and per-chunk hash.
+- `intercom_writer_agent_library_versions`: Git commit/content-index run metadata.
+- `intercom_writer_agent_library_documents`: allow-listed canonical path, layer, content hash and size.
+- `intercom_writer_agent_library_chunks`: heading-based retrieval text with ordering and per-chunk hash.
 
 `.agent-hub` in Git is canonical. These tables are a derived cache, never a source to edit documents. Re-indexing the same content hash must be idempotent.
 

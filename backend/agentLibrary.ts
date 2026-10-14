@@ -59,21 +59,21 @@ export function registerAgentLibraryRoutes(app: express.Express) {
       }))
       const versionHash = digest(documents.map((document) => document.contentHash).join(""))
       const commitSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || versionHash
-      await tableUpsert("agent_library_versions", { commit_sha: commitSha, content_hash: versionHash, synced_by: req.auth?.userId ?? null }, "commit_sha")
-      const existing = await tableSelect<any>("agent_library_documents")
+      await tableUpsert("intercom_writer_agent_library_versions", { commit_sha: commitSha, content_hash: versionHash, synced_by: req.auth?.userId ?? null }, "commit_sha")
+      const existing = await tableSelect<any>("intercom_writer_agent_library_documents")
       for (const document of documents) {
         const previous = existing.find((row) => row.path === document.path)
         if (previous?.content_hash === document.contentHash) continue
-        await tableUpsert("agent_library_documents", { path: document.path, layer: document.layer, title: document.title, content_hash: document.contentHash, char_count: document.content.length, version_commit_sha: commitSha }, "path")
-        const saved = (await tableSelect<any>("agent_library_documents", (query) => query.eq("path", document.path).limit(1)))[0]
+        await tableUpsert("intercom_writer_agent_library_documents", { path: document.path, layer: document.layer, title: document.title, content_hash: document.contentHash, char_count: document.content.length, version_commit_sha: commitSha }, "path")
+        const saved = (await tableSelect<any>("intercom_writer_agent_library_documents", (query) => query.eq("path", document.path).limit(1)))[0]
         if (!saved) throw new Error(`Unable to save ${document.path}.`)
-        await tableDeleteWhere("agent_library_chunks", "document_id", saved.id)
+        await tableDeleteWhere("intercom_writer_agent_library_chunks", "document_id", saved.id)
         for (const [position, chunk] of chunks(document.content).entries())
-          await tableInsert("agent_library_chunks", { document_id: saved.id, layer: document.layer, heading: chunk.heading, position, content: chunk.content, content_hash: digest(chunk.content) })
+          await tableInsert("intercom_writer_agent_library_chunks", { document_id: saved.id, layer: document.layer, heading: chunk.heading, position, content: chunk.content, content_hash: digest(chunk.content) })
       }
       for (const stale of existing.filter((row) => !ALLOW_LIST.includes(row.path))) {
-        await tableDeleteWhere("agent_library_chunks", "document_id", stale.id)
-        await tableDeleteWhere("agent_library_documents", "path", stale.path)
+        await tableDeleteWhere("intercom_writer_agent_library_chunks", "document_id", stale.id)
+        await tableDeleteWhere("intercom_writer_agent_library_documents", "path", stale.path)
       }
       res.json({ indexed: documents.length, commitSha, contentHash: versionHash })
     } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to sync Agent Library." }) }
@@ -86,7 +86,7 @@ export function registerAgentLibraryRoutes(app: express.Express) {
     if (!query) return res.status(400).json({ error: "query is required." })
     try {
       const words = new Set(query.toLowerCase().split(/[^a-z0-9à-ỹ]+/i).filter((word) => word.length > 2))
-      const rows = await tableSelect<any>("agent_library_chunks", (builder) => layer ? builder.eq("layer", layer) : builder)
+      const rows = await tableSelect<any>("intercom_writer_agent_library_chunks", (builder) => layer ? builder.eq("layer", layer) : builder)
       const ranked = rows.map((row) => ({ ...row, score: [...words].filter((word) => `${row.heading} ${row.content}`.toLowerCase().includes(word)).length })).filter((row) => row.score > 0).sort((a, b) => b.score - a.score || a.position - b.position)
       let total = 0; const chunks = ranked.filter((row) => { if (total + row.content.length > maxChars) return false; total += row.content.length; return true }).map(({ id, document_id, layer, heading, position, content, score }) => ({ id, documentId: document_id, layer, heading, position, content, score }))
       res.json({ query, layer, maxChars, chunks })
