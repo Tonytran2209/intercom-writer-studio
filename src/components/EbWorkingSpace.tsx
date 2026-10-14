@@ -61,6 +61,9 @@ type DiscoveryIdea = {
   created_at?: string
   updated_at?: string
 }
+function isEmergingDiscovery(item: DiscoveryIdea) {
+  return Array.isArray(item.evidence) && item.evidence.some((entry: any) => entry?.kind === "research_topic" && entry?.confidence === "emerging")
+}
 
 const gateConfig: Record<Gate, {
   title: string
@@ -439,13 +442,13 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           ),
         ])
         setRuntimeError(null)
+        const emergingCount = ideas.filter(isEmergingDiscovery).length
+        const verifiedCount = ideas.length - emergingCount
         setDiscoveryStatus(
           ideas.length
             ? {
                 state: "success",
-                message: `${ideas.length} evidence-backed suggestion${
-                  ideas.length === 1 ? "" : "s"
-                } saved. Your earlier suggestions remain in Discovery archive.`,
+                message: `${verifiedCount ? `${verifiedCount} verified trend${verifiedCount === 1 ? "" : "s"}` : "No verified trends"}${emergingCount ? `${verifiedCount ? " and " : ""}${emergingCount} emerging signal${emergingCount === 1 ? "" : "s"}` : ""} saved. Your earlier suggestions remain in Discovery archive.`,
               }
             : {
                 state: "empty",
@@ -1594,6 +1597,10 @@ function DiscoveryArchive({
   onClear: () => void
   onPick: (item: DiscoveryIdea) => void
 }) {
+  const groups = [
+    { key: "verified", title: "Verified trends", description: "Confirmed by independent publishers, including Vietnamese evidence.", items: ideas.filter((item) => !isEmergingDiscovery(item)) },
+    { key: "emerging", title: "Emerging signals", description: "Fresh early signals to review before treating them as a trend.", items: ideas.filter(isEmergingDiscovery) },
+  ].filter((group) => group.items.length)
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-slate-50/30 p-4">
       <div className="mx-auto max-w-4xl">
@@ -1625,49 +1632,27 @@ function DiscoveryArchive({
             )}
           </div>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-4">
           {ideas.length ? (
-            ideas.map((item) => (
-              <article
-                key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs"
-              >
-                <button
-                  onClick={() => onOpen(item)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <Tag>Discovery suggestion</Tag>
-                  <h2 className="mt-2 text-xs font-bold text-slate-800">
-                    {item.title}
-                  </h2>
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    {item.source_summary ??
-                      "Source trace available in Details."}
-                  </p>
-                </button>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    onClick={() => onOpen(item)}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600"
-                  >
-                    Details
-                  </button>
-                  <button
-                    onClick={() => onPick(item)}
-                    className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white"
-                  >
-                    Run Gate 1
-                  </button>
-                  <button
-                    onClick={() => onDelete(item)}
-                    title="Delete suggestion"
-                    aria-label="Delete suggestion"
-                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </article>
+            groups.map((group) => (
+              <section key={group.key}>
+                <h2 className="text-xs font-bold text-slate-800">{group.title}</h2>
+                <p className="mt-0.5 text-[10px] text-slate-500">{group.description}</p>
+                <div className="mt-2 space-y-2">{group.items.map((item) => (
+                  <article key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+                    <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
+                      <Tag>{isEmergingDiscovery(item) ? "Emerging signal" : "Verified trend"}</Tag>
+                      <h2 className="mt-2 text-xs font-bold text-slate-800">{item.title}</h2>
+                      <p className="mt-1 text-[10px] text-slate-500">{item.source_summary ?? "Source trace available in Details."}</p>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">Details</button>
+                      <button onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Run Gate 1</button>
+                      <button onClick={() => onDelete(item)} title="Delete suggestion" aria-label="Delete suggestion" className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </article>
+                ))}</div>
+              </section>
             ))
           ) : (
             <p className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
@@ -2239,6 +2224,7 @@ function DiscoveryDetail({
       )
   }, [item.id])
   const savedItem = detail?.item ?? item
+  const emerging = isEmergingDiscovery(savedItem)
   const evidence = Array.isArray(savedItem.evidence) ? savedItem.evidence : []
   const sources = (
     Array.isArray(detail?.sources)
@@ -2266,7 +2252,7 @@ function DiscoveryDetail({
         <header className="flex items-start justify-between gap-3 border-b border-slate-200/80 p-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-500">
-              Discovery suggestion
+              {emerging ? "Emerging signal" : "Verified trend"}
             </p>
             <h2 className="mt-1 text-sm font-bold text-slate-900">
               {item.title}
@@ -2301,7 +2287,7 @@ function DiscoveryDetail({
               {item.persona_candidate && (
                 <Tag>Persona · {item.persona_candidate}</Tag>
               )}
-              <Tag>{item.status ?? "suggested"}</Tag>
+              <Tag>{emerging ? "Early signal — review before use" : item.status ?? "suggested"}</Tag>
             </div>
           </section>
           <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">

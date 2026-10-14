@@ -1032,7 +1032,9 @@ export function registerEbV2Routes(app: express.Express) {
           "Brands Vietnam",
           "Vietcetera",
           "Google News VN",
+          "Google News global",
           "Reddit",
+          "Hacker News",
           ...extraUrls,
         ],
       })
@@ -1045,6 +1047,7 @@ export function registerEbV2Routes(app: express.Express) {
       const redditQueries = terms(runtime.discoveryRedditQueries)
       const research = await collectDiscoveryResearch(extraUrls, {
         windowMonths: Number(runtime.discoveryWindowMonths) || 4,
+        freshDays: Math.min(90, Math.max(3, Number(runtime.discoveryFreshDays) || 30)),
         redditMinUpvotes: Number(runtime.discoveryRedditMinUpvotes) || 20,
         redditMinReplies: Number(runtime.discoveryRedditMinReplies) || 5,
         timeoutMs: Number(runtime.discoveryTimeoutMs) || 9000,
@@ -1074,7 +1077,8 @@ export function registerEbV2Routes(app: express.Express) {
         (source) => source.eligibility === "eligible",
       )
       const library = await libraryContext()
-      const prompt = `Use ONLY the dated source records below. A topic is trending only when it cites at least two independent source IDs, including one Vietnamese source. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. Return at most 5; use an empty list if evidence is thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}`
+      const freshDays = Math.min(90, Math.max(3, Number(runtime.discoveryFreshDays) || 30))
+      const prompt = `Use ONLY the dated source records below. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}],"emerging":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. A trending topic needs at least two independent publishers, including one Vietnamese source, and at least one cited source published within the last ${freshDays} days. An emerging signal needs at least one cited source published within the last ${freshDays} days, but must be clearly early-stage and must never be presented as a verified trend. Return at most 5 total entries; use empty arrays when evidence is thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}`
       const result = eligible.length
         ? await generate({
             provider: model.provider,
@@ -1085,6 +1089,7 @@ export function registerEbV2Routes(app: express.Express) {
           })
         : { content: '{"trending":[]}', usage: null }
       let topics: any[] = []
+      let emergingTopics: any[] = []
       try {
         const parsed = JSON.parse(
           jsonrepair(
@@ -1094,6 +1099,7 @@ export function registerEbV2Routes(app: express.Express) {
           ),
         )
         topics = Array.isArray(parsed?.trending) ? parsed.trending : []
+        emergingTopics = Array.isArray(parsed?.emerging) ? parsed.emerging : []
       } catch {}
       const sourceById = new Map(
         savedSources.map((source) => [source.id, source]),
@@ -1113,7 +1119,8 @@ export function registerEbV2Routes(app: express.Express) {
         if (
           !text(topic?.title) ||
           new Set(sources.map((source: any) => source.source_name)).size < 2 ||
-          !sources.some((source: any) => source.language === "vi")
+          !sources.some((source: any) => source.language === "vi") ||
+          !sources.some((source: any) => source.published_at && Date.now() - new Date(source.published_at).getTime() <= freshDays * 24 * 60 * 60 * 1000)
         )
           continue
         // Insert independently so a later invalid topic or persistence failure never removes
@@ -1128,6 +1135,56 @@ export function registerEbV2Routes(app: express.Express) {
             evidence: [
               {
                 kind: "research_topic",
+                sourceIds: ids,
+                ebAngle: text(topic.ebAngle),
+              },
+              {
+                kind: "ai_run",
+                provider: model.provider,
+                modelId: model.modelId,
+                prompt,
+                generatedAt: new Date().toISOString(),
+                usage: result.usage ?? null,
+                output: result.content,
+              },
+            ],
+          }),
+        )
+      }
+      for (const topic of emergingTopics.slice(
+        0,
+        Math.max(0, Math.min(5, Math.max(1, Number(runtime.discoveryMaxTopics) || 5)) - items.length),
+      )) {
+        const ids: string[] = Array.isArray(topic?.sourceIds)
+          ? topic.sourceIds.filter(
+              (id: unknown): id is string =>
+                typeof id === "string" && sourceById.has(id),
+            )
+          : []
+        const sources: any[] = ids.map((id: string) => sourceById.get(id)!)
+        const title = text(topic?.title)
+        if (
+          !title ||
+          items.some((item) => item.title.toLowerCase() === title.toLowerCase()) ||
+          !sources.some(
+            (source: any) =>
+              source.published_at &&
+              Date.now() - new Date(source.published_at).getTime() <=
+                freshDays * 24 * 60 * 60 * 1000,
+          )
+        )
+          continue
+        items.push(
+          await tableInsert<any>("eb_v2_discovery_items", {
+            run_id: run.id,
+            title: title.slice(0, 220),
+            source_summary: `Emerging signal — ${text(topic.reason)}`,
+            pillar_candidate: text(topic.pillarCandidate) || null,
+            status: "suggested",
+            evidence: [
+              {
+                kind: "research_topic",
+                confidence: "emerging",
                 sourceIds: ids,
                 ebAngle: text(topic.ebAngle),
               },

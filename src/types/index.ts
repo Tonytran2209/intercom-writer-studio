@@ -189,12 +189,13 @@ export interface EbRuntimeSettings {
   persistPromptLogs: boolean
   discoveryModelId: string
   discoveryWindowMonths: number
+  discoveryFreshDays?: number
   discoveryMaxTopics: number
   discoveryRedditMinUpvotes: number
   discoveryRedditMinReplies: number
   discoveryTimeoutMs: number
   discoveryMaxUserUrls: number
-  discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; reddit: boolean; threads?: boolean }
+  discoverySources: { brandsVietnam: boolean; vietcetera: boolean; googleNews: boolean; googleNewsGlobal?: boolean; reddit: boolean; hackerNews?: boolean; threads?: boolean }
   discoveryGoogleQueries?: string
   discoveryRedditQueries?: string
   discoveryFitIncludeTerms?: string
