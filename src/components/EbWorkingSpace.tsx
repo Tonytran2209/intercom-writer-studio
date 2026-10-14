@@ -68,6 +68,18 @@ function discoveryTag(item: DiscoveryIdea) {
   const confidence = Array.isArray(item.evidence) ? item.evidence.find((entry: any) => entry?.kind === "research_topic")?.confidence : undefined
   return confidence === "source_lead" ? "Source lead" : confidence === "emerging" ? "Emerging signal" : "Verified trend"
 }
+function normalizedDiscoveryTitle(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
+}
+function uniqueDiscoveryIdeas(items: DiscoveryIdea[]) {
+  const titles = new Set<string>()
+  return items.filter((item) => {
+    const title = normalizedDiscoveryTitle(item.title)
+    if (!title || titles.has(title)) return false
+    titles.add(title)
+    return true
+  })
+}
 
 const gateConfig: Record<Gate, {
   title: string
@@ -253,14 +265,14 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       const data = await db.fetchEbV2Workspace()
       setTasks(workspaceTasks(data))
       setDiscoveryIdeas(
-        (Array.isArray(data.discovery) ? data.discovery : [])
+        uniqueDiscoveryIdeas((Array.isArray(data.discovery) ? data.discovery : [])
           .filter((item) => item.status === "suggested")
           .map((item) => ({
             ...item,
             id: String(item.id),
             title: String(item.title),
           }))
-          .filter((item) => item.title),
+          .filter((item) => item.title)),
       )
       setRuntimeError(null)
     } catch (error) {
@@ -435,7 +447,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           setDiscoveryStatus({ state: "running", message: event.message })
         if (event.event === "item" && event.item?.title) {
           const idea = { ...event.item, id: String(event.item.id), title: String(event.item.title) }
-          setDiscoveryIdeas((current) => [idea, ...current.filter((saved) => saved.id !== idea.id)])
+          setDiscoveryIdeas((current) => uniqueDiscoveryIdeas([idea, ...current.filter((saved) => saved.id !== idea.id)]))
           setDiscoveryStatus({ state: "running", message: "A new suggestion is ready — continuing scan…" })
         }
       })
@@ -447,12 +459,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             title: String(item.title),
           }))
           .filter((item) => item.title)
-        setDiscoveryIdeas((current) => [
+        setDiscoveryIdeas((current) => uniqueDiscoveryIdeas([
           ...ideas,
           ...current.filter(
             (saved) => !ideas.some((idea) => idea.id === saved.id),
           ),
-        ])
+        ]))
         setRuntimeError(null)
         const emergingCount = ideas.filter(isEmergingDiscovery).length
         const sourceLeadCount = ideas.filter((item) => discoveryTag(item) === "Source lead").length

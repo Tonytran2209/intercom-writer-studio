@@ -31,6 +31,24 @@ const upload = multer({
 function text(value: unknown) {
   return String(value ?? "").trim()
 }
+function normalizedTopic(value: unknown) {
+  return text(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+function sameTopic(left: unknown, right: unknown) {
+  const a = normalizedTopic(left); const b = normalizedTopic(right)
+  if (!a || !b) return false
+  if (a === b || a.includes(b) || b.includes(a)) return true
+  const aWords = new Set(a.split(" ").filter((word) => word.length > 2))
+  const bWords = new Set(b.split(" ").filter((word) => word.length > 2))
+  const overlap = [...aWords].filter((word) => bWords.has(word)).length
+  return overlap >= 3 && overlap / Math.min(aWords.size, bWords.size) >= 0.7
+}
 function librarySlug(filename: string) {
   const normalized = filename
     .trim()
@@ -1046,6 +1064,9 @@ export function registerEbV2Routes(app: express.Express) {
           ...extraUrls,
         ],
       })
+      const savedSuggestions = await tableSelect<any>("eb_v2_discovery_items", (query) =>
+        query.eq("status", "suggested").order("updated_at", { ascending: false }),
+      )
       const terms = (value: unknown) =>
         String(value ?? "")
           .split(/[\n,]/)
@@ -1119,6 +1140,8 @@ export function registerEbV2Routes(app: express.Express) {
         savedSources.map((source) => [source.id, source]),
       )
       const items: any[] = []
+      const duplicateSuggestion = (title: unknown) =>
+        [...savedSuggestions, ...items].some((item) => sameTopic(item.title, title))
       for (const topic of topics.slice(
         0,
         targetTopics,
@@ -1132,6 +1155,7 @@ export function registerEbV2Routes(app: express.Express) {
         const sources: any[] = ids.map((id: string) => sourceById.get(id)!)
         if (
           !text(topic?.title) ||
+          duplicateSuggestion(topic.title) ||
           new Set(sources.map((source: any) => source.source_name)).size < 2 ||
           !sources.some((source: any) => source.language === "vi") ||
           !sources.some((source: any) => source.published_at && Date.now() - new Date(source.published_at).getTime() <= freshDays * 24 * 60 * 60 * 1000)
@@ -1179,7 +1203,7 @@ export function registerEbV2Routes(app: express.Express) {
         const title = text(topic?.title)
         if (
           !title ||
-          items.some((item) => item.title.toLowerCase() === title.toLowerCase()) ||
+          duplicateSuggestion(title) ||
           !sources.some(
             (source: any) =>
               source.published_at &&
@@ -1223,7 +1247,7 @@ export function registerEbV2Routes(app: express.Express) {
       )
       for (const source of fallbackCandidates) {
         if (items.length >= targetTopics) break
-        if (items.some((item) => item.title.toLowerCase() === String(source.title).toLowerCase())) continue
+        if (duplicateSuggestion(source.title)) continue
         const item = await tableInsert<any>("eb_v2_discovery_items", {
           run_id: run.id,
           title: String(source.title).slice(0, 220),
