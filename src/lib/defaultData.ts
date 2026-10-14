@@ -61,7 +61,7 @@ export function mergeWithLatestModelCatalog(config: AppConfig): AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  railwayUrl: 'https://rebuildwriterstudiotool-production.up.railway.app',
+  railwayUrl: '',
   stepConfigs: {
     1: { modelId: '', fileAccess: { kb: [], rules: [] } },
     2: { modelId: '', fileAccess: { kb: [], rules: [] } },

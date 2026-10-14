@@ -77,8 +77,8 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
           </nav>
 
           <div className="settings-connection mt-auto hidden border-t border-slate-200 px-4 py-3 text-xs text-slate-400 md:block">
-            <span className={`mr-2 inline-block h-2 w-2 rounded-full ${localConfig.railwayUrl ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            Railway {localConfig.railwayUrl ? tr('đã kết nối', 'connected') : tr('chưa cấu hình', 'not configured')}
+            <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            Railway {tr('cùng origin', 'same origin')}
           </div>
         </aside>
 

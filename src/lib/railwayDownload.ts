@@ -1,9 +1,7 @@
-function resolveBaseUrl(railwayUrl: string): string {
-  const saved = typeof window !== 'undefined' ? localStorage.getItem('writer:railwayUrl') : null;
+function resolveBaseUrl(_railwayUrl: string): string {
   const sameOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const value = railwayUrl.trim() || saved?.trim() || sameOrigin;
-  if (!value) throw new Error('Chưa cấu hình Railway URL.');
-  return value.replace(/\/$/, '');
+  if (!sameOrigin) throw new Error('Backend cùng origin không khả dụng.');
+  return sameOrigin.replace(/\/$/, '');
 }
 
 function filenameFromDisposition(header: string | null, fallback: string): string {

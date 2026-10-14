@@ -14,15 +14,10 @@ export function getAuthSession(): AuthSession | null {
 
 export function clearAuthSession() {}
 
-function resolveRailwayUrl(explicitUrl?: string): string {
-  const saved =
-    typeof window !== "undefined"
-      ? localStorage.getItem("writer:railwayUrl")
-      : null
+function resolveRailwayUrl(_explicitUrl?: string): string {
   const sameOrigin = typeof window !== "undefined" ? window.location.origin : ""
-  const url = explicitUrl?.trim() || saved?.trim() || sameOrigin
-  if (!url) throw new Error("Chưa cấu hình Railway URL.")
-  return url.replace(/\/$/, "")
+  if (!sameOrigin) throw new Error("Backend cùng origin không khả dụng.")
+  return sameOrigin.replace(/\/$/, "")
 }
 
 async function railwayRequest<T>(

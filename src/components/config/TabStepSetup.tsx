@@ -6,7 +6,6 @@ import { isDocumentReady } from '../../lib/documentStatus';
 import { useI18n } from '../../lib/i18n';
 
 interface Props { config: AppConfig; files: DocumentFile[]; articles: Article[]; onChange: (config: AppConfig) => void }
-const RAILWAY_URL = 'https://rebuildwriterstudiotool-production.up.railway.app';
 const articleStages = [
   { step: 2, labelVi: 'Article spec', labelEn: 'Article spec', detailVi: 'Định hướng, keyword và contract bài viết', detailEn: 'Direction, keywords and article contract' },
   { step: 3, labelVi: 'Draft outline', labelEn: 'Draft outline', detailVi: 'Cấu trúc fab.careers có evidence', detailEn: 'Evidence-backed fab.careers structure' },
@@ -22,8 +21,9 @@ export default function TabStepSetup({ config, files, articles, onChange }: Prop
   const enabledRules = (config.ebWorkflowSettings?.rules ?? []).filter(rule => rule.enabled);
   const runtime = { ...DEFAULT_EB_RUNTIME, ...config.ebRuntimeSettings };
   const usageByStep = useMemo(() => Object.fromEntries(([1, 2, 3, 4] as const).map(step => [step, articles.flatMap(article => article.aiUsageByStep?.[step] ?? [])])), [articles]);
+  const backendOrigin = typeof window === 'undefined' ? '' : window.location.origin;
 
-  useEffect(() => { pingRailway(config.railwayUrl || RAILWAY_URL).then(result => setBackendOk(result.ok)); }, [config.railwayUrl]);
+  useEffect(() => { pingRailway(backendOrigin).then(result => setBackendOk(result.ok)); }, [backendOrigin]);
 
   const updateStepModel = (step: number, modelId: string) => onChange({
     ...config,
@@ -59,7 +59,7 @@ export default function TabStepSetup({ config, files, articles, onChange }: Prop
       <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <InfoRow icon={<FileText className="h-4 w-4 text-indigo-600"/>} title="EB Library" detail={readyKb.length ? readyKb.map(file => file.name).join(', ') : tr('Chưa có collection nào được nạp', 'No collections loaded')} value={`${readyKb.length}/4`} />
         <InfoRow icon={<Sparkles className="h-4 w-4 text-indigo-600"/>} title={tr('Workflow Rules', 'Workflow Rules')} detail={enabledRules.length ? tr(`${enabledRules.length} rules đang Enabled; chỉnh sửa tại EB Knowledge & Rules.`, `${enabledRules.length} rules enabled; edit them in EB Knowledge & Rules.`) : tr('Chưa có rule được bật', 'No rules enabled')} value={String(enabledRules.length)} />
-        <InfoRow icon={<span className={`h-2 w-2 rounded-full ${backendOk ? 'bg-emerald-500' : backendOk === false ? 'bg-red-500' : 'animate-pulse bg-slate-300'}`} />} title={tr('AI backend', 'AI backend')} detail={config.railwayUrl || RAILWAY_URL} value={backendOk ? tr('Online', 'Online') : backendOk === false ? tr('Offline', 'Offline') : tr('Checking', 'Checking')} />
+        <InfoRow icon={<span className={`h-2 w-2 rounded-full ${backendOk ? 'bg-emerald-500' : backendOk === false ? 'bg-red-500' : 'animate-pulse bg-slate-300'}`} />} title={tr('AI backend', 'AI backend')} detail={backendOrigin} value={backendOk ? tr('Online', 'Online') : backendOk === false ? tr('Offline', 'Offline') : tr('Checking', 'Checking')} />
       </div>
     </section>
 

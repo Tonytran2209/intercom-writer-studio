@@ -159,13 +159,8 @@ export default function App() {
             ? { ...item, legacyReadOnly: true }
             : { ...item, currentStep: clampArticleStep(item) }))
         }
-        if (remoteConfig) {
-          setConfig(mergeWithLatestModelCatalog(remoteConfig))
-          // Restore railwayUrl to localStorage for aiService
-          if (remoteConfig.railwayUrl) {
-            localStorage.setItem("writer:railwayUrl", remoteConfig.railwayUrl)
-          }
-        }
+        if (remoteConfig)
+          setConfig({ ...mergeWithLatestModelCatalog(remoteConfig), railwayUrl: "" })
         if (remoteFiles?.length) setFiles(remoteFiles)
         loaded = true
       } catch (error: unknown) {
@@ -456,15 +451,15 @@ export default function App() {
     newConfig: AppConfig,
     newFiles: DocumentFile[],
   ) => {
-    setConfig(newConfig)
+    const sameOriginConfig = { ...newConfig, railwayUrl: "" }
+    setConfig(sameOriginConfig)
     setFiles(newFiles)
-    if (!isShellMode && newConfig.railwayUrl)
-      localStorage.setItem("writer:railwayUrl", newConfig.railwayUrl)
+    if (!isShellMode) localStorage.removeItem("writer:railwayUrl")
     setSyncStatus("saving")
     try {
       if (!isShellMode) {
-        if (useEbWorkspace) await db.saveEbV2Settings(newConfig)
-        else await Promise.all([db.saveConfig(newConfig), db.saveFiles(newFiles, newConfig.railwayUrl)])
+        if (useEbWorkspace) await db.saveEbV2Settings(sameOriginConfig)
+        else await Promise.all([db.saveConfig(sameOriginConfig), db.saveFiles(newFiles, "")])
       }
       setSyncStatus("idle")
     } catch {

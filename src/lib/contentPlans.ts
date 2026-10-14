@@ -26,7 +26,7 @@ function shellPlan(input: { name: string; sourceType: ContentPlanSourceType; con
   };
 }
 
-function baseUrl(railwayUrl: string) { return railwayUrl.trim().replace(/\/$/, '') || window.location.origin; }
+function baseUrl(_railwayUrl: string) { return window.location.origin.replace(/\/$/, ''); }
 async function parse(response: Response) { const payload = await response.json().catch(() => ({ error: response.statusText })); if (!response.ok) throw new Error(payload.error || `Content Plan error ${response.status}`); return payload; }
 
 export async function importContentPlan(input: { name: string; sourceType: ContentPlanSourceType; content?: string; url?: string; file?: File; previousVersionId?: string }, railwayUrl: string): Promise<ContentPlan> {

@@ -126,10 +126,8 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
     return { content, model: `${model.name} (simulated)`, generatedAt: new Date().toISOString(), cacheHit: false };
   }
 
-  // Resolve railway URL — prop → localStorage → hardcoded production URL
-  const railwayUrl = req.railwayUrl
-    || localStorage.getItem('writer:railwayUrl')
-    || 'https://rebuildwriterstudiotool-production.up.railway.app';
+  // Keep every AI request on the backend that served this app.
+  const railwayUrl = window.location.origin;
 
   if (railwayUrl) {
     try {
@@ -203,7 +201,7 @@ export async function researchSeoKeywords(seeds: string[], articleId: string, ra
     keywords: seeds.slice(0, keywordCount).map((keyword, index) => ({ keyword, searchVolume: null, keywordDifficulty: null, competition: null, cpc: null, intent: index % 2 ? 'informational' : 'commercial', source: 'openai_web_search' as const, updatedAt: null })),
     seedKeywords: seeds, location: 'simulated', language: 'en', researchedAt: new Date().toISOString(),
   };
-  const baseUrl = railwayUrl || localStorage.getItem('writer:railwayUrl') || 'https://rebuildwriterstudiotool-production.up.railway.app';
+  const baseUrl = window.location.origin;
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/seo/research`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
