@@ -35,6 +35,7 @@ import { researchSeoKeywords, seoResearchConfigured } from "./seoResearch.ts"
 import { jsonrepair } from "jsonrepair"
 import { scanWebsiteUrl, selectWebsiteCandidates } from "./websiteInventory.ts"
 import { registerEbV2Routes } from "./ebV2.ts"
+import { registerAgentLibraryRoutes } from "./agentLibrary.ts"
 
 // DIST_PATH env var set by Railway start command; fallback to sibling dist/ of cwd
 const DIST = process.env.DIST_PATH
@@ -65,6 +66,7 @@ app.use("/api", async (req: AuthenticatedRequest, res, next) => {
 })
 
 registerEbV2Routes(app)
+registerAgentLibraryRoutes(app)
 
 const ARTICLE_PREFIX = "writer:article:"
 const LEARNING_DECISIONS_KEY = "writer:learning:decision-cards:v1"
