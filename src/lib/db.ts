@@ -162,6 +162,17 @@ export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return rail
 export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin()) }
 export async function uploadEbV2Package(file: File, model: { provider: string; id: string }) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin()) }
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
+export type DiscoveryStreamEvent = { event: "progress"; message?: string } | { event: "item"; item: any } | { event: "complete"; items: any[] } | { event: "error"; error: string }
+export async function runEbV2DiscoveryLive(model: { provider: string; id: string }, sourceUrls: string[] = [], onEvent: (event: DiscoveryStreamEvent) => void) {
+  if (isShellMode) throw new Error("Shell mode is active. No Railway or Supabase request was made.")
+  const response = await fetch(`${ebV2Origin()}/api/eb-v2/discovery`, jsonRequest("POST", { model, sourceUrls }))
+  if (!response.ok || !response.body) throw new Error(`Railway error ${response.status}`)
+  const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let completed: any[] = []
+  const consume = (line: string) => { if (!line.trim()) return; const event = JSON.parse(line) as DiscoveryStreamEvent; onEvent(event); if (event.event === "complete") completed = event.items ?? []; if (event.event === "error") throw new Error(event.error) }
+  while (true) { const { done, value } = await reader.read(); buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done }); const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; for (const line of lines) consume(line); if (done) break }
+  if (buffer.trim()) consume(buffer)
+  return { items: completed }
+}
 export async function fetchEbV2LibraryDocuments() { return railwayRequest<{ documents: any[] }>("/api/eb-v2/library-documents", undefined, ebV2Origin()) }
 export async function fetchEbV2Activity(id: string, kind: "package" | "channel") { return railwayRequest<any>(`/api/eb-v2/activity/${encodeURIComponent(id)}?kind=${kind}`, undefined, ebV2Origin()) }
 export async function fetchEbV2DiscoveryDetail(id: string) { return railwayRequest<any>(`/api/eb-v2/discovery/${encodeURIComponent(id)}/details`, undefined, ebV2Origin()) }

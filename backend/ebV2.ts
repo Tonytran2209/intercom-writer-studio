@@ -1008,7 +1008,15 @@ export function registerEbV2Routes(app: express.Express) {
       return res
         .status(400)
         .json({ error: "Choose a Brief AI model before running Discovery." })
+    res.status(200)
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8")
+    res.setHeader("Cache-Control", "no-cache, no-transform")
+    res.setHeader("X-Accel-Buffering", "no")
+    res.flushHeaders()
+    const emit = (event: string, payload: Record<string, unknown> = {}) =>
+      res.write(`${JSON.stringify({ event, ...payload })}\n`)
     try {
+      emit("progress", { message: "Scanning configured sources…" })
       const settingsRow = (
         await tableSelect<any>("eb_v2_app_settings", (query) => query.limit(1))
       )[0]
@@ -1057,6 +1065,10 @@ export function registerEbV2Routes(app: express.Express) {
         fitExcludeTerms: terms(runtime.discoveryFitExcludeTerms),
         sources: runtime.discoverySources,
       })
+      emit("progress", {
+        message: `Reviewing ${research.sources.length} source candidates…`,
+        coverage: research.coverage,
+      })
       const savedSources = await Promise.all(
         research.sources.map((source) =>
           tableInsert<any>("eb_v2_discovery_sources", {
@@ -1078,7 +1090,9 @@ export function registerEbV2Routes(app: express.Express) {
       )
       const library = await libraryContext()
       const freshDays = Math.min(90, Math.max(3, Number(runtime.discoveryFreshDays) || 30))
-      const prompt = `Use ONLY the dated source records below. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}],"emerging":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. A trending topic needs at least two independent publishers, including one Vietnamese source, and at least one cited source published within the last ${freshDays} days. An emerging signal needs at least one cited source published within the last ${freshDays} days, but must be clearly early-stage and must never be presented as a verified trend. Return at most 5 total entries; use empty arrays when evidence is thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}`
+      const targetTopics = Math.min(5, Math.max(3, Number(runtime.discoveryMaxTopics) || 5))
+      const prompt = `Use ONLY the dated source records below. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}],"emerging":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. A trending topic needs at least two independent publishers, including one Vietnamese source, and at least one cited source published within the last ${freshDays} days. An emerging signal needs at least one cited source published within the last ${freshDays} days, but must be clearly early-stage and must never be presented as a verified trend. Aim for ${targetTopics} total entries whenever the evidence supports it; use empty arrays only when evidence is genuinely thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}`
+      emit("progress", { message: "Finding verified trends and emerging signals…" })
       const result = eligible.length
         ? await generate({
             provider: model.provider,
@@ -1107,7 +1121,7 @@ export function registerEbV2Routes(app: express.Express) {
       const items: any[] = []
       for (const topic of topics.slice(
         0,
-        Math.min(5, Math.max(1, Number(runtime.discoveryMaxTopics) || 5)),
+        targetTopics,
       )) {
         const ids: string[] = Array.isArray(topic?.sourceIds)
           ? topic.sourceIds.filter(
@@ -1125,8 +1139,7 @@ export function registerEbV2Routes(app: express.Express) {
           continue
         // Insert independently so a later invalid topic or persistence failure never removes
         // suggestions that have already passed the evidence gate in this Discovery run.
-        items.push(
-          await tableInsert<any>("eb_v2_discovery_items", {
+        const item = await tableInsert<any>("eb_v2_discovery_items", {
             run_id: run.id,
             title: text(topic.title).slice(0, 220),
             source_summary: text(topic.reason),
@@ -1148,12 +1161,13 @@ export function registerEbV2Routes(app: express.Express) {
                 output: result.content,
               },
             ],
-          }),
-        )
+          })
+        items.push(item)
+        emit("item", { item })
       }
       for (const topic of emergingTopics.slice(
         0,
-        Math.max(0, Math.min(5, Math.max(1, Number(runtime.discoveryMaxTopics) || 5)) - items.length),
+        Math.max(0, targetTopics - items.length),
       )) {
         const ids: string[] = Array.isArray(topic?.sourceIds)
           ? topic.sourceIds.filter(
@@ -1174,8 +1188,7 @@ export function registerEbV2Routes(app: express.Express) {
           )
         )
           continue
-        items.push(
-          await tableInsert<any>("eb_v2_discovery_items", {
+        const item = await tableInsert<any>("eb_v2_discovery_items", {
             run_id: run.id,
             title: title.slice(0, 220),
             source_summary: `Emerging signal — ${text(topic.reason)}`,
@@ -1198,8 +1211,28 @@ export function registerEbV2Routes(app: express.Express) {
                 output: result.content,
               },
             ],
-          }),
-        )
+          })
+        items.push(item)
+        emit("item", { item })
+      }
+      const fallbackCandidates = savedSources.filter(
+        (source) =>
+          source.published_at &&
+          Date.now() - new Date(source.published_at).getTime() <=
+            freshDays * 24 * 60 * 60 * 1000,
+      )
+      for (const source of fallbackCandidates) {
+        if (items.length >= targetTopics) break
+        if (items.some((item) => item.title.toLowerCase() === String(source.title).toLowerCase())) continue
+        const item = await tableInsert<any>("eb_v2_discovery_items", {
+          run_id: run.id,
+          title: String(source.title).slice(0, 220),
+          source_summary: `Source lead — fresh signal from ${source.source_name}; validate further before treating it as a trend.`,
+          status: "suggested",
+          evidence: [{ kind: "research_topic", confidence: "source_lead", sourceIds: [source.id] }],
+        })
+        items.push(item)
+        emit("item", { item })
       }
       const uncategorized = savedSources
         .filter((source) => source.eligibility === "undated")
@@ -1218,21 +1251,11 @@ export function registerEbV2Routes(app: express.Express) {
         raw_output: String(result.content),
         completed_at: new Date().toISOString(),
       })
-      res
-        .status(201)
-        .json({
-          items,
-          uncategorized,
-          coverage: research.coverage,
-          runId: run.id,
-        })
+      emit("complete", { items, uncategorized, coverage: research.coverage, runId: run.id })
+      res.end()
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          error:
-            error instanceof Error ? error.message : "Unable to run Discovery.",
-        })
+      emit("error", { error: error instanceof Error ? error.message : "Unable to run Discovery." })
+      res.end()
     }
   })
 

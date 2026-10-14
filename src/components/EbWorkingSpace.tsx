@@ -64,6 +64,10 @@ type DiscoveryIdea = {
 function isEmergingDiscovery(item: DiscoveryIdea) {
   return Array.isArray(item.evidence) && item.evidence.some((entry: any) => entry?.kind === "research_topic" && entry?.confidence === "emerging")
 }
+function discoveryTag(item: DiscoveryIdea) {
+  const confidence = Array.isArray(item.evidence) ? item.evidence.find((entry: any) => entry?.kind === "research_topic")?.confidence : undefined
+  return confidence === "source_lead" ? "Source lead" : confidence === "emerging" ? "Emerging signal" : "Verified trend"
+}
 
 const gateConfig: Record<Gate, {
   title: string
@@ -426,7 +430,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     }
     setSyncing(true)
     void db
-      .runEbV2Discovery({ provider: model.provider, id: model.id }, sourceUrls)
+      .runEbV2DiscoveryLive({ provider: model.provider, id: model.id }, sourceUrls, (event) => {
+        if (event.event === "progress" && event.message)
+          setDiscoveryStatus({ state: "running", message: event.message })
+        if (event.event === "item" && event.item?.title) {
+          const idea = { ...event.item, id: String(event.item.id), title: String(event.item.title) }
+          setDiscoveryIdeas((current) => [idea, ...current.filter((saved) => saved.id !== idea.id)])
+          setDiscoveryStatus({ state: "running", message: "A new suggestion is ready — continuing scan…" })
+        }
+      })
       .then((data) => {
         const ideas = (Array.isArray(data.items) ? data.items : [])
           .map((item) => ({
@@ -443,12 +455,13 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         ])
         setRuntimeError(null)
         const emergingCount = ideas.filter(isEmergingDiscovery).length
-        const verifiedCount = ideas.length - emergingCount
+        const sourceLeadCount = ideas.filter((item) => discoveryTag(item) === "Source lead").length
+        const verifiedCount = ideas.length - emergingCount - sourceLeadCount
         setDiscoveryStatus(
           ideas.length
             ? {
                 state: "success",
-                message: `${verifiedCount ? `${verifiedCount} verified trend${verifiedCount === 1 ? "" : "s"}` : "No verified trends"}${emergingCount ? `${verifiedCount ? " and " : ""}${emergingCount} emerging signal${emergingCount === 1 ? "" : "s"}` : ""} saved. Your earlier suggestions remain in Discovery archive.`,
+                message: `${verifiedCount ? `${verifiedCount} verified trend${verifiedCount === 1 ? "" : "s"}` : "No verified trends"}${emergingCount ? `${verifiedCount ? " and " : ""}${emergingCount} emerging signal${emergingCount === 1 ? "" : "s"}` : ""}${sourceLeadCount ? `${verifiedCount || emergingCount ? " and " : ""}${sourceLeadCount} source lead${sourceLeadCount === 1 ? "" : "s"}` : ""} saved. Your earlier suggestions remain in Discovery archive.`,
               }
             : {
                 state: "empty",
@@ -1598,8 +1611,9 @@ function DiscoveryArchive({
   onPick: (item: DiscoveryIdea) => void
 }) {
   const groups = [
-    { key: "verified", title: "Verified trends", description: "Confirmed by independent publishers, including Vietnamese evidence.", items: ideas.filter((item) => !isEmergingDiscovery(item)) },
+    { key: "verified", title: "Verified trends", description: "Confirmed by independent publishers, including Vietnamese evidence.", items: ideas.filter((item) => discoveryTag(item) === "Verified trend") },
     { key: "emerging", title: "Emerging signals", description: "Fresh early signals to review before treating them as a trend.", items: ideas.filter(isEmergingDiscovery) },
+    { key: "source-leads", title: "Source leads", description: "Fresh scanned articles waiting for human validation and framing.", items: ideas.filter((item) => discoveryTag(item) === "Source lead") },
   ].filter((group) => group.items.length)
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-slate-50/30 p-4">
@@ -1641,7 +1655,7 @@ function DiscoveryArchive({
                 <div className="mt-2 space-y-2">{group.items.map((item) => (
                   <article key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
                     <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
-                      <Tag>{isEmergingDiscovery(item) ? "Emerging signal" : "Verified trend"}</Tag>
+                      <Tag>{discoveryTag(item)}</Tag>
                       <h2 className="mt-2 text-xs font-bold text-slate-800">{item.title}</h2>
                       <p className="mt-1 text-[10px] text-slate-500">{item.source_summary ?? "Source trace available in Details."}</p>
                     </button>
@@ -2252,7 +2266,7 @@ function DiscoveryDetail({
         <header className="flex items-start justify-between gap-3 border-b border-slate-200/80 p-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-500">
-              {emerging ? "Emerging signal" : "Verified trend"}
+              {discoveryTag(savedItem)}
             </p>
             <h2 className="mt-1 text-sm font-bold text-slate-900">
               {item.title}
@@ -2287,7 +2301,7 @@ function DiscoveryDetail({
               {item.persona_candidate && (
                 <Tag>Persona · {item.persona_candidate}</Tag>
               )}
-              <Tag>{emerging ? "Early signal — review before use" : item.status ?? "suggested"}</Tag>
+              <Tag>{emerging ? "Early signal — review before use" : discoveryTag(savedItem) === "Source lead" ? "Source lead — validate before use" : item.status ?? "suggested"}</Tag>
             </div>
           </section>
           <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
