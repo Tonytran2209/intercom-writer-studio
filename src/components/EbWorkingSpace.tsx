@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
+import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
 type Gate = "brief" | "article" | "adapt" | "review"
@@ -693,24 +694,17 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       target === "brief" ? "Brief · Gate 1" : "Website article · Gate 2"
     if (
       !window.confirm(
-        `Move “${task.title}” back to ${targetLabel}? Later channel outputs will be removed.`,
+        `Move “${task.title}” back to ${targetLabel}? The saved content for that gate will be restored. Later channel outputs will be archived.`,
       )
     )
       return
     if (isShellMode) {
-      setTasks((current) =>
-        current
-          .filter(
-            (item) =>
-              (item.packageId ?? item.id) !== (task.packageId ?? task.id) ||
-              item.id === (task.packageId ?? task.id),
-          )
-          .map((item) =>
-            item.id === (task.packageId ?? task.id)
-              ? { ...item, gate: target, status: "ready", decision: null }
-              : item,
-          ),
-      )
+      const packageId = task.packageId ?? task.id
+      setTasks((current) => [
+        ...current.filter((item) => (item.packageId ?? item.id) !== packageId),
+        { id: packageId, packageId, title: task.title, gate: target, status: "ready", source: task.source },
+      ])
+      setSelectedId(null)
       return
     }
     setSyncing(true)
@@ -1880,6 +1874,7 @@ function TaskDetail({
   onClose: () => void
 }) {
   const [activity, setActivity] = useState<any>(null)
+  const activityItem = useRef<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -1891,60 +1886,46 @@ function TaskDetail({
   const [channelActionsOpen, setChannelActionsOpen] = useState<string | null>(null)
   const activeChannelId = selectedChannelId ?? task?.channels?.find((channel) => !channel.decision)?.id ?? task?.channels?.[0]?.id
   useEffect(() => {
-    if (!task || isShellMode) {
+    let active = true
+    const key = task ? `${task.id}:${task.gate}` : null
+    if (activityItem.current !== key) {
       setActivity(null)
-      return
+      activityItem.current = key
     }
+    if (!task || isShellMode) return
     setLoading(true)
     setError(null)
-    void db
-      .fetchEbV2Activity(
-        task.id,
-        task.gate === "adapt" ? "channel" : "package",
-      )
-      .then(setActivity)
-      .catch((reason) =>
-        setError(
-          reason instanceof Error ? reason.message : "Unable to load activity.",
-        ),
-      )
-      .finally(() => setLoading(false))
+    void db.fetchEbV2Activity(task.id, task.gate === "adapt" ? "channel" : "package")
+      .then((data) => { if (active) setActivity(data) })
+      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load activity.") })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [task])
-  useEffect(() => setSelectedChannelId(null), [task?.id])
+  useEffect(() => setSelectedChannelId(null), [task?.id, task?.gate])
   const hasPendingFeedback = Array.isArray(activity?.feedback) && activity.feedback.some(
     (item: any) => item.status === "queued" || item.status === "running",
   )
   useEffect(() => {
     if (!task || isShellMode || !hasPendingFeedback) return
+    let active = true
     const timer = window.setTimeout(() => {
       void db
         .fetchEbV2Activity(
           task.id,
           task.gate === "adapt" ? "channel" : "package",
         )
-        .then(setActivity)
+        .then((data) => { if (active) setActivity(data) })
         .catch(() => undefined)
     }, 1600)
-    return () => window.clearTimeout(timer)
+    return () => { active = false; window.clearTimeout(timer) }
   }, [task?.id, task?.gate, hasPendingFeedback])
   if (!task) return null
-  const selectedOutput =
-    (activeChannelId ? activity?.channels?.find((item: any) => item.id === activeChannelId) : null) ??
-    activity?.selectedChannel ??
-    activity?.channels?.find((item: any) => item.id === task.id)
-  const latestRun = activity?.runs?.[0]
-  const output =
-    selectedOutput?.content?.text ??
-    (task.gate === "article"
-      ? activity?.articles?.find(
-          (article: any) =>
-            !article?.quality_report?.feedbackPending && article?.body_markdown,
-        )?.body_markdown
-      : null) ??
-    latestRun?.output_snapshot?.content ??
+  const output = gateResult(task.gate, activity, activeChannelId ?? (task.gate === "adapt" ? task.id : undefined)) ??
     (isShellMode
       ? "Shell-mode simulation: no persistent source or AI activity exists for this item."
-      : "This item has not produced output yet.")
+      : task.gate === "brief" ? "Chưa có brief hoàn tất cho Gate 1. Bổ sung đủ thông tin và chạy Gate 1."
+      : task.gate === "article" ? "Chưa có website article hoàn tất cho Gate 2."
+      : "This channel has not produced output yet.")
   const sources = activity?.inputs ?? []
   const runs = activity?.runs ?? []
   const actions = activeChannelId
@@ -2100,7 +2081,7 @@ function TaskDetail({
               )}
               <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold text-slate-800">Result</h3>
+                  <h3 className="text-xs font-bold text-slate-800">{task.gate === "brief" ? "Brief · Gate 1" : task.gate === "article" ? "Website article · Gate 2" : "Channel output"}</h3>
                   <button
                     onClick={() => void copyResult()}
                     title="Copy result as formatted Markdown"

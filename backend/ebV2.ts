@@ -5,6 +5,7 @@ import { jsonrepair } from "jsonrepair"
 import { generate } from "./providers.ts"
 import {
   saveEbV2Review,
+  moveEbV2Package,
   tableAvailable,
   tableDeleteWhere,
   tableInsert,
@@ -376,7 +377,7 @@ async function reopenLatestArticle(packageId: string) {
   const articles = await tableSelect<any>("eb_v2_articles", (query) =>
     query.eq("package_id", packageId).order("revision", { ascending: false }),
   )
-  const article = articles.find((candidate) => text(candidate.body_markdown))
+  const article = articles.find((candidate) => !candidate.quality_report?.feedbackPending && text(candidate.body_markdown))
   if (!article) return null
   if (article.status !== "draft")
     await tableUpdate("eb_v2_articles", article.id, {
@@ -1655,13 +1656,7 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await one<any>("eb_v2_packages", text(req.params.id))
       if (!item) return res.status(404).json({ error: "Package not found." })
-      await archiveOutputs(item.id)
-      if (target === "brief") await archiveArticles(item.id)
-      if (target === "article") await reopenLatestArticle(item.id)
-      await tableUpdate("eb_v2_packages", item.id, {
-        state: target,
-        updated_at: new Date().toISOString(),
-      })
+      await moveEbV2Package(item.id, target)
       res.json(await workspace())
     } catch (error) {
       res

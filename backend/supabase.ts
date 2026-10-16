@@ -179,3 +179,8 @@ export async function saveEbV2Review(args: Record<string, unknown>): Promise<voi
   const { error } = await getClient().rpc("eb_v2_save_review", args);
   if (error) throw new Error(`Unable to save review. Apply migration 011_eb_v2_variant_approval.sql if needed: ${error.message}`);
 }
+
+export async function moveEbV2Package(packageId: string, target: string): Promise<void> {
+  const { error } = await getClient().rpc("eb_v2_move_package", { p_package_id: packageId, p_target: target });
+  if (error) throw new Error(error.code === "PGRST202" ? "Apply migration 012_eb_v2_gate_moves.sql before moving packages." : error.message);
+}
