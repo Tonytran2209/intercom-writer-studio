@@ -30,10 +30,12 @@ import { isShellMode } from "../lib/appMode"
 type Gate = "brief" | "article" | "adapt" | "review"
 type View = "grid" | "list"
 type WorkspacePage = "board" | "discovery" | "library"
+type ApprovedVariants = "a" | "b" | "both"
 type Decision = "done" | "reject" | "recheck" | null
 type ReviewChannel = {
   id: string
   channel: "Threads" | "Facebook" | "LinkedIn"
+  approvedVariants?: ApprovedVariants
   decision?: Decision
 }
 type Task = {
@@ -47,6 +49,7 @@ type Task = {
   type?: string
   channel?: "Threads" | "Facebook" | "LinkedIn"
   channels?: ReviewChannel[]
+  approvedVariants?: ApprovedVariants
   decision?: Decision
   source?: "input" | "discovery"
 }
@@ -187,10 +190,10 @@ function workspaceTasks(
     const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
     const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
     if (state === "adapting") {
-      tasks.push({ id: output.id, packageId: output.package_id, gate: "adapt", title: item.title, status: state, channel, decision })
+      tasks.push({ id: output.id, packageId: output.package_id, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
     } else {
       const current = reviewChannelsByPackage.get(output.package_id) ?? []
-      current.push({ id: output.id, channel, decision })
+      current.push({ id: output.id, channel, decision, approvedVariants: output.content?.approvedVariants })
       reviewChannelsByPackage.set(output.package_id, current)
     }
   }
@@ -563,16 +566,16 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       )
       .finally(() => setSyncing(false))
   }
-  const decide = (id: string, decision: Exclude<Decision, null>) => {
+  const decide = (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => {
     if (isShellMode) {
       setTasks((current) =>
-        current.map((task) => (task.id === id ? { ...task, decision } : task)),
+        current.map((task) => (task.id === id ? { ...task, decision, approvedVariants } : task)),
       )
       return
     }
     setSyncing(true)
     void db
-      .reviewEbV2Channel(id, decision)
+      .reviewEbV2Channel(id, decision, approvedVariants)
       .then((data) => {
         setTasks(workspaceTasks(data))
         setRuntimeError(null)
@@ -1165,7 +1168,7 @@ function GateGroup({
   view: View
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
-  onDecision: (id: string, decision: Exclude<Decision, null>) => void
+  onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
   onRegenerate: (task: Task) => void
   onMove: (task: Task, target: "brief" | "article") => void
   onDelete: (task: Task) => void
@@ -1238,7 +1241,7 @@ function TaskCard({
   view: View
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
-  onDecision: (id: string, decision: Exclude<Decision, null>) => void
+  onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
   onRegenerate: (task: Task) => void
   onMove: (task: Task, target: "brief" | "article") => void
   onDelete: (task: Task) => void
@@ -1338,14 +1341,14 @@ function TaskCard({
           )}
         {task.gate === "review" && !task.channels && !task.decision && (
           <>
-            <button
+            {task.channel === "Threads" ? <VariantApproval onApprove={(variants) => onDecision(task.id, "done", variants)} /> : <button
               onClick={() => onDecision(task.id, "done")}
               title="Mark done"
               aria-label="Mark done"
               className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
             >
               <Check className="h-3.5 w-3.5" />
-            </button>
+            </button>}
             <button
               onClick={() => onDecision(task.id, "reject")}
               title="Reject"
@@ -1838,7 +1841,7 @@ function TaskDetail({
   task: Task | null
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
-  onDecision: (id: string, decision: Exclude<Decision, null>) => void
+  onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
   onRegenerate: (task: Task) => void
   onClose: () => void
 }) {
@@ -1872,7 +1875,7 @@ function TaskDetail({
         ),
       )
       .finally(() => setLoading(false))
-  }, [task?.id, task?.gate])
+  }, [task])
   useEffect(() => setSelectedChannelId(null), [task?.id])
   const hasPendingFeedback = Array.isArray(activity?.feedback) && activity.feedback.some(
     (item: any) => item.status === "queued" || item.status === "running",
@@ -2037,12 +2040,12 @@ function TaskDetail({
                       return (
                         <article key={channel.id} className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs ${isActive ? "border-slate-400" : "border-slate-200/80"}`}>
                           <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
-                            <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag></div>
+                            <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
                             <p className="mt-1 text-[10px] text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
                           </button>
                           <div className="flex shrink-0 items-center gap-1.5">
                             {!channel.decision && <>
-                              <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "done") }} title={`Mark ${channel.channel} done`} aria-label={`Mark ${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"><Check className="h-3.5 w-3.5" /></button>
+                              {channel.channel === "Threads" ? <VariantApproval onApprove={(variants) => { setSelectedChannelId(channel.id); onDecision(channel.id, "done", variants) }} /> : <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "done") }} title={`Mark ${channel.channel} done`} aria-label={`Mark ${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"><Check className="h-3.5 w-3.5" /></button>}
                               <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "reject") }} title={`Reject ${channel.channel}`} aria-label={`Reject ${channel.channel}`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"><X className="h-3.5 w-3.5" /></button>
                             </>}
                             {channel.decision === "done" && <span title={`${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Check className="h-3.5 w-3.5" /></span>}
@@ -2182,7 +2185,7 @@ function TaskDetail({
                       key={action.id}
                       className="mt-2 text-[10px] text-slate-600"
                     >
-                      <b>{action.action}</b> ·{" "}
+                      <b>{action.action}{action.approved_variants ? ` · Approved ${action.approved_variants === "both" ? "A + B" : action.approved_variants.toUpperCase()}` : ""}</b> ·{" "}
                       {action.created_at
                         ? new Date(action.created_at).toLocaleString()
                         : ""}
@@ -2393,4 +2396,17 @@ function Tag({ children }: { children: ReactNode }) {
       {children}
     </span>
   )
+}
+
+function VariantApproval({ onApprove }: { onApprove: (variants: ApprovedVariants) => void }) {
+  return <select aria-label="Approve Threads variants" defaultValue="" onChange={(event) => {
+    const value = event.target.value as ApprovedVariants
+    event.target.value = ""
+    if (value) onApprove(value)
+  }} className="h-8 max-w-44 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700">
+    <option value="" disabled>Approve variants…</option>
+    <option value="a">Approve Variant A</option>
+    <option value="b">Approve Variant B</option>
+    <option value="both">Approve both</option>
+  </select>
 }

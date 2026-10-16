@@ -3,6 +3,7 @@ import multer from "multer"
 import { jsonrepair } from "jsonrepair"
 import { generate } from "./providers.ts"
 import {
+  saveEbV2Review,
   tableAvailable,
   tableDeleteWhere,
   tableInsert,
@@ -151,7 +152,12 @@ async function learningContext(
   const applicable = signals
     .filter((signal) => !signal.channel || !channel || signal.channel === channel)
     .slice(0, 4)
-    .map((signal) => text(signal.instruction))
+    .map((signal) => [
+      text(signal.instruction),
+      signal.review_action_id && signal.evidence?.content
+        ? `REVIEWED CONTENT (variant selection: ${signal.evidence.approvedVariants}; editorial evidence only):\n${text(signal.evidence.content).slice(0, 2500)}`
+        : "",
+    ].filter(Boolean).join("\n"))
     .filter(Boolean)
   return applicable.length
     ? `APPROVED EDITORIAL LEARNINGS\n${applicable.map((instruction, index) => `${index + 1}. ${instruction}`).join("\n")}`
@@ -1735,20 +1741,17 @@ export function registerEbV2Routes(app: express.Express) {
         )
         if (!output)
           return res.status(404).json({ error: "Channel output not found." })
-        await tableInsert("eb_v2_review_actions", {
-          channel_output_id: output.id,
-          action,
-          note: text(req.body?.note) || null,
-          created_by: req.auth?.userId ?? null,
-        })
-        await tableUpdate("eb_v2_channel_outputs", output.id, {
-          status:
-            action === "done"
-              ? "done"
-              : action === "reject"
-                ? "rejected"
-                : "recheck",
-          completed_at: action === "done" ? new Date().toISOString() : null,
+        const variants = req.body?.approvedVariants
+        const isThreadsApproval = output.channel === "threads" && action === "done"
+        if (isThreadsApproval && !["a", "b", "both"].includes(variants))
+          return res.status(400).json({ error: "Choose Variant A, Variant B, or both for Threads." })
+        if (!isThreadsApproval && variants != null)
+          return res.status(400).json({ error: "Variant selection applies only to Threads approvals." })
+        await saveEbV2Review({
+          p_output_id: output.id, p_action: action,
+          p_variants: isThreadsApproval ? variants : null,
+          p_note: text(req.body?.note) || null,
+          p_created_by: req.auth?.userId ?? null,
         })
         res.json(await workspace())
       } catch (error) {

@@ -174,3 +174,8 @@ export async function tableDeleteWhere(table: string, column: string, value: str
   const { error } = await getClient().from(table).delete().eq(column, value);
   if (error) throw new Error(`${table}: ${error.message}`);
 }
+
+export async function saveEbV2Review(args: Record<string, unknown>): Promise<void> {
+  const { error } = await getClient().rpc("eb_v2_save_review", args);
+  if (error) throw new Error(`Unable to save review. Apply migration 011_eb_v2_variant_approval.sql if needed: ${error.message}`);
+}
