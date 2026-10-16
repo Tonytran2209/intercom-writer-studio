@@ -214,8 +214,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     useState<DiscoveryIdea | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
-  const [fConnection, setFConnection] = useState("")
-  const [fEvidence, setFEvidence] = useState("")
   const [inputDiscoveryId, setInputDiscoveryId] = useState<string | undefined>()
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -362,14 +360,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       await db.createEbV2Package({
         title,
         inputText: title,
-        fConnection,
-        fEvidence,
         sourceType: source,
         discoveryId,
         model: { provider: model.provider, id: model.id },
       })
       await refresh()
-      setInput(""); setFConnection(""); setFEvidence(""); setInputDiscoveryId(undefined)
+      setInput(""); setInputDiscoveryId(undefined)
       setRuntimeError(null)
     } catch (error) {
       setRuntimeError(
@@ -382,7 +378,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const analyze = () => {
     if (syncing || (!input.trim() && !file)) return
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
-    if (!fConnection.trim() || !fEvidence.trim() || [input, fConnection, fEvidence].some(value => placeholder.test(value))) {
+    if (placeholder.test(input)) {
       setRuntimeError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
       return
     }
@@ -394,10 +390,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       }
       setSyncing(true)
       void db
-        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection, fEvidence })
+        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input })
         .then(async () => {
           await refresh()
-          setInput(""); setFileName(""); setFile(null); setFConnection(""); setFEvidence(""); setInputDiscoveryId(undefined); setRuntimeError(null)
+          setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setRuntimeError(null)
         })
         .catch((error) =>
           setRuntimeError(
@@ -1040,8 +1036,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               setFileName={setFileName}
               setFile={setFile}
               analyze={analyze}
-              fConnection={fConnection} setFConnection={setFConnection}
-              fEvidence={fEvidence} setFEvidence={setFEvidence} syncing={syncing}
+              syncing={syncing}
             />
           </div>
         ) : page === "discovery" ? (
@@ -1055,7 +1050,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               onPick={(item) => {
                 setInput(item.title)
                 setInputDiscoveryId(item.id)
-                setFConnection(""); setFEvidence(""); setFile(null); setFileName("")
+                setFile(null); setFileName("")
                 setRuntimeError("Bổ sung mối liên hệ với F/sự kiện của F và nguồn xác nhận trước khi chạy Gate 1.")
                 setPage("board")
               }}
@@ -1485,12 +1480,8 @@ function InputEngine({
   setFileName,
   setFile,
   analyze,
-  fConnection, setFConnection, fEvidence, setFEvidence, syncing,
+  syncing,
 }: {
-  fConnection: string
-  setFConnection: (value: string) => void
-  fEvidence: string
-  setFEvidence: (value: string) => void
   syncing: boolean
   input: string
   setInput: (value: string) => void
@@ -1503,15 +1494,17 @@ function InputEngine({
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
       <div className="glow-input-container mx-auto max-w-4xl rounded-xl p-px">
         <div className="rounded-[11px] bg-white p-2 shadow-sm">
-          <div className="flex h-10 items-center gap-2">
+          <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
             <textarea
               id="eb-input"
               disabled={syncing}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Nhập một khoảnh khắc, ý tưởng hoặc câu chuyện thật từ F.Learning…"
-              className="h-full min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+              aria-label="Nội dung topic, mối liên hệ với F và nguồn xác nhận"
+              rows={2}
+              placeholder="Nhập topic/câu chuyện, mối liên hệ với F hoặc sự kiện của F, kèm link hay nguồn xác nhận…"
+              className="min-h-12 max-h-40 min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
             />
             <label
               title={fileName || "Upload material"}
@@ -1535,7 +1528,7 @@ function InputEngine({
               />
             </label>
             <button
-              disabled={syncing || (!input.trim() && !fileName) || !fConnection.trim() || !fEvidence.trim()}
+              disabled={syncing || (!input.trim() && !fileName)}
               onClick={analyze}
               title="Kiểm tra thông tin và chạy Gate 1"
               aria-label="Kiểm tra thông tin và chạy Gate 1"
@@ -1544,15 +1537,7 @@ function InputEngine({
               <ArrowUp className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-2">
-            <label className="text-[10px] font-medium text-slate-600">Mối liên hệ với F / sự kiện của F *
-              <textarea disabled={syncing} value={fConnection} onChange={event => setFConnection(event.target.value)} required placeholder="Topic gắn với câu chuyện, hoạt động hoặc sự kiện cụ thể nào của F?" className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2 text-xs font-normal outline-none focus:border-indigo-300" />
-            </label>
-            <label className="text-[10px] font-medium text-slate-600">Nguồn xác nhận tại F *
-              <textarea disabled={syncing} value={fEvidence} onChange={event => setFEvidence(event.target.value)} required placeholder="Link tài liệu hoặc tham chiếu cụ thể: sự kiện, thời gian, người xác nhận…" className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2 text-xs font-normal outline-none focus:border-indigo-300" />
-            </label>
-          </div>
-          <p className="mt-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : "Gate 1 chỉ chạy khi thông tin đầy đủ theo rule. Writer phải bổ sung mọi trường trống hoặc N/A."}</p>
+          <p className="mt-1 px-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : fileName ? `Đã đính kèm: ${fileName}` : "Nêu rõ liên hệ với F/sự kiện của F và nguồn xác nhận trong cùng nội dung."}</p>
         </div>
       </div>
     </div>

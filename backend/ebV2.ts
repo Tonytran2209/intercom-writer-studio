@@ -140,7 +140,6 @@ async function workflowRuleContext(
   }
 }
 async function preflightBrief(input: string, body: any, model: Required<ModelInput>) {
-  requireBriefInput(input, body?.fConnection, body?.fEvidence)
   const [rules, docs] = await Promise.all([workflowRuleContext("brief"), libraryContext()])
   const rule = rules.snapshot.find((rule: { id: string; advanced: string }) => rule.id === "input-validation")
   let minimumFields = 11

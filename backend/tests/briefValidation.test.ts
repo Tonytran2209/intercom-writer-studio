@@ -52,3 +52,14 @@ test("passes complete input and includes the current settings rules and library"
   assert.match(request?.systemPrompt ?? "", /CURRENT INPUT RULES/)
   assert.deepEqual(request?.contextDocs, ["Reference checklist"])
 })
+
+test("extracts F connection and evidence from a single free-text input", async () => {
+  const unified = `${input}\n${connection}\nNguồn: ${evidence}`
+  const result = await validateBriefInput(unified, "", "", model, "", [], respond({ ...report, connection, evidence }))
+  assert.equal(result.connection, connection)
+  assert.equal(result.evidence, evidence)
+})
+test("unified input still cannot pass without a concrete F connection and evidence", async () => {
+  for (const values of [{ connection: "", evidence }, { connection, evidence: "" }, { connection: "N/A", evidence }, {}])
+    await assert.rejects(validateBriefInput(input, "", "", model, "", [], respond({ ...report, ...values })), BriefInputError)
+})
