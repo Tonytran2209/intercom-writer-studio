@@ -1,3 +1,4 @@
+import { BriefInputError, hasUnresolvedValue, requireBriefInput, validateBriefInput } from "./briefValidation.ts"
 import type express from "express"
 import multer from "multer"
 import { jsonrepair } from "jsonrepair"
@@ -137,6 +138,18 @@ async function workflowRuleContext(
     snapshot,
   }
 }
+async function preflightBrief(input: string, body: any, model: Required<ModelInput>) {
+  requireBriefInput(input, body?.fConnection, body?.fEvidence)
+  const [rules, docs] = await Promise.all([workflowRuleContext("brief"), libraryContext()])
+  const rule = rules.snapshot.find((rule: { id: string; advanced: string }) => rule.id === "input-validation")
+  let minimumFields = 11
+  try {
+    const params = JSON.parse(rule?.advanced || "{}")
+    const count = Number(params.mustHave) + Number(params.niceToHave)
+    if (Number.isInteger(count) && count > 0) minimumFields = count
+  } catch {}
+  return validateBriefInput(input, text(body.fConnection), text(body.fEvidence), model, rules.prompt, docs, generate, minimumFields)
+}
 async function learningContext(
   gate: "brief" | "article" | "adapt" | "review",
   channel?: string,
@@ -165,7 +178,7 @@ async function learningContext(
 }
 function executionContract(gate: "brief" | "article" | "adapt" | "review") {
   if (gate === "brief")
-    return `BRIEF OUTPUT CONTRACT\nAlways produce a usable brief; never refuse, pause, or ask the user to reply. Mark unavailable facts as N/A. Return concise Markdown only with: ## Brief summary, ## Evidence & gaps (only material gaps), ## Suggested EVP pillar, ## Suggested persona, and ## Article angle.`
+    return `BRIEF OUTPUT CONTRACT\nRun only after input validation passes. Every required field must be complete and supported, including the connection to F or an F event and its source reference. Never replace missing information with N/A or invent facts. If any required fact is still missing, ask the writer to complete it instead of producing a brief. Return concise Markdown only with: ## Brief summary, ## Evidence & gaps (only material gaps), ## Suggested EVP pillar, ## Suggested persona, and ## Article angle.`
   if (gate === "article")
     return `ARTICLE OUTPUT CONTRACT\nUse the approved brief as the source of truth. Do not ask for additional input; retain unknown facts as N/A and never invent them.`
   if (gate === "review")
@@ -266,6 +279,8 @@ async function runGate(
       throw new Error(
         `${gate}/${stage} completed without returned text after retry and fallback.`,
       )
+    if (gate === "brief" && hasUnresolvedValue(response.content))
+      throw new BriefInputError("Brief còn thông tin N/A. Writer cần bổ sung thông tin thực tế trước khi chạy lại Gate 1.")
     const usage = response.usage ?? {
       inputTokens: 0,
       outputTokens: 0,
@@ -927,6 +942,8 @@ export function registerEbV2Routes(app: express.Express) {
           error: "Choose a configured Brief AI model before analysing input.",
         })
     try {
+      const validation = await preflightBrief(inputText, req.body, model)
+      const validatedInput = `${inputText}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`
       const item = await tableInsert<any>("eb_v2_packages", {
         title,
         state: "brief",
@@ -935,8 +952,8 @@ export function registerEbV2Routes(app: express.Express) {
       })
       await tableInsert("eb_v2_package_inputs", {
         package_id: item.id,
-        input_text: inputText,
-        raw_snapshot: { sourceType: req.body?.sourceType ?? "input" },
+        input_text: validatedInput,
+        raw_snapshot: { sourceType: req.body?.sourceType ?? "input", briefValidation: validation },
       })
       if (
         text(req.body?.sourceType) === "discovery" &&
@@ -952,7 +969,7 @@ export function registerEbV2Routes(app: express.Express) {
             item.id,
             "brief",
             stages.brief,
-            `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText}`,
+            `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${validatedInput}`,
             model,
             await libraryContext(),
           )
@@ -967,7 +984,7 @@ export function registerEbV2Routes(app: express.Express) {
       res.status(201).json({ package: item })
     } catch (error) {
       res
-        .status(500)
+        .status(error instanceof BriefInputError ? 422 : 500)
         .json({
           error:
             error instanceof Error ? error.message : "Unable to create Brief.",
@@ -997,6 +1014,9 @@ export function registerEbV2Routes(app: express.Express) {
           return res
             .status(400)
             .json({ error: "The uploaded file did not contain readable text." })
+        const sourceInput = [inputText, text(req.body?.inputText)].filter(Boolean).join("\n\n")
+        const validation = await preflightBrief(sourceInput, req.body, model)
+        const validatedInput = `${sourceInput}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`
         const item = await tableInsert<any>("eb_v2_packages", {
           title: file.originalname,
           state: "brief",
@@ -1005,9 +1025,9 @@ export function registerEbV2Routes(app: express.Express) {
         })
         await tableInsert("eb_v2_package_inputs", {
           package_id: item.id,
-          input_text: inputText,
+          input_text: validatedInput,
           upload_name: file.originalname,
-          raw_snapshot: { mimeType: file.mimetype, byteSize: file.size },
+          raw_snapshot: { mimeType: file.mimetype, byteSize: file.size, briefValidation: validation },
         })
         void (async () => {
           try {
@@ -1015,7 +1035,7 @@ export function registerEbV2Routes(app: express.Express) {
               item.id,
               "brief",
               stages.brief,
-              `Extract and validate this employer-brand input from ${file.originalname}. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${inputText.slice(0, 60000)}`,
+              `Extract and validate this employer-brand input from ${file.originalname}. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${validatedInput}`,
               model,
               await libraryContext(),
             )
@@ -1026,7 +1046,7 @@ export function registerEbV2Routes(app: express.Express) {
         res.status(201).json({ package: item })
       } catch (error) {
         res
-          .status(500)
+          .status(error instanceof BriefInputError ? 422 : 500)
           .json({
             error:
               error instanceof Error
@@ -1306,6 +1326,12 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await one<any>("eb_v2_packages", req.params.id)
       if (!item) return res.status(404).json({ error: "Package not found." })
+      const savedInput = (await tableSelect<any>("eb_v2_package_inputs", (query) => query.eq("package_id", item.id).order("created_at", { ascending: false }).limit(1)))[0]
+      const saved = savedInput?.raw_snapshot?.briefValidation
+      requireBriefInput(savedInput?.input_text, saved?.connection, saved?.evidence)
+      const latestBrief = (await tableSelect<any>("eb_v2_gate_runs", (query) => query.eq("package_id", item.id).eq("gate", "brief").order("created_at", { ascending: false }).limit(1)))[0]
+      if (latestBrief?.status !== "completed" || hasUnresolvedValue(latestBrief?.output_snapshot?.content))
+        throw new BriefInputError("Brief chưa hoàn tất hoặc còn N/A. Writer cần bổ sung thông tin trước khi duyệt Gate 1.")
       await tableUpdate("eb_v2_packages", item.id, {
         state: "article",
         brief_approved_at: new Date().toISOString(),
@@ -1375,7 +1401,7 @@ export function registerEbV2Routes(app: express.Express) {
       res.json(await workspace())
     } catch (error) {
       res
-        .status(500)
+        .status(error instanceof BriefInputError ? 422 : 500)
         .json({
           error:
             error instanceof Error
@@ -1506,6 +1532,9 @@ export function registerEbV2Routes(app: express.Express) {
       const item = await one<any>("eb_v2_packages", text(req.params.id))
       if (!item) return res.status(404).json({ error: "Package not found." })
       if (stage === "brief") {
+        const savedInput = (await tableSelect<any>("eb_v2_package_inputs", (query) => query.eq("package_id", item.id).order("created_at", { ascending: false }).limit(1)))[0]
+        const saved = savedInput?.raw_snapshot?.briefValidation
+        await preflightBrief(savedInput?.input_text ?? "", { fConnection: saved?.connection, fEvidence: saved?.evidence }, model)
         await archiveOutputs(item.id)
         await archiveArticles(item.id)
         await tableUpdate("eb_v2_packages", item.id, {
@@ -1607,7 +1636,7 @@ export function registerEbV2Routes(app: express.Express) {
       res.json(await workspace())
     } catch (error) {
       res
-        .status(500)
+        .status(error instanceof BriefInputError ? 422 : 500)
         .json({
           error:
             error instanceof Error

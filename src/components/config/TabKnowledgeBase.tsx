@@ -198,7 +198,7 @@ function CollectionDetail({ collection, file, onClose }: { collection: { title: 
 }
 
 const DEFAULT_EB_RULES: EbWorkflowRule[] = [
-  { id: "input-validation", title: "Input validation", enabled: true, enforcement: "strict", instruction: "Run 7 must-have and 4 nice-to-have checks. Ask all missing questions once; preserve N/A as a traceable gap.", advanced: '{"mustHave":7,"niceToHave":4}' },
+  { id: "input-validation", title: "Input validation", enabled: true, enforcement: "strict", instruction: "Run 7 must-have and 4 nice-to-have checks before Gate 1. Require a concrete connection to F or an F event and a source reference. Block Gate 1 while any field is empty, N/A, unknown, or a placeholder. Ask the writer all missing questions once; proceed only after every field is completed with supported information.", advanced: '{"mustHave":7,"niceToHave":4}' },
   { id: "discovery-routing", title: "Discovery routing", enabled: true, enforcement: "guided", instruction: "Without raw material, present up to five source-backed topic options and stop for selection.", advanced: '{"maxTopics":5,"windowMonths":4}' },
   { id: "classification", title: "Pillar & persona mapping", enabled: true, enforcement: "strict", instruction: "Map one primary pillar, persona, article type and category. Ask for confirmation if pillar fit is ambiguous.", advanced: '{"primaryPillarRequired":true}' },
   { id: "approval-gates", title: "Approval gates", enabled: true, enforcement: "strict", instruction: "Stop at Brief, Website article and Social review. Pushback requires evidence; approval snapshots the active rules.", advanced: '{"gates":["brief","article","review"]}' },

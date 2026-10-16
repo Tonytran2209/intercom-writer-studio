@@ -213,6 +213,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     useState<DiscoveryIdea | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
+  const [fConnection, setFConnection] = useState("")
+  const [fEvidence, setFEvidence] = useState("")
+  const [inputDiscoveryId, setInputDiscoveryId] = useState<string | undefined>()
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -358,11 +361,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       await db.createEbV2Package({
         title,
         inputText: title,
+        fConnection,
+        fEvidence,
         sourceType: source,
         discoveryId,
         model: { provider: model.provider, id: model.id },
       })
       await refresh()
+      setInput(""); setFConnection(""); setFEvidence(""); setInputDiscoveryId(undefined)
+      setRuntimeError(null)
     } catch (error) {
       setRuntimeError(
         error instanceof Error ? error.message : "Unable to analyse input.",
@@ -372,7 +379,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     }
   }
   const analyze = () => {
-    if (!input.trim() && !file) return
+    if (syncing || (!input.trim() && !file)) return
+    const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
+    if (!fConnection.trim() || !fEvidence.trim() || [input, fConnection, fEvidence].some(value => placeholder.test(value))) {
+      setRuntimeError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
+      return
+    }
     if (file && !isShellMode) {
       const model = selectedModel(config, 1)
       if (!model) {
@@ -381,8 +393,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       }
       setSyncing(true)
       void db
-        .uploadEbV2Package(file, { provider: model.provider, id: model.id })
-        .then(() => refresh())
+        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection, fEvidence })
+        .then(async () => {
+          await refresh()
+          setInput(""); setFileName(""); setFile(null); setFConnection(""); setFEvidence(""); setInputDiscoveryId(undefined); setRuntimeError(null)
+        })
         .catch((error) =>
           setRuntimeError(
             error instanceof Error
@@ -392,10 +407,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )
         .finally(() => setSyncing(false))
     } else
-      void createBrief(input.trim() || `Material from ${fileName}`, "input")
-    setInput("")
-    setFileName("")
-    setFile(null)
+      void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId)
   }
   const runDiscovery = (sourceUrls: string[] = []) => {
     if (discoveryStatus.state === "running") return
@@ -914,8 +926,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </header>
       {runtimeError && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-4 py-2">
-          <p className="min-w-0 truncate text-[10px] text-red-700">
-            V2 cannot load: {runtimeError}
+          <p className="min-w-0 whitespace-pre-line text-[10px] text-red-700">
+            {runtimeError}
           </p>
           <button
             onClick={() => void refresh()}
@@ -1034,6 +1046,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               setFileName={setFileName}
               setFile={setFile}
               analyze={analyze}
+              fConnection={fConnection} setFConnection={setFConnection}
+              fEvidence={fEvidence} setFEvidence={setFEvidence} syncing={syncing}
             />
           </div>
         ) : page === "discovery" ? (
@@ -1045,7 +1059,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               onDelete={removeDiscovery}
               onClear={clearDiscovery}
               onPick={(item) => {
-                void createBrief(item.title, "discovery", item.id)
+                setInput(item.title)
+                setInputDiscoveryId(item.id)
+                setFConnection(""); setFEvidence(""); setFile(null); setFileName("")
+                setRuntimeError("Bổ sung mối liên hệ với F/sự kiện của F và nguồn xác nhận trước khi chạy Gate 1.")
                 setPage("board")
               }}
             />
@@ -1474,7 +1491,13 @@ function InputEngine({
   setFileName,
   setFile,
   analyze,
+  fConnection, setFConnection, fEvidence, setFEvidence, syncing,
 }: {
+  fConnection: string
+  setFConnection: (value: string) => void
+  fEvidence: string
+  setFEvidence: (value: string) => void
+  syncing: boolean
   input: string
   setInput: (value: string) => void
   fileName: string
@@ -1488,12 +1511,13 @@ function InputEngine({
         <div className="rounded-[11px] bg-white p-2 shadow-sm">
           <div className="flex h-10 items-center gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
-            <input
+            <textarea
               id="eb-input"
+              disabled={syncing}
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Nhập một khoảnh khắc, ý tưởng hoặc câu chuyện thật từ F.Learning…"
-              className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+              className="h-full min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
             />
             <label
               title={fileName || "Upload material"}
@@ -1506,6 +1530,7 @@ function InputEngine({
               <Upload className="h-3.5 w-3.5" />
               <input
                 type="file"
+                disabled={syncing}
                 className="hidden"
                 accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md"
                 onChange={(event) => {
@@ -1516,15 +1541,24 @@ function InputEngine({
               />
             </label>
             <button
-              disabled={!input.trim() && !fileName}
+              disabled={syncing || (!input.trim() && !fileName) || !fConnection.trim() || !fEvidence.trim()}
               onClick={analyze}
-              title="Analyze input"
-              aria-label="Analyze input"
+              title="Kiểm tra thông tin và chạy Gate 1"
+              aria-label="Kiểm tra thông tin và chạy Gate 1"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white disabled:opacity-40"
             >
               <ArrowUp className="h-3.5 w-3.5" />
             </button>
           </div>
+          <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-2">
+            <label className="text-[10px] font-medium text-slate-600">Mối liên hệ với F / sự kiện của F *
+              <textarea disabled={syncing} value={fConnection} onChange={event => setFConnection(event.target.value)} required placeholder="Topic gắn với câu chuyện, hoạt động hoặc sự kiện cụ thể nào của F?" className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2 text-xs font-normal outline-none focus:border-indigo-300" />
+            </label>
+            <label className="text-[10px] font-medium text-slate-600">Nguồn xác nhận tại F *
+              <textarea disabled={syncing} value={fEvidence} onChange={event => setFEvidence(event.target.value)} required placeholder="Link tài liệu hoặc tham chiếu cụ thể: sự kiện, thời gian, người xác nhận…" className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 p-2 text-xs font-normal outline-none focus:border-indigo-300" />
+            </label>
+          </div>
+          <p className="mt-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : "Gate 1 chỉ chạy khi thông tin đầy đủ theo rule. Writer phải bổ sung mọi trường trống hoặc N/A."}</p>
         </div>
       </div>
     </div>
@@ -1676,7 +1710,7 @@ function DiscoveryArchive({
                     </button>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">Details</button>
-                      <button onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Run Gate 1</button>
+                      <button onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Bổ sung thông tin cho Gate 1</button>
                       <button onClick={() => onDelete(item)} title="Delete suggestion" aria-label="Delete suggestion" className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </article>
