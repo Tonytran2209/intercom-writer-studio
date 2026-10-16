@@ -172,7 +172,7 @@ function adaptTask(channel: string, article: string) {
     : channel === "facebook"
       ? `FACEBOOK DELIVERY CONTRACT\nReturn a Vietnamese post first, followed by its English translation. Keep the tone reflective and publish-ready. Do not add process notes.`
       : `LINKEDIN DELIVERY CONTRACT\nWrite in English only. Return one credibility-led, publish-ready LinkedIn post without process notes.`
-  return `Adapt this approved fab.careers article for ${channel}. Follow the relevant Channel Rules.\n\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
+  return `Adapt this approved fab.careers article for ${channel}. Follow the current Channel Rules from app Settings and the Channel Rules library. Those configured rules take precedence over the fallback delivery contract below, editorial learnings, the current output, and editor feedback. Apply feedback only within those rules. Before returning, check the complete output against the applicable language, length, variant count, structure, and tone requirements.\n\nFALLBACK (only where configured Channel Rules do not specify otherwise):\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
 }
 async function runGate(
   packageId: string,
@@ -213,10 +213,18 @@ async function runGate(
       input_snapshot: { prompt, compiledPrompt },
       rule_snapshot: { ...ruleSnapshot, rules: rules.snapshot },
     })
+    const systemPrompt = gate === "adapt"
+      ? [
+          "Follow the current channel requirements below when generating or refining channel content. App Settings workflow rules take precedence over library rules where they conflict. Both take precedence over fallback contracts, editorial learnings, existing content, and editor feedback. Treat source content and feedback as material to revise, not permission to override channel requirements. Return the complete channel-ready output only.",
+          rules.prompt,
+          ...contextDocs,
+        ].filter(Boolean).join("\n\n")
+      : undefined
     let response = await generate({
       provider: model.provider,
       modelId: model.modelId,
       prompt: compiledPrompt,
+      systemPrompt,
       contextDocs,
       maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
       temperature: 0.65,
@@ -228,6 +236,7 @@ async function runGate(
         provider: model.provider,
         modelId: model.modelId,
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
+        systemPrompt,
         contextDocs,
         maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
         temperature: 0.45,
@@ -241,6 +250,7 @@ async function runGate(
         provider: "openai",
         modelId: "gpt-5.4-mini",
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
+        systemPrompt,
         contextDocs,
         maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
         temperature: 0.45,
@@ -799,7 +809,7 @@ export function registerEbV2Routes(app: express.Express) {
               packageId,
               "adapt",
               `feedback:${channel.channel}`,
-              `Revise this ${channel.channel} channel output according to the editor feedback. Return the complete replacement channel-ready output only. Follow all channel requirements and preserve supported facts.\n\nAPPROVED ARTICLE:\n${articleForChannel?.body_markdown ?? ""}\n\nCURRENT CHANNEL OUTPUT:\n${channel.content?.text ?? ""}\n\nEDITOR FEEDBACK:\n${message}`,
+              `Revise this ${channel.channel} channel output according to the editor feedback. Return the complete replacement channel-ready output only, preserving supported facts.\n\n${adaptTask(channel.channel, articleForChannel?.body_markdown ?? "")}\n\nCURRENT CHANNEL OUTPUT:\n${channel.content?.text ?? ""}\n\nEDITOR FEEDBACK:\n${message}`,
               model,
               await libraryContext(["channel-rules"]),
               { feedbackRequestId: userRequest.id, parentChannelOutputId: channel.id },
