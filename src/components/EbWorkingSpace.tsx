@@ -1519,6 +1519,47 @@ function DiscoveryPreparationSources({ item }: { item: DiscoveryIdea }) {
         {!ids.size && <p>Suggestion chưa lưu ID nguồn trích dẫn.</p>}</>}
   </div>
 }
+// Only backend-verified validation messages may become missing-information items.
+function gateOneRequirements(message: string): string[] | null {
+  const prefix = "Chưa thể chạy Gate 1. Writer cần bổ sung:\n"
+  const normalized = message.replace(/\r\n/g, "\n")
+  if (!normalized.startsWith(prefix)) return null
+  const labels: Record<string, string> = {
+    "Nội dung topic: bổ sung thông tin thực tế, không để trống hoặc N/A.": "Bổ sung nội dung topic",
+    "Mối liên hệ với F: nêu câu chuyện, hoạt động hoặc sự kiện cụ thể của F liên quan đến topic.": "Nêu liên hệ cụ thể với F / sự kiện của F",
+    "Nguồn xác nhận tại F: bổ sung link hoặc thông tin tham chiếu cụ thể để kiểm chứng.": "Thêm nguồn xác nhận tại F",
+    "connection": "Nêu liên hệ cụ thể với F / sự kiện của F",
+    "evidence": "Thêm nguồn xác nhận tại F",
+  }
+  const items = normalized.slice(prefix.length).split("\n").filter((item) => item.trim())
+  return items.length ? items.map((item) => labels[item.trim()] ?? item) : null
+}
+
+function InputValidationFeedback({ message }: { message: string }) {
+  const requirements = gateOneRequirements(message)
+  return (
+    <div role="alert" className="mb-2 max-h-64 overflow-y-auto rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100 in-[.writer-dark]:text-slate-100 in-[.codex-dark]:text-slate-100">
+      {requirements ? (
+        <>
+          <h3 className="font-semibold">Cần bổ sung</h3>
+          <ul className="mt-2 space-y-2" aria-label="Thông tin cần bổ sung trước Gate 1">
+            {requirements.map((item, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <span aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0 rounded-sm border border-current" />
+                <span className="min-w-0 whitespace-pre-wrap">{item}</span>
+              </li>
+            ))}
+          </ul>
+          <details key={message} className="mt-3">
+            <summary className="cursor-pointer rounded font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current">Xem chi tiết</summary>
+            <p className="mt-2 whitespace-pre-wrap">{message}</p>
+          </details>
+        </>
+      ) : <p className="whitespace-pre-wrap">{message}</p>}
+    </div>
+  )
+}
+
 function InputEngine({
   input,
   setInput,
@@ -1562,7 +1603,7 @@ function InputEngine({
               </label>
             </div>
           )}
-          {inputError && <p role="alert" className="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{inputError}</p>}
+          {inputError && <InputValidationFeedback message={inputError} />}
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
             <textarea
