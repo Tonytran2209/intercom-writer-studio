@@ -1296,11 +1296,17 @@ function TaskCard({
   }, [actionsOpen])
   return (
     <article
-      className={`rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs ${
+      className={`relative rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs ${
         view === "list" ? "flex items-center justify-between gap-4" : ""
       }`}
     >
-      <button onClick={() => onOpen(task.id)} className="min-w-0 text-left">
+      {/* Stretch the native open button over the card; sibling controls stay above it. */}
+      <button
+        type="button"
+        onClick={() => onOpen(task.id)}
+        aria-label={`Open task: ${task.title}`}
+        className="min-w-0 text-left after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-indigo-500"
+      >
         <div className="flex flex-wrap gap-1">
           {task.channel && <Tag>{task.channel}</Tag>}
           {task.channels && <Tag>{task.channels.length} channels</Tag>}
@@ -1335,7 +1341,7 @@ function TaskCard({
         )}
       </button>
       <div
-        className={`mt-3 flex flex-wrap items-center gap-1.5 ${
+        className={`pointer-events-none relative z-10 mt-3 flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${
           view === "list" ? "mt-0 shrink-0" : ""
         }`}
       >
@@ -1407,7 +1413,7 @@ function TaskCard({
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
           {actionsOpen && (
-            <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            <div className="pointer-events-auto absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
               {canRegenerate && (
                 <button onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <RotateCcw className="h-3.5 w-3.5" /> Regenerate
