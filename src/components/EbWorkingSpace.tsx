@@ -215,6 +215,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
   const [inputDiscoveryId, setInputDiscoveryId] = useState<string | undefined>()
+  const [preparation, setPreparation] = useState<DiscoveryIdea | null>(null)
+  const [fConnection, setFConnection] = useState("")
+  const [fEvidence, setFEvidence] = useState("")
+  const [inputError, setInputError] = useState<string | null>(null)
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -243,6 +247,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       if (action === "new") {
         setPage("board")
         setInput("")
+        setInputDiscoveryId(undefined); setPreparation(null)
+        setFConnection(""); setFEvidence(""); setInputError(null); setFile(null)
         setFileName("")
         setSelectedId(null)
         window.setTimeout(
@@ -352,23 +358,26 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   ) => {
     const model = selectedModel(config, 1)
     if (!model) {
-      setRuntimeError("Choose a Brief AI model in Workflow AI first.")
+      setInputError("Choose a Brief AI model in Workflow AI first.")
       return
     }
     setSyncing(true)
     try {
       await db.createEbV2Package({
-        title,
+        title: preparation?.title ?? title,
         inputText: title,
+        fConnection: fConnection.trim(),
+        fEvidence: fEvidence.trim(),
         sourceType: source,
         discoveryId,
         model: { provider: model.provider, id: model.id },
       })
+      setPreparation(null); setFConnection(""); setFEvidence("")
       await refresh()
       setInput(""); setInputDiscoveryId(undefined)
-      setRuntimeError(null)
+      setInputError(null)
     } catch (error) {
-      setRuntimeError(
+      setInputError(
         error instanceof Error ? error.message : "Unable to analyse input.",
       )
     } finally {
@@ -377,26 +386,31 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   }
   const analyze = () => {
     if (syncing || (!input.trim() && !file)) return
+    setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
+    if (preparation && (!fConnection.trim() || !fEvidence.trim() || placeholder.test(fConnection) || placeholder.test(fEvidence))) {
+      setInputError("Bổ sung liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận thực tế; không dùng N/A hoặc nguồn xu hướng thay thế.")
+      return
+    }
     if (placeholder.test(input)) {
-      setRuntimeError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
+      setInputError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
       return
     }
     if (file && !isShellMode) {
       const model = selectedModel(config, 1)
       if (!model) {
-        setRuntimeError("Choose a Brief AI model in Workflow AI first.")
+        setInputError("Choose a Brief AI model in Workflow AI first.")
         return
       }
       setSyncing(true)
       void db
-        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input })
+        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection: fConnection.trim(), fEvidence: fEvidence.trim() })
         .then(async () => {
           await refresh()
-          setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setRuntimeError(null)
+          setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setInputError(null)
         })
         .catch((error) =>
-          setRuntimeError(
+          setInputError(
             error instanceof Error
               ? error.message
               : "Unable to analyse uploaded file.",
@@ -1037,6 +1051,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               setFile={setFile}
               analyze={analyze}
               syncing={syncing}
+              preparation={preparation}
+              fConnection={fConnection}
+              setFConnection={setFConnection}
+              fEvidence={fEvidence}
+              setFEvidence={setFEvidence}
+              inputError={inputError}
             />
           </div>
         ) : page === "discovery" ? (
@@ -1048,10 +1068,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               onDelete={removeDiscovery}
               onClear={clearDiscovery}
               onPick={(item) => {
-                setInput(item.title)
+                setInput([item.title, item.source_summary].filter(Boolean).join("\n\n"))
+                setPreparation(item)
+                setFConnection(""); setFEvidence(""); setInputError(null)
                 setInputDiscoveryId(item.id)
                 setFile(null); setFileName("")
-                setRuntimeError("Bổ sung mối liên hệ với F/sự kiện của F và nguồn xác nhận trước khi chạy Gate 1.")
                 setPage("board")
               }}
             />
@@ -1473,6 +1494,31 @@ function Discovery({
     </div>
   )
 }
+function DiscoveryPreparationSources({ item }: { item: DiscoveryIdea }) {
+  const [detail, setDetail] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let active = true
+    setDetail(null); setError(null)
+    void db.fetchEbV2DiscoveryDetail(item.id).then((result) => {
+      if (active) setDetail(result)
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : "Không tải được nguồn Discovery.")
+    })
+    return () => { active = false }
+  }, [item.id, attempt])
+  const ids = new Set((item.evidence ?? []).filter((entry: any) => entry?.kind === "research_topic").flatMap((entry: any) => Array.isArray(entry.sourceIds) ? entry.sourceIds : []))
+  const sources = (Array.isArray(detail?.sources) ? detail.sources : []).filter((source: any) => ids.has(source.id))
+  return <div className="space-y-1 text-slate-600">
+    <p className="font-medium">Nguồn xu hướng được suggestion trích dẫn</p>
+    {error ? <div role="alert">{error} <button type="button" onClick={() => setAttempt((value) => value + 1)} className="underline">Thử tải lại nguồn</button></div>
+      : !detail ? <p role="status">Đang tải nguồn…</p>
+      : <>{sources.map((source: any) => <p key={source.id}>{source.source_name ?? source.name ?? source.id}{source.url ? ` · ${source.url}` : ""}</p>)}
+        {sources.length < ids.size && <p>Một số nguồn được trích dẫn không có trong dữ liệu trả về.</p>}
+        {!ids.size && <p>Suggestion chưa lưu ID nguồn trích dẫn.</p>}</>}
+  </div>
+}
 function InputEngine({
   input,
   setInput,
@@ -1481,7 +1527,14 @@ function InputEngine({
   setFile,
   analyze,
   syncing,
+  preparation, fConnection, setFConnection, fEvidence, setFEvidence, inputError,
 }: {
+  preparation: DiscoveryIdea | null
+  fConnection: string
+  setFConnection: (value: string) => void
+  fEvidence: string
+  setFEvidence: (value: string) => void
+  inputError: string | null
   syncing: boolean
   input: string
   setInput: (value: string) => void
@@ -1494,6 +1547,22 @@ function InputEngine({
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
       <div className="glow-input-container mx-auto max-w-4xl rounded-xl p-px">
         <div className="rounded-[11px] bg-white p-2 shadow-sm">
+          {preparation && (
+            <div className="mb-3 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 text-xs">
+              <h3 className="font-semibold">Chuẩn bị Gate 1 · {discoveryTag(preparation)}</h3>
+              <p className="font-medium">{preparation.title}</p>
+              <p className="whitespace-pre-wrap text-slate-600">{preparation.source_summary}</p>
+              <DiscoveryPreparationSources key={preparation.id} item={preparation} />
+              <p>Nguồn xu hướng và góc EB không xác nhận liên hệ với F. Bổ sung thông tin thực tế trước khi gửi.</p>
+              <label className="block">Liên hệ với F / sự kiện của F
+                <textarea disabled={syncing} value={fConnection} onChange={(event) => setFConnection(event.target.value)} rows={2} className="mt-1 block w-full rounded border border-slate-200 bg-white p-2" />
+              </label>
+              <label className="block">Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)
+                <textarea disabled={syncing} value={fEvidence} onChange={(event) => setFEvidence(event.target.value)} rows={2} className="mt-1 block w-full rounded border border-slate-200 bg-white p-2" />
+              </label>
+            </div>
+          )}
+          {inputError && <p role="alert" className="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{inputError}</p>}
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
             <textarea
@@ -1517,7 +1586,7 @@ function InputEngine({
               <Upload className="h-3.5 w-3.5" />
               <input
                 type="file"
-                disabled={syncing}
+                disabled={syncing || Boolean(preparation)}
                 className="hidden"
                 accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md"
                 onChange={(event) => {
