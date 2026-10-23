@@ -1980,6 +1980,7 @@ function TaskDetail({
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState("")
+  const [sectionHeading, setSectionHeading] = useState("")
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
@@ -2008,17 +2009,17 @@ function TaskDetail({
   )
   useEffect(() => {
     if (!task || isShellMode || !hasPendingFeedback) return
-    let active = true
-    const timer = window.setTimeout(() => {
-      void db
-        .fetchEbV2Activity(
-          task.id,
-          task.gate === "adapt" ? "channel" : "package",
-        )
-        .then((data) => { if (active) setActivity(data) })
-        .catch(() => undefined)
-    }, 1600)
-    return () => { active = false; window.clearTimeout(timer) }
+    let cancelled = false
+    let timer: number
+    const poll = async () => {
+      try {
+        const data = await db.fetchEbV2FeedbackStatus(task.packageId ?? task.id)
+        if (!cancelled) setActivity((current: any) => ({ ...current, feedback: data.feedback }))
+      } catch { /* Keep polling after a transient read failure. */ }
+      if (!cancelled) timer = window.setTimeout(poll, 1600)
+    }
+    timer = window.setTimeout(poll, 800)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [task?.id, task?.gate, hasPendingFeedback])
   if (!task) return null
   const output = gateResult(task.gate, activity, activeChannelId ?? (task.gate === "adapt" ? task.id : undefined)) ??
@@ -2060,19 +2061,15 @@ function TaskDetail({
     setFeedbackSending(true)
     setFeedbackError(null)
     try {
-      await db.createEbV2Feedback({
+      const created = await db.createEbV2Feedback({
         itemId: activeChannelId ?? task.id,
         kind: task.gate === "article" ? "article" : "channel",
         message,
+        sectionHeading: task.gate === "article" ? sectionHeading || undefined : undefined,
         model,
       })
       setFeedback("")
-      setActivity(
-        await db.fetchEbV2Activity(
-          task.id,
-          task.gate === "adapt" ? "channel" : "package",
-        ),
-      )
+      setActivity((current: any) => ({ ...current, feedback: [...(current?.feedback ?? []), created.request, created.response] }))
     } catch (reason) {
       setFeedbackError(
         reason instanceof Error ? reason.message : "Unable to submit feedback.",
@@ -2209,7 +2206,9 @@ function TaskDetail({
                     {feedbackThread.map((entry: any) => (
                       <div key={entry.id} className={`max-w-[92%] rounded-xl px-3 py-2 text-[11px] leading-relaxed ${entry.role === "user" ? "ml-auto bg-indigo-600 text-white" : entry.status === "failed" ? "border border-red-100 bg-red-50 text-red-700" : "bg-white text-slate-700 shadow-2xs"}`}>
                         {entry.role === "assistant" && <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">AI revision {entry.status === "running" ? "· generating" : ""}</p>}
-                        {entry.status === "running" ? <span className="inline-flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3 w-3 animate-spin" /> Writing revision…</span> : entry.status === "failed" ? <span>{entry.error_message || "The revision could not be generated."}</span> : <div className="whitespace-pre-wrap">{entry.message_markdown}</div>}
+                        {entry.status === "running" ? <div><span className="inline-flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3 w-3 animate-spin" />{entry.live?.phase ?? "Writing revision…"}</span>{entry.live?.text && <div className="mt-2 whitespace-pre-wrap">{entry.live.text}</div>}</div> : entry.status === "failed" ? <span>{entry.error_message || "The revision could not be generated."}</span> : <div className="whitespace-pre-wrap">{entry.message_markdown}</div>}
+                        {entry.prompt_snapshot?.warnings?.map((warning: string) => <p key={warning} className="mt-2 text-amber-700">{warning}</p>)}
+                        {entry.prompt_snapshot?.durationMs && <p className="mt-1 text-[9px] text-slate-400">{Math.round(entry.prompt_snapshot.durationMs / 1000)}s</p>}
                         {entry.role === "assistant" && entry.status === "completed" && (
                           <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[9px] text-slate-400">
                             <span>{entry.model_provider}/{entry.model_id} · {entry.total_tokens ?? 0} tokens</span>
@@ -2223,6 +2222,7 @@ function TaskDetail({
                     ))}
                     {!feedbackThread.length && <p className="rounded-lg border border-dashed border-indigo-100 bg-white/70 px-2.5 py-2 text-[10px] text-slate-500">Request a focused rewrite. The current version remains unchanged until you choose a new revision.</p>}
                   </div>
+                  {task.gate === "article" && <label className="mt-3 block text-[10px] text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
                   <div className="mt-3 flex items-end gap-2">
                     <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 text-[11px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
                     <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">

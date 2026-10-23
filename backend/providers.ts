@@ -13,6 +13,7 @@ export interface GenerateRequest {
   temperature?: number;
   jsonMode?: boolean;
   jsonSchema?: Record<string, unknown>;
+  onText?: (text: string) => void;
 }
 
 export interface GenerateResponse {
@@ -33,6 +34,13 @@ async function callAnthropic(req: GenerateRequest): Promise<GenerateResponse> {
     systemParts.push('\n\n=== TÀI LIỆU THAM KHẢO ===\n' + req.contextDocs.join('\n\n---\n\n'));
   }
 
+  if (req.onText && !req.jsonSchema) {
+    const stream = client.messages.stream({ model: req.modelId, max_tokens: req.maxTokens ?? 4096, system: systemParts.join('\n') || undefined, messages: [{ role: 'user', content: req.prompt }] });
+    let content = '';
+    stream.on('text', text => { content += text; req.onText?.(content); });
+    const message = await stream.finalMessage();
+    return { content, model: message.model, usage: { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens } };
+  }
   const msg = await client.messages.create({
     model: req.modelId,
     max_tokens: req.maxTokens ?? 4096,
@@ -80,6 +88,13 @@ async function callOpenAI(req: GenerateRequest): Promise<GenerateResponse> {
       role: message.role,
       content: message.content,
     }));
+    if (req.onText) {
+      const stream = client.responses.stream({ model: req.modelId, input, max_output_tokens: req.maxTokens ?? 4096 });
+      let content = '';
+      stream.on('response.output_text.delta', event => { content += event.delta; req.onText?.(content); });
+      const response = await stream.finalResponse();
+      return { content: response.output_text || content, model: response.model, usage: { inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 } };
+    }
     const response = await client.responses.create({
       model: req.modelId,
       input,
@@ -101,6 +116,12 @@ async function callOpenAI(req: GenerateRequest): Promise<GenerateResponse> {
     };
   }
 
+  if (req.onText && !req.jsonSchema && !req.jsonMode) {
+    const stream = await client.chat.completions.create({ model: req.modelId, messages, max_tokens: req.maxTokens ?? 4096, stream: true, stream_options: { include_usage: true } });
+    let content = ''; let inputTokens = 0; let outputTokens = 0;
+    for await (const part of stream) { content += part.choices[0]?.delta?.content ?? ''; req.onText(content); if (part.usage) { inputTokens = part.usage.prompt_tokens; outputTokens = part.usage.completion_tokens; } }
+    return { content, model: req.modelId, usage: { inputTokens, outputTokens } };
+  }
   const res = await client.chat.completions.create({
     model: req.modelId,
     messages,
@@ -148,6 +169,12 @@ async function callGoogle(req: GenerateRequest): Promise<GenerateResponse> {
     `[Yêu cầu]: ${req.prompt}`,
   ].filter(Boolean).join('\n\n');
 
+  if (req.onText) {
+    const result = await model.generateContentStream(fullPrompt); let content = '';
+    for await (const part of result.stream) { content += part.text(); req.onText(content); }
+    const response = await result.response;
+    return { content, model: modelId, usage: { inputTokens: response.usageMetadata?.promptTokenCount ?? 0, outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0 } };
+  }
   const result = await model.generateContent(fullPrompt);
   const text = result.response.text();
 

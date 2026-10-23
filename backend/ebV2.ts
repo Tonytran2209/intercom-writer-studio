@@ -15,6 +15,9 @@ import {
 } from "./supabase.ts"
 import { extractDocumentText } from "./documentParser.ts"
 import { collectDiscoveryResearch } from "./discoveryResearch.ts"
+import { refinementPlan, refinementChecks } from "./refinement.ts"
+
+const liveRefinements = new Map<string, { text: string; phase: string }>()
 
 type AuthRequest = express.Request & {
   auth?: { userId: string; email: string; role: "user" | "admin" }
@@ -201,7 +204,10 @@ async function runGate(
   model: Required<ModelInput>,
   contextDocs: string[],
   ruleSnapshot: Record<string, unknown> = {},
+  onText?: (text: string) => void,
 ) {
+  let attempts = 0
+  const generationStarted = Date.now()
   const startedAt = new Date().toISOString()
   const run = await tableInsert<any>("eb_v2_gate_runs", {
     package_id: packageId,
@@ -240,6 +246,7 @@ async function runGate(
         ].filter(Boolean).join("\n\n")
       : undefined
     let response = await generate({
+      onText,
       provider: model.provider,
       modelId: model.modelId,
       prompt: compiledPrompt,
@@ -248,10 +255,14 @@ async function runGate(
       maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
       temperature: 0.65,
     })
+    attempts++
     // A provider can occasionally report token usage while returning an empty text
     // segment. Never persist that as a successfully generated channel output.
-    if (!text(response.content))
+    if (!text(response.content)) {
+      attempts++
+      onText?.("Retrying generation after an empty response…")
       response = await generate({
+        onText,
         provider: model.provider,
         modelId: model.modelId,
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
@@ -260,12 +271,16 @@ async function runGate(
         maxTokens: gate === "article" && ["draft", "feedback"].includes(stage) ? 2600 : 1400,
         temperature: 0.45,
       })
+    }
     if (
       !text(response.content) &&
       model.provider === "openai" &&
       model.modelId !== "gpt-5.4-mini"
     ) {
+      attempts++
+      onText?.("Trying the fallback model…")
       response = await generate({
+        onText,
         provider: "openai",
         modelId: "gpt-5.4-mini",
         prompt: `${compiledPrompt}\n\nFINAL RESPONSE REQUIREMENT: return the requested text now. Do not return an empty response.`,
@@ -288,7 +303,7 @@ async function runGate(
     }
     await tableUpdate("eb_v2_gate_runs", run.id, {
       status: "completed",
-      output_snapshot: { content: response.content },
+      output_snapshot: { content: response.content, durationMs: Date.now() - generationStarted, attempts },
       model_id: response.model,
       input_tokens: usage.inputTokens ?? 0,
       cached_input_tokens: usage.cachedInputTokens ?? 0,
@@ -696,11 +711,11 @@ export function registerEbV2Routes(app: express.Express) {
         ],
       )
       const ids = new Set(channels.map((row) => row.id))
-      const actions = (
+      const actions = ids.size ? (
         await tableSelect<any>("eb_v2_review_actions", (query) =>
-          query.order("created_at", { ascending: false }),
+          query.in("channel_output_id", [...ids]).order("created_at", { ascending: false }),
         )
-      ).filter((row) => ids.has(row.channel_output_id))
+      ) : []
       const feedback = (await tableAvailable("eb_v2_feedback_threads"))
         ? await tableSelect<any>("eb_v2_feedback_threads", (query) =>
             query.eq("package_id", packageId).order("created_at", { ascending: true }),
@@ -729,6 +744,12 @@ export function registerEbV2Routes(app: express.Express) {
     }
   })
 
+  app.get("/api/eb-v2/feedback-status/:packageId", async (req, res) => {
+    try {
+      const feedback = await tableSelect<any>("eb_v2_feedback_threads", query => query.eq("package_id", req.params.packageId).order("created_at", { ascending: true }))
+      res.json({ feedback: feedback.map(entry => ({ ...entry, live: liveRefinements.get(entry.id) })) })
+    } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Unable to load refinement status." }) }
+  })
   app.post("/api/eb-v2/feedback", async (req: AuthRequest, res) => {
     const itemId = text(req.body?.itemId)
     const kind = text(req.body?.kind)
@@ -781,8 +802,12 @@ export function registerEbV2Routes(app: express.Express) {
         model_id: model.modelId,
       })
       void (async () => {
+        const started = Date.now()
+        liveRefinements.set(assistantResponse.id, { text: "", phase: "Preparing revision…" })
+        const onText = (value: string) => liveRefinements.set(assistantResponse.id, { text: value, phase: "Writing revision…" })
         try {
           if (article) {
+            const plan = refinementPlan(article.body_markdown, text(req.body?.sectionHeading) || undefined)
             const staged = await reserveArticleRevision(packageId)
             await tableUpdate("eb_v2_articles", staged.id, {
               quality_report: { generationStatus: "feedback-running", feedbackPending: true, parentArticleId: article.id },
@@ -791,18 +816,22 @@ export function registerEbV2Routes(app: express.Express) {
               packageId,
               "article",
               "feedback",
-              `Revise the website article below according to the editor feedback. Return the complete replacement article in Markdown only. Preserve supported facts; do not add process notes.\n\nCURRENT ARTICLE:\n${article.body_markdown}\n\nEDITOR FEEDBACK:\n${message}`,
+              `Revise ${plan.scope === "full" ? "the article" : "only the selected section"} according to editor feedback. Return replacement Markdown only. Preserve headings, supported facts, numbers and source links. Do not add process notes.\n\nCONTENT TO REVISE:\n${plan.input}\n\nEDITOR FEEDBACK:\n${message}`,
               model,
               [],
               { feedbackRequestId: userRequest.id, parentArticleId: article.id },
+              onText,
             )
+            const revised = plan.merge(result.content)
+            const warnings = refinementChecks(article.body_markdown, revised)
             await tableUpdate("eb_v2_articles", staged.id, {
-              body_markdown: result.content,
-              quality_report: { generationStatus: "feedback-ready", feedbackPending: true, parentArticleId: article.id },
+              body_markdown: revised,
+              quality_report: { generationStatus: "feedback-ready", feedbackPending: true, parentArticleId: article.id, warnings, scope: plan.scope, durationMs: Date.now() - started },
             })
             await tableUpdate("eb_v2_feedback_threads", assistantResponse.id, {
               status: "completed",
-              message_markdown: result.content,
+              message_markdown: revised,
+              prompt_snapshot: { scope: plan.scope, warnings, durationMs: Date.now() - started },
               result_article_id: staged.id,
               model_id: result.model,
               input_tokens: result.usage.inputTokens ?? 0,
@@ -834,6 +863,7 @@ export function registerEbV2Routes(app: express.Express) {
               model,
               await libraryContext(["channel-rules"]),
               { feedbackRequestId: userRequest.id, parentChannelOutputId: channel.id },
+              onText,
             )
             await tableUpdate("eb_v2_channel_outputs", staged.id, {
               content: { text: result.content, archived: true, feedbackPending: true, parentChannelOutputId: channel.id },
@@ -841,6 +871,7 @@ export function registerEbV2Routes(app: express.Express) {
             })
             await tableUpdate("eb_v2_feedback_threads", assistantResponse.id, {
               status: "completed",
+              prompt_snapshot: { warnings: refinementChecks(channel.content?.text ?? "", result.content, channel.channel), durationMs: Date.now() - started },
               message_markdown: result.content,
               result_channel_output_id: staged.id,
               model_id: result.model,
@@ -854,6 +885,8 @@ export function registerEbV2Routes(app: express.Express) {
             status: "failed",
             error_message: error instanceof Error ? error.message : String(error),
           })
+        } finally {
+          liveRefinements.delete(assistantResponse.id)
         }
       })()
       res.status(201).json({ request: userRequest, response: assistantResponse })
