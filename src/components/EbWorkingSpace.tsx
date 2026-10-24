@@ -878,7 +878,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       )
       return channelMatches && decisionMatches
     })
-    return channels.length ? [{ ...task, channels }] : []
+    // An empty Review still has metadata and can be opened; explicit channel/decision filters may hide it.
+    return channels.length || (!task.channels.length && !channelFilters.length && !decisionFilters.length)
+      ? [{ ...task, channels }] : []
   })
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
