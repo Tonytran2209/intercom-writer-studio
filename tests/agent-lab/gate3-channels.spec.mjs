@@ -64,7 +64,14 @@ async function refresh(page) {
 function clean(state) {expect(state.unexpected).toEqual([]);expect(state.errors).toEqual([]);}
 
 test('G3_CHANNEL_ISOLATION exact output IDs survive response reordering and package changes',async({page})=>{
- const state=await setup(page);await open(page);
+ const state=await setup(page);
+ // Configure the existing fixture's shared default object before opening TaskDetail.
+ // This is page-local test state; all generation/mutation requests stay intercepted.
+ await page.evaluate(async()=>{
+  const {DEFAULT_CONFIG,DEFAULT_MODELS}=await import('/src/lib/defaultData.ts');
+  DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'lab-ci-mock',name:'CI mock model',enabled:true}];
+ });
+ await open(page);
  for(const channel of platforms){await select(page,channel);await shows(page,'one',channel);}
  state.data.channels.reverse();await refresh(page);await shows(page,'one','linkedin');
  for(const channel of platforms){await select(page,channel);await shows(page,'one',channel);}
@@ -97,7 +104,14 @@ test('G3_CHANNEL_FALLBACK removed IDs, hidden revisions, missing text and empty 
 });
 
 test('G3_CHANNEL_ACTIONS verbatim copy/export and explicit per-ID review mutations',async({page})=>{
- const state=await setup(page);await open(page);
+ const state=await setup(page);
+ // Configure the existing fixture's shared default object before opening TaskDetail.
+ // This is page-local test state; all generation/mutation requests stay intercepted.
+ await page.evaluate(async()=>{
+  const {DEFAULT_CONFIG,DEFAULT_MODELS}=await import('/src/lib/defaultData.ts');
+  DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'lab-ci-mock',name:'CI mock model',enabled:true}];
+ });
+ await open(page);
  for(const channel of platforms) {
   await select(page,channel);await shows(page,'one',channel);
   await panel(page).getByTitle('Copy result as formatted Markdown',{exact:true}).click();
@@ -121,9 +135,17 @@ test('G3_CHANNEL_ACTIONS verbatim copy/export and explicit per-ID review mutatio
  await mutation('facebook','recheck',()=>row(page,'facebook').getByRole('button',{name:'Send to recheck',exact:true}).click());
  await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
  const count=state.mutations.length;
+ await expect(row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true})).toBeEnabled();
  await row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true}).click();
  await expect.poll(()=>state.mutations.length).toBe(count+1);
  expect(state.mutations[count].path).toBe('/api/eb-v2/channel-outputs/one-linkedin/regenerate');
  expect(state.mutations[count].body.model).toEqual({provider:expect.any(String),id:expect.any(String)});
  clean(state);
+});
+
+test('G3_CHANNEL_ACTIONS missing model keeps Regenerate disabled without API calls',async({page})=>{
+ const state=await setup(page);await open(page);
+ await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
+ await expect(row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true})).toBeDisabled();
+ expect(state.mutations).toEqual([]);clean(state);
 });
