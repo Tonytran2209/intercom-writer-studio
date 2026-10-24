@@ -51,6 +51,7 @@ async function open(page,pkg='one') {
 async function select(page,channel) {await row(page,channel).getByRole('button').first().click();}
 async function shows(page,pkg,channel) {
  await expect(result(page)).toContainText(`${pkg}_${channel}_SENTINEL`);
+ await expect(result(page)).toContainText('Saved verbatim — Threads, Facebook and LinkedIn are valid references.');
  for(const other of platforms.filter(c=>c!==channel))await expect(result(page)).not.toContainText(`${pkg}_${other}_SENTINEL`);
  await expect(result(page)).not.toContainText('RUN_DISTRACTOR');
 }
@@ -63,7 +64,7 @@ async function refresh(page) {
 }
 function clean(state) {expect(state.unexpected).toEqual([]);expect(state.errors).toEqual([]);}
 
-test('G3_CHANNEL_ISOLATION exact output IDs survive response reordering and package changes',async({page})=>{
+test('G3_SINGLE_OUTPUT G3_CHANNEL_ISOLATION exact output IDs survive response reordering and package changes',async({page})=>{
  const state=await setup(page);
  // Configure the existing fixture's shared default object before opening TaskDetail.
  // This is page-local test state; all generation/mutation requests stay intercepted.
@@ -82,7 +83,7 @@ test('G3_CHANNEL_ISOLATION exact output IDs survive response reordering and pack
  expect(state.mutations).toEqual([]);clean(state);
 });
 
-test('G3_CHANNEL_FALLBACK removed IDs, hidden revisions, missing text and empty choices',async({page})=>{
+test('G3_SINGLE_OUTPUT G3_CHANNEL_FALLBACK removed IDs, hidden revisions, missing text and empty choices',async({page})=>{
  const state=await setup(page);await open(page);await select(page,'facebook');
  state.data.channels.find(r=>r.id==='one-facebook').content.feedbackPending=true;
  state.data.channels.find(r=>r.id==='one-linkedin').content.archived=true;
