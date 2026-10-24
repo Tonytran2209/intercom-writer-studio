@@ -173,7 +173,7 @@ function workspaceTasks(
     tasks.push({
       id: item.id,
       packageId: item.id,
-      createdAt: item.created_at,
+      createdAt: undefined,
       gate: "article",
       title: item.title,
       status: "drafting",
@@ -184,7 +184,7 @@ function workspaceTasks(
     tasks.push({
       id: packageId,
       packageId,
-      createdAt: item.created_at,
+      createdAt: article.created_at,
       gate: "article",
       title: item.title,
       status: runningArticle.has(packageId) ? "drafting" : "ready",
@@ -194,6 +194,7 @@ function workspaceTasks(
           : "Draft ready",
     })
   }
+  const reviewCreatedAtByPackage = new Map<string, string>()
   const reviewChannelsByPackage = new Map<string, ReviewChannel[]>()
   for (const item of packageRows) {
     if (item.state === "review") reviewChannelsByPackage.set(item.id, [])
@@ -208,8 +209,14 @@ function workspaceTasks(
     const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
     const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
     if (state === "adapting") {
-      tasks.push({ id: output.id, packageId: output.package_id, createdAt: item.created_at, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
+      tasks.push({ id: output.id, packageId: output.package_id, createdAt: output.created_at, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
     } else {
+      const timestamp = output.created_at
+      const previous = reviewCreatedAtByPackage.get(output.package_id)
+      if (typeof timestamp === "string" && timestamp.trim() &&
+          Number.isFinite(new Date(timestamp).getTime()) &&
+          (!previous || new Date(timestamp).getTime() > new Date(previous).getTime()))
+        reviewCreatedAtByPackage.set(output.package_id, timestamp)
       const current = reviewChannelsByPackage.get(output.package_id) ?? []
       current.push({ id: output.id, channel, decision, approvedVariants: output.content?.approvedVariants })
       reviewChannelsByPackage.set(output.package_id, current)
@@ -218,7 +225,7 @@ function workspaceTasks(
   for (const [packageId, channels] of reviewChannelsByPackage) {
     const item = packages.get(packageId)
     if (!item) continue
-    tasks.push({ id: packageId, packageId, createdAt: item.created_at, gate: "review", title: item.title, status: "review", channels })
+    tasks.push({ id: packageId, packageId, createdAt: reviewCreatedAtByPackage.get(packageId), gate: "review", title: item.title, status: "review", channels })
   }
   return tasks
 }
@@ -871,7 +878,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       )
       return channelMatches && decisionMatches
     })
-    return channels.length ? [{ ...task, channels }] : []
+    // An empty Review still has metadata and can be opened; explicit channel/decision filters may hide it.
+    return channels.length || (!task.channels.length && !channelFilters.length && !decisionFilters.length)
+      ? [{ ...task, channels }] : []
   })
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null

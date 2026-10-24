@@ -27,25 +27,39 @@ test('EB V2 loads an isolated Brief workspace',async({page},info)=>{const errors
 
 // These scenarios run in both configured viewport projects in browser CI.
 const creationStamp = '2026-01-02T23:04:00Z';
-const branches = ['brief', 'article', 'drafting', 'adapt', 'review'];
+const branches = ['brief', 'article', 'drafting', 'adapt', 'review', 'empty'];
+const articleStamp='2026-02-03T23:04:00Z', outputStamp='2026-03-04T23:04:00Z';
+function expectedDate(branch,variant,timezoneId) {
+ if(variant!=='valid'||branch==='drafting'||branch==='empty')return '—';
+ const month=branch==='brief'?'01':branch==='article'?'02':'03';
+ const day=(branch==='brief'?2:branch==='article'?3:4)+(timezoneId==='UTC'?0:1);
+ return `${String(day).padStart(2,'0')}/${month}/2026 ${timezoneId==='UTC'?'23:04':'06:04'}`;
+}
 function creationWorkspace() {
  const packages=[],articles=[],channels=[];
  for (const branch of branches) for (const variant of ['valid','missing','invalid']) {
   const id=`${branch}-${variant}`;
-  packages.push({id,title:`CREATED_${id}`,state:branch==='drafting'?'article':branch,source_type:'input',
+  packages.push({id,title:`CREATED_${id}`,state:branch==='drafting'?'article':branch==='empty'?'review':branch,source_type:'input',
    ...(variant==='missing'?{}:{created_at:variant==='valid'?creationStamp:'invalid-timestamp'}),updated_at:'2030-06-07T08:09:00Z'});
-  if(branch==='article')articles.push({id:`article-${id}`,package_id:id,status:'draft',created_at:'2024-03-04T05:06:00Z'});
-  if(branch==='adapt'||branch==='review')channels.push({id:`channel-${id}`,package_id:id,channel:'linkedin',status:branch==='adapt'?'generating':'ready',created_at:'2025-04-05T06:07:00Z',content:{}});
+  if(branch==='article')articles.push(
+   {id:`article-${id}`,package_id:id,status:'draft',revision:3,created_at:variant==='valid'?articleStamp:variant==='invalid'?'invalid':undefined},
+   {id:`old-${id}`,package_id:id,status:'superseded',revision:2,created_at:'2035-01-01T00:00:00Z'},
+   {id:`pending-${id}`,package_id:id,status:'draft',quality_report:{feedbackPending:true},created_at:'2035-01-01T00:00:00Z'});
+  if(branch==='adapt'||branch==='review')channels.push({id:`channel-${id}`,package_id:id,channel:'linkedin',status:branch==='adapt'?'generating':'ready',created_at:variant==='valid'?outputStamp:variant==='invalid'?'invalid':undefined,content:{}});
+  if(branch==='review')channels.push(
+   {id:`older-${id}`,package_id:id,channel:'facebook',status:'ready',created_at:variant==='valid'?articleStamp:'invalid',content:{}},
+   {id:`archived-${id}`,package_id:id,channel:'threads',status:'ready',created_at:'2035-01-01T00:00:00Z',content:{archived:true}},
+   {id:`pending-${id}`,package_id:id,channel:'threads',status:'ready',created_at:'2036-01-01T00:00:00Z',content:{feedbackPending:true}});
  }
  return {packages,articles,channels,runs:[],discovery:[]};
 }
 async function isolateCreation(page) {
- const unexpected=[];
+ const unexpected=[];let refresh=0;
  await page.route('**/*',route=>{
   const request=route.request(),u=new URL(request.url());
   if(u.origin==='https://fonts.googleapis.com'&&u.pathname==='/css2')return route.fulfill({contentType:'text/css',body:''});
   if(u.origin==='http://127.0.0.1:4173') {
-   if(request.method()==='GET'&&u.pathname==='/api/eb-v2/workspace')return route.fulfill({json:creationWorkspace()});
+   if(request.method()==='GET'&&u.pathname==='/api/eb-v2/workspace'){const data=creationWorkspace();if(refresh++%2)data.channels.reverse();return route.fulfill({json:data});}
    if(request.method()==='GET'&&u.pathname.startsWith('/api/eb-v2/activity/'))return route.fulfill({json:{inputs:[],runs:[],actions:[],feedback:[]}});
    if(!u.pathname.startsWith('/api/')&&request.method()==='GET')return route.continue();
   }
@@ -55,35 +69,45 @@ async function isolateCreation(page) {
 }
 async function creationView(page,view) {
  // Existing view controls contain Lucide SVGs and have no accessible names.
- await page.locator(`button:has(svg.lucide-${view==='grid'?'grid2x2':'list'})`).click();
+ const control=page.locator(`button:has(svg.lucide-${view==='grid'?'grid2x2':'list'})`);
+ await expect(control).toBeEnabled();await control.click();
 }
 for (const timezoneId of ['UTC','Asia/Ho_Chi_Minh']) {
  test.describe(`creation values ${timezoneId}`,()=>{
   test.use({timezoneId});
-  test('CREATED_DATE_VALUE package timestamps across gates and views',async({page})=>{
+  test('GATE_DATE_SOURCE entity timestamps across gates and views',async({page})=>{
    const unexpected=await isolateCreation(page);
    await page.goto('/?screen=eb');
-   const expected=timezoneId==='UTC'?'02/01/2026 23:04':'03/01/2026 06:04';
    for(const view of ['list','grid']) {
     await creationView(page,view);
     for(const branch of branches)for(const variant of ['valid','missing','invalid']) {
      const card=page.locator('article').filter({has:page.getByRole('button',{name:`Open task: CREATED_${branch}-${variant}`,exact:true})});
-     await expect(card.getByText(`Ngày tạo: ${variant==='valid'?expected:'—'}`,{exact:true})).toBeVisible();
+     await expect(card.getByText(`Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`,{exact:true})).toBeVisible();
     }
     const response=page.waitForResponse(r=>r.url().endsWith('/api/eb-v2/workspace'));
     await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();await response;
-    await expect(page.getByText(`Ngày tạo: ${expected}`,{exact:true})).toHaveCount(5);
+    for(const branch of branches)for(const variant of ['valid','missing','invalid']) {
+     const card=page.locator('article').filter({has:page.getByRole('button',{name:`Open task: CREATED_${branch}-${variant}`,exact:true})});
+     await expect(card.getByText(`Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`,{exact:true})).toBeVisible();
+    }
    }
    expect(unexpected).toEqual([]);
   });
  });
 }
 for(const theme of ['light','dark'])for(const view of ['list','grid']) {
- test(`CREATED_DATE_INTERACTION ${theme} ${view} metadata and controls`,async({page})=>{
+ test(`GATE_DATE_STABILITY ${theme} ${view} metadata and controls`,async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const unexpected=await isolateCreation(page);await page.goto('/?screen=eb');
   await page.locator('body').evaluate((body,theme)=>body.classList.toggle('codex-dark',theme==='dark'),theme);
   await creationView(page,view);
+  const dateValues=()=>page.locator('article').evaluateAll(cards=>cards.map(card=>({title:card.querySelector('[aria-label^="Open task:"]')?.getAttribute('aria-label'),date:[...card.querySelectorAll('p')].find(span=>span.textContent.trim().startsWith('Ngày tạo:'))?.textContent})).sort((a,b)=>a.title.localeCompare(b.title)));
+  await expect(page.getByRole('button',{name:'Open task: CREATED_brief-valid',exact:true})).toBeVisible();
+  const dates=await dateValues();
+  const response=page.waitForResponse(r=>r.url().endsWith('/api/eb-v2/workspace'));
+  const refresh=page.getByRole('button',{name:'Refresh V2 workspace',exact:true});
+  await expect(refresh).toBeEnabled();await refresh.click();await response;
+  await expect.poll(dateValues).toEqual(dates);
   for(const branch of branches) {
    const title=`CREATED_${branch}-valid`;
    const open=page.getByRole('button',{name:`Open task: ${title}`,exact:true});
@@ -100,12 +124,13 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
     expect(box.x>=dateBox.x+dateBox.width||box.x+box.width<=dateBox.x||box.y>=dateBox.y+dateBox.height||box.y+box.height<=dateBox.y).toBeTruthy();
    }
    const menu=card.getByRole('button',{name:'More item actions'});
-   await menu.click();await expect(menu).toHaveAttribute('aria-expanded','true');
+   await expect(menu).toBeEnabled();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','true');
    await expect(card.getByRole('button',{name:'Delete item'})).toBeVisible();
    await expect(page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})})).toHaveCount(0);
    await page.keyboard.press('Escape');await expect(menu).toHaveAttribute('aria-expanded','false');
    await menu.click();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','false');
    for(const action of ['click','Enter','Space']) {
+    await expect(open).toBeEnabled();
     if(action==='click')await metadata.click();else {await open.focus();await expect(open).toBeFocused();await open.press(action);}
     const detail=page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})});
     await expect(detail).toBeVisible();
