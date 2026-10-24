@@ -42,6 +42,7 @@ type ReviewChannel = {
 type Task = {
   id: string
   packageId?: string
+  createdAt?: string
   gate: Gate
   title: string
   status: "ready" | "checking" | "drafting" | "adapting" | "review"
@@ -150,6 +151,7 @@ function workspaceTasks(
     .map((item) => ({
       id: item.id,
       packageId: item.id,
+      createdAt: item.created_at,
       gate: "brief",
       title: item.title,
       status: runningBrief.has(item.id) ? "checking" : "ready",
@@ -161,6 +163,7 @@ function workspaceTasks(
     tasks.push({
       id: item.id,
       packageId: item.id,
+      createdAt: item.created_at,
       gate: "article",
       title: item.title,
       status: "drafting",
@@ -171,6 +174,7 @@ function workspaceTasks(
     tasks.push({
       id: packageId,
       packageId,
+      createdAt: item.created_at,
       gate: "article",
       title: item.title,
       status: runningArticle.has(packageId) ? "drafting" : "ready",
@@ -191,7 +195,7 @@ function workspaceTasks(
     const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
     const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
     if (state === "adapting") {
-      tasks.push({ id: output.id, packageId: output.package_id, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
+      tasks.push({ id: output.id, packageId: output.package_id, createdAt: item.created_at, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
     } else {
       const current = reviewChannelsByPackage.get(output.package_id) ?? []
       current.push({ id: output.id, channel, decision, approvedVariants: output.content?.approvedVariants })
@@ -201,7 +205,7 @@ function workspaceTasks(
   for (const [packageId, channels] of reviewChannelsByPackage) {
     const item = packages.get(packageId)
     if (!item) continue
-    tasks.push({ id: packageId, packageId, gate: "review", title: item.title, status: "review", channels })
+    tasks.push({ id: packageId, packageId, createdAt: item.created_at, gate: "review", title: item.title, status: "review", channels })
   }
   return tasks
 }
@@ -1274,6 +1278,14 @@ function TaskCard({
   onDelete: (task: Task) => void
   onOpen: (id: string) => void
 }) {
+  const createdDate = typeof task.createdAt === "string" && task.createdAt.trim()
+    ? new Date(task.createdAt)
+    : null
+  const validCreatedDate = createdDate && Number.isFinite(createdDate.getTime()) ? createdDate : null
+  const pad = (value: number) => String(value).padStart(2, "0")
+  const createdLabel = validCreatedDate
+    ? `${pad(validCreatedDate.getDate())}/${pad(validCreatedDate.getMonth() + 1)}/${validCreatedDate.getFullYear()} ${pad(validCreatedDate.getHours())}:${pad(validCreatedDate.getMinutes())}`
+    : null
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
   const canRegenerate = !isWorking && !task.channels?.length
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -1326,6 +1338,11 @@ function TaskCard({
         <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900">
           {task.title}
         </h3>
+        {validCreatedDate && (
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+            Created <time dateTime={validCreatedDate.toISOString()}>{createdLabel}</time>
+          </p>
+        )}
         {task.gate === "brief" && (
           <p className="mt-1 text-[10px] text-slate-500">
             Pillar: {task.pillar ?? "awaiting input"} · Persona:{" "}
