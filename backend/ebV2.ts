@@ -16,6 +16,7 @@ import {
 import { extractDocumentText } from "./documentParser.ts"
 import { collectDiscoveryResearch } from "./discoveryResearch.ts"
 import { refinementPlan, refinementChecks } from "./refinement.ts"
+import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
 
 const liveRefinements = new Map<string, { text: string; phase: string }>()
 
@@ -225,10 +226,15 @@ async function runGate(
       workflowRuleContext(gate),
       learningContext(gate, stage.split(":")[1]),
     ])
+    const targetChannel = gate === "adapt" ? stage.split(":")[1] : undefined
+    const channelBoundary = targetChannel
+      ? `DELIVERY SCOPE: Return ONLY the ${targetChannel} output. Library and configured rules may describe multiple channels; apply only rules relevant to ${targetChannel}. Never generate other channels or include their examples, headings, or commentary.`
+      : ""
     const compiledPrompt = [
       rules.prompt,
       learnings,
       executionContract(gate),
+      channelBoundary,
       "--- TASK ---",
       prompt,
     ]
@@ -294,6 +300,10 @@ async function runGate(
       throw new Error(
         `${gate}/${stage} completed without returned text after retry and fallback.`,
       )
+    if (targetChannel) {
+      response.content = isolateChannelOutput(response.content, targetChannel)
+      if (!text(response.content)) throw new Error(`The model returned no usable ${targetChannel} output. Regenerate this channel.`)
+    }
     if (gate === "brief" && hasUnresolvedValue(response.content))
       throw new BriefInputError("Brief còn thông tin N/A. Writer cần bổ sung thông tin thực tế trước khi chạy lại Gate 1.")
     const usage = response.usage ?? {

@@ -1,3 +1,5 @@
+import { isolateChannelOutput } from "./channelOutput"
+
 type Gate = "brief" | "article" | "adapt" | "review"
 
 // Activity includes the full audit history. Result must come only from this gate.
@@ -17,5 +19,6 @@ export function gateResult(gate: Gate, activity: any, channelId?: string): strin
   const channels = (activity?.channels ?? []).filter((row: any) => !row.content?.archived && !row.content?.feedbackPending)
   const channel = channels.find((row: any) => row.id === channelId)
     ?? (!channelId ? channels.find((row: any) => row.id === activity?.selectedChannel?.id) : null)
-  return channel?.content?.text ?? null
+  if (!channel?.content?.text) return null
+  return isolateChannelOutput(channel.content.text, channel.channel) || null
 }
