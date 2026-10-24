@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - run: npm install --no-save --package-lock=false --ignore-scripts @playwright/test@1.64.1
       - run: npx --no-install playwright install --with-deps chromium
-      - run: npx --no-install playwright test --config playwright.agent-lab.config.mjs
+      - run: npx --no-install playwright test --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
