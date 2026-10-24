@@ -35,6 +35,9 @@ async function setup(page, theme) {
     return route.abort();
   });
   await page.goto('/?screen=eb');
+  // The fixture mounts the workspace directly, without App's h-dvh flex shell.
+  // Supply only that parent constraint so the real board owns scrolling.
+  await page.addStyleTag({ content: '#root { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }' });
   await page.locator('body').evaluate((body, theme) => {
     body.classList.toggle('codex-dark', theme === 'dark');
     body.classList.toggle('writer-light', theme === 'light');

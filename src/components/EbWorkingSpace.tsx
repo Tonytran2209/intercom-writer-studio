@@ -1048,7 +1048,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               <div
                 className={
                   view === "grid"
-                    ? "grid gap-3 overflow-y-auto pr-1 xl:h-full xl:min-h-0 xl:grid-cols-4 xl:overflow-hidden xl:pr-0"
+                    ? "grid h-full gap-3 overflow-y-auto pr-1 xl:min-h-0 xl:grid-cols-4 xl:overflow-hidden xl:pr-0"
                     : "h-full overflow-y-auto space-y-4 pr-1"
                 }
               >
