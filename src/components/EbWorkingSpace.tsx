@@ -137,7 +137,9 @@ function workspaceTasks(
     (article: any) =>
       article.status !== "superseded" && !article.quality_report?.feedbackPending,
   )
-  const channelRows = Array.isArray(data?.channels) ? data.channels : []
+  const channelRows = (Array.isArray(data?.channels) ? data.channels : []).filter(
+    (output: any) => !output.content?.archived && !output.content?.feedbackPending,
+  )
   const runRows = Array.isArray((data as any)?.runs) ? (data as any).runs : []
   const packages = new Map(packageRows.map((item) => [item.id, item]))
   const articleByPackage = new Map<string, any>()
@@ -193,6 +195,9 @@ function workspaceTasks(
     })
   }
   const reviewChannelsByPackage = new Map<string, ReviewChannel[]>()
+  for (const item of packageRows) {
+    if (item.state === "review") reviewChannelsByPackage.set(item.id, [])
+  }
   for (const output of channelRows) {
     const item = packages.get(output.package_id)
     if (!item || !["adapt", "review"].includes(item.state)) continue
@@ -1098,6 +1103,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )}
         {selectedId && (
           <TaskDetail
+            key={`${selectedTask?.id}:${selectedTask?.gate}`}
             task={selectedTask}
             model={(() => {
               const task = selectedTask
@@ -2001,7 +2007,9 @@ function TaskDetail({
   const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [channelActionsOpen, setChannelActionsOpen] = useState<string | null>(null)
-  const activeChannelId = selectedChannelId ?? task?.channels?.find((channel) => !channel.decision)?.id ?? task?.channels?.[0]?.id
+  const activeChannelId = task?.channels?.find((channel) => channel.id === selectedChannelId)?.id
+    ?? task?.channels?.find((channel) => !channel.decision)?.id
+    ?? task?.channels?.[0]?.id
   useEffect(() => {
     let active = true
     const key = task ? `${task.id}:${task.gate}` : null
@@ -2018,7 +2026,12 @@ function TaskDetail({
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [task])
-  useEffect(() => setSelectedChannelId(null), [task?.id, task?.gate])
+  useEffect(() => {
+    setSelectedChannelId((current) =>
+      task?.channels?.some((channel) => channel.id === current) ? current : null,
+    )
+    setChannelActionsOpen(null)
+  }, [task?.id, task?.gate, task?.channels])
   const hasPendingFeedback = Array.isArray(activity?.feedback) && activity.feedback.some(
     (item: any) => item.status === "queued" || item.status === "running",
   )
@@ -2037,7 +2050,9 @@ function TaskDetail({
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [task?.id, task?.gate, hasPendingFeedback])
   if (!task) return null
-  const output = gateResult(task.gate, activity, activeChannelId ?? (task.gate === "adapt" ? task.id : undefined)) ??
+  const output = (task.gate === "review" && !activeChannelId
+    ? null
+    : gateResult(task.gate, activity, activeChannelId ?? (task.gate === "adapt" ? task.id : undefined))) ??
     (isShellMode
       ? "Shell-mode simulation: no persistent source or AI activity exists for this item."
       : task.gate === "brief" ? "Chưa có brief hoàn tất cho Gate 1. Bổ sung đủ thông tin và chạy Gate 1."
