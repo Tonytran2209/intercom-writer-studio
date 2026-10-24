@@ -1371,7 +1371,7 @@ function TaskCard({
         )}
       </button>
       <div
-        className={`pointer-events-none relative z-10 mt-3 flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${
+        className={`pointer-events-none relative ${actionsOpen ? "z-30" : "z-10"} mt-3 flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${
           view === "list" ? "mt-0 shrink-0" : ""
         }`}
       >
