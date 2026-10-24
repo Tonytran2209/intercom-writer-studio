@@ -74,16 +74,32 @@ for (const theme of ['light', 'dark']) {
       await target.scrollIntoViewIfNeeded();
       await openMenu(target);
       const menu = target.getByRole('button', { name: 'Delete item', exact: true }).locator('..');
-      const header = page.getByRole('heading', { name: 'Adapt channel', exact: true }).locator('../..');
+      const header = page.getByRole('heading', { name: 'Adapt channel', exact: true }).locator('../../..');
       if (layout === 'list') {
         // Establish real overlap with the following sticky header before hit testing.
         const a = await menu.boundingBox(), b = await header.boundingBox();
         expect(a).not.toBeNull(); expect(b).not.toBeNull();
         expect(Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)).toBeGreaterThan(0);
         expect(Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)).toBeGreaterThan(0);
+        // Control: the oracle must detect the original toolbar-below-header bug.
+        const control = await menu.evaluate(element => {
+          const header = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Adapt channel').parentElement.parentElement.parentElement;
+          const h = header.getBoundingClientRect(), toolbar = element.parentElement.parentElement;
+          const points = [...element.querySelectorAll('button')].flatMap(button => {
+            const b = button.getBoundingClientRect(), top = Math.max(b.top, h.top, 0), bottom = Math.min(b.bottom, h.bottom, innerHeight);
+            return bottom > top ? [{ button, x: b.left + b.width / 2, y: (top + bottom) / 2 }] : [];
+          });
+          const previous = toolbar.style.zIndex;
+          try {
+            toolbar.style.zIndex = '10';
+            return { samples: points.length, detectsCoveredMenu: points.some(p => !p.button.contains(document.elementFromPoint(p.x, p.y))) };
+          } finally { toolbar.style.zIndex = previous; }
+        });
+        expect(control.samples).toBeGreaterThan(0);
+        expect(control.detectsCoveredMenu).toBe(true);
         // Include the covered portion, rather than only each button's center.
         await expect.poll(() => menu.evaluate((element) => {
-          const heading = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Adapt channel').parentElement.parentElement;
+          const heading = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Adapt channel').parentElement.parentElement.parentElement;
           const headerBox = heading.getBoundingClientRect();
           return [...element.querySelectorAll('button')].every(button => {
             const box = button.getBoundingClientRect();
@@ -105,8 +121,10 @@ for (const theme of ['light', 'dark']) {
       await page.screenshot({ path: info.outputPath(`gate2-${theme}-${layout}.png`), fullPage: true });
       await page.keyboard.press('Escape');
       // Find the board's own scroll container (or desktop grid column).
-      const scroll = layout === 'list' ? page.locator('.eb-workspace .space-y-4.overflow-y-auto') : page.locator('.eb-workspace .overflow-y-auto').filter({ has: page.getByRole('button', { name: 'Open task: Brief filler 0', exact: true }) }).last();
-      const movement = await scroll.evaluate(element => {
+      const movement = await page.getByRole('button', { name: 'Open task: Brief filler 0', exact: true }).evaluate(button => {
+        let element = button.parentElement;
+        while (element && !(getComputedStyle(element).overflowY === 'auto' && element.scrollHeight > element.clientHeight)) element = element.parentElement;
+        if (!element) return { max: 0, top: 0 };
         const max = element.scrollHeight - element.clientHeight;
         element.scrollTop = 0;
         element.scrollTop = Math.min(100, max);
