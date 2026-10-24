@@ -42,6 +42,7 @@ type ReviewChannel = {
 type Task = {
   id: string
   packageId?: string
+  createdAt?: string
   gate: Gate
   title: string
   status: "ready" | "checking" | "drafting" | "adapting" | "review"
@@ -120,6 +121,14 @@ function selectedModel(config: AppConfig, step: number, fallbackId?: string) {
     null
   )
 }
+function formatTaskCreatedAt(value: string | undefined): string {
+  if (typeof value !== "string" || !value.trim()) return "—"
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return "—"
+  const pad = (part: number) => String(part).padStart(2, "0")
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function workspaceTasks(
   data: Partial<db.EbV2Workspace> | null | undefined,
 ): Task[] {
@@ -150,6 +159,7 @@ function workspaceTasks(
     .map((item) => ({
       id: item.id,
       packageId: item.id,
+      createdAt: item.created_at,
       gate: "brief",
       title: item.title,
       status: runningBrief.has(item.id) ? "checking" : "ready",
@@ -161,6 +171,7 @@ function workspaceTasks(
     tasks.push({
       id: item.id,
       packageId: item.id,
+      createdAt: item.created_at,
       gate: "article",
       title: item.title,
       status: "drafting",
@@ -171,6 +182,7 @@ function workspaceTasks(
     tasks.push({
       id: packageId,
       packageId,
+      createdAt: item.created_at,
       gate: "article",
       title: item.title,
       status: runningArticle.has(packageId) ? "drafting" : "ready",
@@ -191,7 +203,7 @@ function workspaceTasks(
     const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
     const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
     if (state === "adapting") {
-      tasks.push({ id: output.id, packageId: output.package_id, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
+      tasks.push({ id: output.id, packageId: output.package_id, createdAt: item.created_at, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
     } else {
       const current = reviewChannelsByPackage.get(output.package_id) ?? []
       current.push({ id: output.id, channel, decision, approvedVariants: output.content?.approvedVariants })
@@ -201,7 +213,7 @@ function workspaceTasks(
   for (const [packageId, channels] of reviewChannelsByPackage) {
     const item = packages.get(packageId)
     if (!item) continue
-    tasks.push({ id: packageId, packageId, gate: "review", title: item.title, status: "review", channels })
+    tasks.push({ id: packageId, packageId, createdAt: item.created_at, gate: "review", title: item.title, status: "review", channels })
   }
   return tasks
 }
@@ -1326,6 +1338,9 @@ function TaskCard({
         <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900">
           {task.title}
         </h3>
+        <p className="mt-1 text-[10px] text-slate-500">
+          Ngày tạo: {formatTaskCreatedAt(task.createdAt)}
+        </p>
         {task.gate === "brief" && (
           <p className="mt-1 text-[10px] text-slate-500">
             Pillar: {task.pillar ?? "awaiting input"} · Persona:{" "}

@@ -24,3 +24,94 @@ test('Draft editing, persistence callback and exported text agree',async({page},
  await page.screenshot({path:info.outputPath('draft.png'),fullPage:true});expect(errors).toEqual([]);expect(unexpected).toEqual([]);
 });
 test('EB V2 loads an isolated Brief workspace',async({page},info)=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));const unexpected=await isolate(page);await page.goto('/?screen=eb');await expect(page.getByText('CI_BRIEF_SENTINEL').first()).toBeVisible();await page.screenshot({path:info.outputPath('eb-v2.png'),fullPage:true});expect(errors).toEqual([]);expect(unexpected).toEqual([]);});
+
+// These scenarios run in both configured viewport projects in browser CI.
+const creationStamp = '2026-01-02T23:04:00Z';
+const branches = ['brief', 'article', 'drafting', 'adapt', 'review'];
+function creationWorkspace() {
+ const packages=[],articles=[],channels=[];
+ for (const branch of branches) for (const variant of ['valid','missing','invalid']) {
+  const id=`${branch}-${variant}`;
+  packages.push({id,title:`CREATED_${id}`,state:branch==='drafting'?'article':branch,source_type:'input',
+   ...(variant==='missing'?{}:{created_at:variant==='valid'?creationStamp:'invalid-timestamp'}),updated_at:'2030-06-07T08:09:00Z'});
+  if(branch==='article')articles.push({id:`article-${id}`,package_id:id,status:'draft',created_at:'2024-03-04T05:06:00Z'});
+  if(branch==='adapt'||branch==='review')channels.push({id:`channel-${id}`,package_id:id,channel:'linkedin',status:branch==='adapt'?'generating':'ready',created_at:'2025-04-05T06:07:00Z',content:{}});
+ }
+ return {packages,articles,channels,runs:[],discovery:[]};
+}
+async function isolateCreation(page) {
+ const unexpected=[];
+ await page.route('**/*',route=>{
+  const request=route.request(),u=new URL(request.url());
+  if(u.origin==='https://fonts.googleapis.com'&&u.pathname==='/css2')return route.fulfill({contentType:'text/css',body:''});
+  if(u.origin==='http://127.0.0.1:4173') {
+   if(request.method()==='GET'&&u.pathname==='/api/eb-v2/workspace')return route.fulfill({json:creationWorkspace()});
+   if(request.method()==='GET'&&u.pathname.startsWith('/api/eb-v2/activity/'))return route.fulfill({json:{inputs:[],runs:[],actions:[],feedback:[]}});
+   if(!u.pathname.startsWith('/api/')&&request.method()==='GET')return route.continue();
+  }
+  unexpected.push(`${request.method()} ${u.origin}${u.pathname}`);return route.abort();
+ });
+ return unexpected;
+}
+async function creationView(page,view) {
+ // Existing view controls contain Lucide SVGs and have no accessible names.
+ await page.locator(`button:has(svg.lucide-${view==='grid'?'grid2x2':'list'})`).click();
+}
+for (const timezoneId of ['UTC','Asia/Ho_Chi_Minh']) {
+ test.describe(`creation values ${timezoneId}`,()=>{
+  test.use({timezoneId});
+  test('CREATED_DATE_VALUE package timestamps across gates and views',async({page})=>{
+   const unexpected=await isolateCreation(page);
+   await page.goto('/?screen=eb');
+   const expected=timezoneId==='UTC'?'02/01/2026 23:04':'03/01/2026 06:04';
+   for(const view of ['list','grid']) {
+    await creationView(page,view);
+    for(const branch of branches)for(const variant of ['valid','missing','invalid']) {
+     const card=page.locator('article').filter({has:page.getByRole('button',{name:`Open task: CREATED_${branch}-${variant}`,exact:true})});
+     await expect(card.getByText(`Ngày tạo: ${variant==='valid'?expected:'—'}`,{exact:true})).toBeVisible();
+    }
+    const response=page.waitForResponse(r=>r.url().endsWith('/api/eb-v2/workspace'));
+    await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();await response;
+    await expect(page.getByText(`Ngày tạo: ${expected}`,{exact:true})).toHaveCount(5);
+   }
+   expect(unexpected).toEqual([]);
+  });
+ });
+}
+for(const theme of ['light','dark'])for(const view of ['list','grid']) {
+ test(`CREATED_DATE_INTERACTION ${theme} ${view} metadata and controls`,async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const unexpected=await isolateCreation(page);await page.goto('/?screen=eb');
+  await page.locator('body').evaluate((body,theme)=>body.classList.toggle('codex-dark',theme==='dark'),theme);
+  await creationView(page,view);
+  for(const branch of branches) {
+   const title=`CREATED_${branch}-valid`;
+   const open=page.getByRole('button',{name:`Open task: ${title}`,exact:true});
+   const card=page.locator('article').filter({has:open}),metadata=card.getByText(/^Ngày tạo:/);
+   await metadata.scrollIntoViewIfNeeded();
+   const dateBox=await metadata.boundingBox(),cardBox=await card.boundingBox();
+   expect(dateBox.width).toBeGreaterThan(0);
+   expect(dateBox.x).toBeGreaterThanOrEqual(cardBox.x);
+   expect(dateBox.x+dateBox.width).toBeLessThanOrEqual(cardBox.x+cardBox.width);
+   expect(dateBox.y+dateBox.height).toBeLessThanOrEqual(cardBox.y+cardBox.height);
+   for(const control of await card.locator('button').all()) {
+    if(await control.getAttribute('aria-label')===`Open task: ${title}`)continue;
+    const box=await control.boundingBox();
+    expect(box.x>=dateBox.x+dateBox.width||box.x+box.width<=dateBox.x||box.y>=dateBox.y+dateBox.height||box.y+box.height<=dateBox.y).toBeTruthy();
+   }
+   const menu=card.getByRole('button',{name:'More item actions'});
+   await menu.click();await expect(menu).toHaveAttribute('aria-expanded','true');
+   await expect(card.getByRole('button',{name:'Delete item'})).toBeVisible();
+   await expect(page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})})).toHaveCount(0);
+   await page.keyboard.press('Escape');await expect(menu).toHaveAttribute('aria-expanded','false');
+   await menu.click();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','false');
+   for(const action of ['click','Enter','Space']) {
+    if(action==='click')await metadata.click();else {await open.focus();await expect(open).toBeFocused();await open.press(action);}
+    const detail=page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})});
+    await expect(detail).toBeVisible();
+    await detail.locator('header button').click();await expect(detail).toHaveCount(0);
+   }
+  }
+  expect(errors).toEqual([]);expect(unexpected).toEqual([]);
+ });
+}
