@@ -19,6 +19,12 @@ AI workflow gates are explicit: brief, article (spec/outline/draft), adapt, revi
 
 Discovery uses source collection, freshness/evidence gates, save-before-display behaviour, NDJSON progress events, and duplicate detection. A stream failure must emit an error event and end the response.
 
+## Threads at Review Gate 3
+
+Initial adaptation, channel regeneration, and feedback refinement share a mandatory Threads delivery contract in both task and system prompts. Return exactly Variant A — Company account and Variant B — Employee-shareable. Each variant contains a Vietnamese post (`Tiếng Việt`) followed by its English translation (`English`); each language version is independently publish-ready and limited to 500 characters, excluding labels. Preserve supported facts in both languages.
+
+This contract overrides conflicting configured language, variant-count, or length rules, including older single-language Channel Rules. Other Channel Rules retain their existing precedence. Facebook and LinkedIn contracts are unchanged. The provider is instructed to check the contract; this is not a deterministic language/length validator. Content remains in `content.text`, with existing channel isolation and per-variant human approval. Existing saved outputs are not rewritten or backfilled; the contract applies to newly generated revisions.
+
 ## Auth, retries, concurrency
 
 The current app is a shared internal deployment: `/api` middleware assigns a shared admin identity in `backend/index.ts`; this is not end-user authentication. New Agent Library sync must still check `req.auth.role === 'admin'`; retrieval requires `req.auth` and must be revisited when real auth is introduced. GET retry policy lives in `src/lib/db.ts`; provider retry/failure handling remains backend-owned.

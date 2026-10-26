@@ -9,7 +9,7 @@ const source = readFileSync(new URL('../../backend/ebV2.ts', import.meta.url), '
 const ast = ts.createSourceFile('ebV2.ts', source, ts.ScriptTarget.Latest, true);
 const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'adaptTask');
 assert.ok(declaration, 'shared adaptation task must exist');
-const javascript = ts.transpileModule(declaration.getText(ast), {
+const javascript = ts.transpileModule([ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'threadsDeliveryContract').getText(ast), declaration.getText(ast)].join('\n'), {
   compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS},
 }).outputText;
 const adaptTask = runInNewContext(`${javascript}\nadaptTask`, Object.create(null));
@@ -24,13 +24,17 @@ for (const channel of ['facebook', 'threads', 'linkedin']) {
     assert.ok(task.includes('sections intended for another channel.'));
     assert.ok(task.includes('References to other platforms within the requested post are allowed.'));
     assert.ok(task.includes('Those configured rules take precedence over the fallback delivery contract below, editorial learnings, the current output, and editor feedback.'));
-    assert.ok(task.includes('FALLBACK (only where configured Channel Rules do not specify otherwise):'));
+    assert.ok(task.includes(channel === 'threads' ? 'MANDATORY THREADS REQUIREMENTS' : 'FALLBACK (only where configured Channel Rules do not specify otherwise):'));
     assert.ok(task.endsWith(`APPROVED ARTICLE:\n${article}`));
     const contracts = task.match(/(?:FACEBOOK|THREADS|LINKEDIN) DELIVERY CONTRACT/g);
     assert.deepEqual(contracts, [`${channel.toUpperCase()} DELIVERY CONTRACT`]);
     if (channel === 'facebook') assert.match(task, /Vietnamese post first, followed by its English translation/);
     if (channel === 'threads') {
-      assert.match(task, /Vietnamese only/);
+      assert.match(task, /Within EACH variant, return a Vietnamese post first under Tiếng Việt, followed by its English translation under English/);
+      assert.match(task, /including when configured Channel Rules request only one language/);
+      assert.match(task, /limit applies separately to each language version/);
+      assert.match(task, /Preserve all other applicable Channel Rules/);
+      assert.doesNotMatch(task, /Vietnamese only|Do not include English translation/);
       assert.match(task, /exactly two labelled variants: Variant A — Company account and Variant B — Employee-shareable/);
       assert.match(task, /at most 500 characters/);
     }
@@ -49,4 +53,13 @@ test('initial generation, regeneration and feedback share the task contract', ()
   assert.deepEqual(calls.map(call => call.arguments[0].getText(ast)).sort(), ['channel.channel', 'output.channel', 'output.channel']);
   assert.match(source, /`feedback:\$\{channel.channel\}`/);
   assert.match(source, /App Settings workflow rules take precedence over library rules where they conflict/);
+});
+
+test('Threads mandatory contract is also supplied at system priority after configured rules', () => {
+  assert.match(source, /\.\.\.contextDocs,\s*\.\.\.\(targetChannel === "threads" \? \[threadsDeliveryContract\(\)\] : \[\]\)/);
+  const task = adaptTask('threads', article);
+  assert.match(task, /takes precedence over conflicting configured language, variant count, or length rules/);
+  for (const channel of ['facebook', 'linkedin']) {
+    assert.doesNotMatch(adaptTask(channel, article), /Mandatory for Threads|MANDATORY THREADS REQUIREMENTS/);
+  }
 });
