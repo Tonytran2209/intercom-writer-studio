@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   writer-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         project: [desktop, mobile]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -50,19 +50,22 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-chromium-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-ubuntu24-chromium-${{ hashFiles('package-lock.json') }}
+      - name: Prepare Chromium system dependencies
+        timeout-minutes: 3
+        run: npx --no-install playwright install-deps chromium
       - name: Prepare Chromium with bounded retry
-        timeout-minutes: 6
+        timeout-minutes: 3
         env:
           PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "30000"
         run: |
           for attempt in 1 2; do
-            if timeout --kill-after=10s 150s npx --no-install playwright install --with-deps chromium; then
+            if timeout --kill-after=10s 70s npx --no-install playwright install chromium; then
               exit 0
             fi
-            echo "Chromium preparation attempt ${attempt} failed; retrying infrastructure only."
+            echo "Chromium download attempt ${attempt} failed; retrying infrastructure only."
           done
-          echo "::error title=CI infrastructure::Chromium preparation failed before browser tests. No code diagnosis was performed."
+          echo "::error title=CI infrastructure::Chromium download failed before browser tests."
           exit 1
       - run: npx --no-install playwright test --project=${{ matrix.project }} --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
       - uses: actions/upload-artifact@v4
@@ -77,7 +80,7 @@ jobs:
   browser-check:
     needs: browser-tests
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
