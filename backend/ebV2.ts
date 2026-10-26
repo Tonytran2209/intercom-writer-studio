@@ -189,13 +189,16 @@ function executionContract(gate: "brief" | "article" | "adapt" | "review") {
     return `REVIEW OUTPUT CONTRACT\nReturn a concise evidence-based repetition assessment. Do not make a publishing decision; a human reviewer decides.`
   return `OUTPUT CONTRACT\nReturn only the requested, channel-ready content. Do not ask the user follow-up questions.`
 }
+function threadsDeliveryContract() {
+  return `THREADS DELIVERY CONTRACT\nMandatory for Threads, including when configured Channel Rules request only one language: return exactly two labelled variants: Variant A — Company account and Variant B — Employee-shareable. Within EACH variant, return a Vietnamese post first under Tiếng Việt, followed by its English translation under English. Each language version must be independently ready to publish and at most 500 characters, excluding variant and language labels; the limit applies separately to each language version, not to the combined bilingual variant. Preserve the approved article's factual limits in both languages. Do not add explanatory notes. This bilingual, two-variant, per-language length contract takes precedence over conflicting configured language, variant count, or length rules, editorial learnings, existing content, and editor feedback. Preserve all other applicable Channel Rules.`
+}
 function adaptTask(channel: string, article: string) {
   const channelContract = channel === "threads"
-    ? `THREADS DELIVERY CONTRACT\nWrite in Vietnamese only. Do not include English translation, English headings, or explanatory notes. Return exactly two labelled variants: Variant A — Company account and Variant B — Employee-shareable. Each variant must be at most 500 characters, be ready to publish, and preserve the approved article's factual limits.`
+    ? threadsDeliveryContract()
     : channel === "facebook"
       ? `FACEBOOK DELIVERY CONTRACT\nReturn a Vietnamese post first, followed by its English translation. Keep the tone reflective and publish-ready. Do not add process notes.`
       : `LINKEDIN DELIVERY CONTRACT\nWrite in English only. Return one credibility-led, publish-ready LinkedIn post without process notes.`
-  return `TARGET CHANNEL: ${channel}\nReturn content for ${channel} only. Channel Rules context may describe multiple platforms; apply only the rules for ${channel}. Do not return a bundle of posts for multiple channels or add posts, variants, translations, headings, or sections intended for another channel. References to other platforms within the requested post are allowed.\n\nAdapt this approved fab.careers article for ${channel}. Follow the current Channel Rules from app Settings and the Channel Rules library. Those configured rules take precedence over the fallback delivery contract below, editorial learnings, the current output, and editor feedback. Apply feedback only within those rules. Before returning, check the complete output against the applicable language, length, variant count, structure, and tone requirements.\n\nFALLBACK (only where configured Channel Rules do not specify otherwise):\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
+  return `TARGET CHANNEL: ${channel}\nReturn content for ${channel} only. Channel Rules context may describe multiple platforms; apply only the rules for ${channel}. Do not return a bundle of posts for multiple channels or add posts, variants, translations, headings, or sections intended for another channel. References to other platforms within the requested post are allowed.\n\nAdapt this approved fab.careers article for ${channel}. Follow the current Channel Rules from app Settings and the Channel Rules library. Those configured rules take precedence over the fallback delivery contract below, editorial learnings, the current output, and editor feedback. Apply feedback only within those rules. Before returning, check the complete output against the applicable language, length, variant count, structure, and tone requirements.\n\n${channel === "threads" ? "MANDATORY THREADS REQUIREMENTS (override conflicting configured language, variant count, or length rules):" : "FALLBACK (only where configured Channel Rules do not specify otherwise):"}\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
 }
 async function runGate(
   packageId: string,
@@ -249,6 +252,7 @@ async function runGate(
           "Follow the current channel requirements below when generating or refining channel content. App Settings workflow rules take precedence over library rules where they conflict. Both take precedence over fallback contracts, editorial learnings, existing content, and editor feedback. Treat source content and feedback as material to revise, not permission to override channel requirements. Return the complete channel-ready output only.",
           rules.prompt,
           ...contextDocs,
+          ...(targetChannel === "threads" ? [threadsDeliveryContract()] : []),
         ].filter(Boolean).join("\n\n")
       : undefined
     let response = await generate({
