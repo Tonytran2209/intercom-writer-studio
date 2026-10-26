@@ -23,8 +23,7 @@ async function wheelToEnd(page, region) {
   await expect.poll(() => region.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
 }
 
-test('short desktop sidebar scrolls while footer controls remain usable', async ({page}, info) => {
-  test.skip(info.project.name !== 'desktop', 'Desktop layout only');
+test('short desktop sidebar scrolls while footer controls remain usable', async ({page}) => {
   await page.setViewportSize({width:1024,height:480});
   await page.goto('/?screen=sidebar');
   const sidebar = page.locator('aside.eb-sidebar');
@@ -53,8 +52,8 @@ test('short desktop sidebar scrolls while footer controls remain usable', async 
   }
 });
 
-test('mobile Packages retains scrolling and selection', async ({page}, info) => {
-  test.skip(info.project.name !== 'mobile', 'Mobile layout only');
+test('mobile Packages retains scrolling and selection', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
   await page.goto('/?screen=sidebar');
   await page.getByRole('button',{name:'Packages',exact:true}).click();
   const sheet = page.locator('section').filter({has:page.getByRole('heading',{name:'Started packages'})});
