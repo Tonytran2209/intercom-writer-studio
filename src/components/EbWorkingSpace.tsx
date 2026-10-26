@@ -886,7 +886,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
     : null
   const notices = [
-    { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError ? "V2 workspace connection needs attention." : "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
+    { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
     { id: "article", text: `${tasks.filter((task) => task.gate === "article" && task.status === "drafting").length} website article(s) are being generated`, active: tasks.some((task) => task.gate === "article" && task.status === "drafting") },
     {
       id: "adapt",

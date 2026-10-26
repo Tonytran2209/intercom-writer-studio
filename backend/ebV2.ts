@@ -1483,17 +1483,19 @@ export function registerEbV2Routes(app: express.Express) {
             error:
               "No saved website article is available. Regenerate Gate 2 to create one.",
           })
-      await tableUpdate("eb_v2_articles", article.id, {
-        status: "approved",
-        approved_at: new Date().toISOString(),
-      })
+      const previousOutputs = await tableSelect<any>("eb_v2_channel_outputs", query =>
+        query.eq("package_id", item.id),
+      )
+      if (previousOutputs.some(output =>
+        !output.content?.archived && ["queued", "generating"].includes(output.status),
+      )) return res.status(409).json({ error: "Channel adaptation is already running for this package. Wait for it to finish." })
       const outputs = await Promise.all(
         ["threads", "facebook", "linkedin"].map((channel) =>
           tableInsert<any>("eb_v2_channel_outputs", {
             package_id: item.id,
             article_id: article.id,
             channel,
-            revision: 1,
+            revision: Math.max(0, ...previousOutputs.filter(output => output.channel === channel).map(output => Number(output.revision) || 0)) + 1,
             status: "queued",
             content: {},
             model_provider: model.provider,
@@ -1501,6 +1503,10 @@ export function registerEbV2Routes(app: express.Express) {
           }),
         ),
       )
+      await tableUpdate("eb_v2_articles", article.id, {
+        status: "approved",
+        approved_at: new Date().toISOString(),
+      })
       await tableUpdate("eb_v2_packages", item.id, {
         state: "adapt",
         article_approved_at: new Date().toISOString(),
