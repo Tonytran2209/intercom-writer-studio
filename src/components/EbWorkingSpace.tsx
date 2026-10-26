@@ -121,6 +121,10 @@ function selectedModel(config: AppConfig, step: number, fallbackId?: string) {
     null
   )
 }
+function canApproveTask(task: Task) {
+  return (task.gate === "brief" && task.status === "ready") ||
+    (task.gate === "article" && task.status === "ready" && task.type !== "Approved website article")
+}
 function formatTaskCreatedAt(value: string | undefined): string {
   if (typeof value !== "string" || !value.trim()) return "—"
   const date = new Date(value)
@@ -252,6 +256,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     state: "idle" | "running" | "success" | "empty" | "error"
     message?: string
   }>({ state: "idle" })
+  const approvalLock = useRef(false)
+  const [approvalPending, setApprovalPending] = useState(false)
+  const [approvalError, setApprovalError] = useState<{ id: string; message: string } | null>(null)
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -543,76 +550,57 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       })
       .finally(() => setSyncing(false))
   }
-  const approveBrief = (task: Task) => {
-    if (isShellMode) {
-      setTasks((current) =>
-        current.map((item) =>
-          item.id === task.id
-            ? { ...item, gate: "article", status: "drafting" }
-            : item,
-        ),
-      )
+  const approveTask = async (task: Task, gate: "brief" | "article") => {
+    const current = tasks.find((item) => item.id === task.id)
+    if (approvalLock.current || syncing || !current || current.gate !== gate || !canApproveTask(current)) return
+    const model = gate === "brief"
+      ? selectedModel(config, 2)
+      : selectedModel(config, 4, config.ebRuntimeSettings?.adaptModelId)
+    setApprovalError(null)
+    if (!isShellMode && !model) {
+      const message = gate === "brief"
+        ? "Choose a Gate 2 AI model in Workflow AI first."
+        : "Choose an Adapt channel model in Workflow AI first."
+      setApprovalError({ id: task.id, message })
+      setRuntimeError(message)
       return
     }
-    const model = selectedModel(config, 2)
-    if (!model) {
-      setRuntimeError("Choose a Gate 2 AI model in Workflow AI first.")
-      return
-    }
+    approvalLock.current = true
+    setApprovalPending(true)
     setSyncing(true)
-    void db
-      .approveEbV2Brief(task.id, { provider: model.provider, id: model.id })
-      .then(() => refresh())
-      .catch((error) =>
-        setRuntimeError(
-          error instanceof Error
-            ? error.message
-            : "Unable to generate article.",
-        ),
-      )
-      .finally(() => setSyncing(false))
-  }
-  const approveArticle = (task: Task) => {
-    if (isShellMode) {
-      setTasks((current) => {
-        const next = current.filter((item) => item.id !== task.id)
-        const channels: Task["channel"][] = ["Threads", "Facebook", "LinkedIn"]
-        return [
-          ...next,
-          ...channels.map((channel) => ({
-            id: `adapt-${task.id}-${channel}`,
-            gate: "adapt" as Gate,
-            status: "adapting" as const,
-            title: task.title,
-            channel,
-          })),
-        ]
-      })
-      return
+    setRuntimeError(null)
+    try {
+      if (isShellMode) {
+        setTasks((items) => gate === "brief"
+          ? items.map((item) => item.id === task.id ? { ...item, gate: "article", status: "drafting" } : item)
+          : [...items.filter((item) => item.id !== task.id),
+            ...(["Threads", "Facebook", "LinkedIn"] as const).map((channel) => ({
+              id: `adapt-${task.id}-${channel}`, gate: "adapt" as const,
+              status: "adapting" as const, title: task.title, channel,
+            }))])
+      } else if (model) {
+        if (gate === "brief") {
+          await db.approveEbV2Brief(task.id, { provider: model.provider, id: model.id })
+          // Approval has persisted even if the following read fails. Never offer it again.
+          setTasks((items) => items.map((item) => item.id === task.id
+            ? { ...item, gate: "article", status: "drafting" } : item))
+          setTasks(workspaceTasks(await db.fetchEbV2Workspace()))
+        } else {
+          setTasks(workspaceTasks(await db.approveEbV2Article(task.id, { provider: model.provider, id: model.id })))
+        }
+      }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Unable to approve. Try again."
+      setApprovalError({ id: task.id, message })
+      setRuntimeError(message)
+    } finally {
+      approvalLock.current = false
+      setApprovalPending(false)
+      setSyncing(false)
     }
-    const model = selectedModel(
-      config,
-      4,
-      config.ebRuntimeSettings?.adaptModelId,
-    )
-    if (!model) {
-      setRuntimeError("Choose an Adapt channel model in Workflow AI first.")
-      return
-    }
-    setSyncing(true)
-    void db
-      .approveEbV2Article(task.id, { provider: model.provider, id: model.id })
-      .then((data) => {
-        setTasks(workspaceTasks(data))
-        setRuntimeError(null)
-      })
-      .catch((error) =>
-        setRuntimeError(
-          error instanceof Error ? error.message : "Unable to adapt channels.",
-        ),
-      )
-      .finally(() => setSyncing(false))
   }
+  const approveBrief = (task: Task) => { void approveTask(task, "brief") }
+  const approveArticle = (task: Task) => { void approveTask(task, "article") }
   const decide = (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => {
     if (isShellMode) {
       setTasks((current) =>
@@ -1058,6 +1046,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                     gate={gate}
                     tasks={filteredTasks.filter((task) => task.gate === gate)}
                     view={view}
+                    approvalDisabled={syncing || approvalPending}
                     onBrief={approveBrief}
                     onArticle={approveArticle}
                     onDecision={decide}
@@ -1114,6 +1103,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           <TaskDetail
             key={`${selectedTask?.id}:${selectedTask?.gate}`}
             task={selectedTask}
+            approvalDisabled={syncing || approvalPending}
+            approvalPending={approvalPending}
+            approvalError={approvalError?.id === selectedTask?.id ? approvalError?.message : null}
+            onBrief={approveBrief}
+            onArticle={approveArticle}
             model={(() => {
               const task = selectedTask
               if (!task) return null
@@ -1209,6 +1203,7 @@ function GateGroup({
   gate,
   tasks,
   view,
+  approvalDisabled,
   onBrief,
   onArticle,
   onDecision,
@@ -1219,6 +1214,7 @@ function GateGroup({
 }: {
   gate: Gate
   tasks: Task[]
+  approvalDisabled: boolean
   view: View
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
@@ -1262,6 +1258,7 @@ function GateGroup({
               key={task.id}
               task={task}
               view={view}
+              approvalDisabled={approvalDisabled}
               onBrief={onBrief}
               onArticle={onArticle}
               onDecision={onDecision}
@@ -1283,6 +1280,7 @@ function GateGroup({
 function TaskCard({
   task,
   view,
+  approvalDisabled,
   onBrief,
   onArticle,
   onDecision,
@@ -1292,6 +1290,7 @@ function TaskCard({
   onOpen,
 }: {
   task: Task
+  approvalDisabled: boolean
   view: View
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
@@ -1375,8 +1374,9 @@ function TaskCard({
           view === "list" ? "mt-0 shrink-0" : ""
         }`}
       >
-        {task.gate === "brief" && task.status !== "checking" && (
+        {task.gate === "brief" && canApproveTask(task) && (
           <button
+            disabled={approvalDisabled}
             onClick={() => onBrief(task)}
             className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white"
           >
@@ -1384,9 +1384,9 @@ function TaskCard({
           </button>
         )}
         {task.gate === "article" &&
-          task.status !== "drafting" &&
-          task.type !== "Approved website article" && (
+          canApproveTask(task) && (
             <button
+              disabled={approvalDisabled}
               onClick={() => onArticle(task)}
               className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white"
             >
@@ -1992,11 +1992,21 @@ function MarkdownContent({ value }: { value: string }) {
 function TaskDetail({
   task,
   model,
+  approvalDisabled,
+  approvalPending,
+  approvalError,
+  onBrief,
+  onArticle,
   onWorkspaceChange,
   onDecision,
   onRegenerate,
   onClose,
 }: {
+  approvalDisabled: boolean
+  approvalPending: boolean
+  approvalError: string | null | undefined
+  onBrief: (task: Task) => void
+  onArticle: (task: Task) => void
   task: Task | null
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
@@ -2168,6 +2178,20 @@ function TaskDetail({
           </button>
         </header>
         <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
+          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
+          {canApproveTask(task) && (
+            <div className="mb-3">
+              <button
+                disabled={approvalDisabled || loading || Boolean(error)}
+                onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {approvalPending && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+                {task.gate === "brief" ? "Approve brief" : "Approve article"}
+              </button>
+            </div>
+          )}
+          {approvalPending && <p role="status" className="mb-3 text-xs text-slate-500">Saving approval and starting the next step…</p>}
           {loading ? (
             <p className="text-xs text-slate-500">
               Loading source and AI activity…

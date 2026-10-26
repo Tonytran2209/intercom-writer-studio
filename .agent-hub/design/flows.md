@@ -14,6 +14,10 @@ source_paths: [src/components/EbWorkingSpace.tsx, backend/ebV2.ts]
 4. Adaptation creates LinkedIn, Facebook, and Threads outputs.
 5. Review is per channel: done, reject, recheck, or regeneration are scoped to that channel.
 
+Brief and draft article can be approved from either their board card or task detail popup. Brief approval uses the Gate 2 model; article approval uses the Adapt model (including its configured override), independently of the popup's editing model. Existing enabled-model fallback is preserved; without a model, no request is sent and the popup explains what to configure.
+
+Approval is unavailable for running tasks and already approved articles. Card and popup share a request lock while approval is pending; the popup shows progress and recoverable errors. Successful approval synchronizes the board and detail. Once brief approval persists, the UI advances to Article even if the follow-up workspace read fails; refresh to recover the latest state. Adapt has no approval action. Review stays scoped to each channel, with A, B, or both required for Threads; there is no package-wide approval.
+
 ## Discovery flow
 
 1. User starts scan, optionally adding links.
