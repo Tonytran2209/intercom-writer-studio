@@ -31,6 +31,14 @@ async function setup(page) {
    }
    if(req.method()==='POST'&&/^\/api\/eb-v2\/channel-outputs\/[^/]+\/(review|regenerate)$/.test(url.pathname)) {
     state.mutations.push({path:url.pathname,body:req.postDataJSON()});
+    if(state.persist && url.pathname.endsWith('/review')) {
+     const id=url.pathname.split('/')[4],body=req.postDataJSON();
+     if(state.fail===id){state.fail=null;return route.fulfill({status:500,json:{error:'Synthetic review failure'}})}
+     const output=state.data.channels.find(row=>row.id===id);
+     output.status=body.action==='reject'?'rejected':body.action;
+     delete output.content.approvedVariants;
+     if(body.approvedVariants)output.content.approvedVariants=body.approvedVariants;
+    }
     return route.fulfill({json:state.data});
    }
    if(req.method()==='GET'&&!url.pathname.startsWith('/api/'))return route.continue();
@@ -149,4 +157,77 @@ test('G3_CHANNEL_ACTIONS missing model keeps Regenerate disabled without API cal
  await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
  await expect(row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true})).toBeDisabled();
  expect(state.mutations).toEqual([]);clean(state);
+});
+
+// Run without page/browser fixtures as well as in browser-check CI.
+async function offlineGate3Contracts() {
+ const {default:ts}=await import('typescript');
+ const {strict:assert}=await import('node:assert');
+ const source=await readFile('src/components/EbWorkingSpace.tsx','utf8');
+ const compile=code=>ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+ const summary=new Function(`${compile(source.slice(source.indexOf('function reviewSummary'),source.indexOf('function isEmergingDiscovery')))}; return reviewSummary`)();
+ assert.equal(summary([]).label,'Chờ review');
+ assert.equal(summary([{decision:'done'},{decision:'recheck'}]).label,'Chờ review');
+ assert.equal(summary([{decision:'done'},{decision:'reject'}]).label,'Rejected');
+ assert.equal(summary([{decision:'done'}]).label,'Done');
+ const handler=source.slice(source.indexOf('  const decide = '),source.indexOf('  const regenerate = '));
+ let tasks=[{id:'package-one',gate:'review',channels:platforms.map(channel=>({id:`one-${channel}`,channel:label(channel),decision:null}))},
+  {id:'package-two',gate:'review',channels:[{id:'two-facebook',channel:'Facebook',decision:null}]}];
+ let error=null,fail='one-facebook',calls=[],release;
+ const lock={current:false};
+ const db={
+  async reviewEbV2Channel(id,decision,variants) {
+   calls.push({id,decision,variants});
+   if(release)await new Promise(resolve=>{release.resolve=resolve});
+   if(id===fail)throw new Error('mock partial failure');
+   tasks=tasks.map(task=>({...task,channels:task.channels.map(c=>c.id===id?{...c,decision,approvedVariants:variants}:c)}));
+   return tasks;
+  },async fetchEbV2Workspace(){return tasks},
+ };
+ const make=()=>new Function('tasks','reviewLock','syncing','setSyncing','setRuntimeError','setTasks','isShellMode','db','workspaceTasks',`${compile(handler)};return decide`)(tasks,lock,false,()=>{},value=>{error=value},value=>{tasks=typeof value==='function'?value(tasks):value},false,db,data=>data);
+ const settled=async()=>{for(let i=0;lock.current&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,0));assert.equal(lock.current,false)};
+ make()('package-one','done');assert.equal(calls.length,0);assert.match(error,/Choose Variant/);
+ release={};const decide=make();decide('package-one','done','both');decide('one-linkedin','reject');
+ assert.equal(calls.length,1);release.resolve();release=null;await settled();
+ assert.deepEqual(calls.map(c=>c.id),['one-threads','one-facebook']);
+ assert.equal(tasks[0].channels[0].approvedVariants,'both');assert.match(error,/1\/3/);
+ fail=null;calls=[];make()('package-one','done','a');await settled();
+ assert.deepEqual(calls.map(c=>c.id),['one-facebook','one-linkedin']);
+ assert.ok(calls.every(c=>c.variants===undefined));
+ assert.equal(tasks[0].channels[0].approvedVariants,'both');assert.equal(summary(tasks[0].channels).label,'Done');
+ assert.equal(tasks[1].channels[0].decision,null);
+ // A filtered card passes the package ID; the handler still resolves all current outputs.
+ calls=[];make()('package-one','reject');await settled();assert.equal(calls.length,3);
+ assert.equal(summary(tasks[0].channels).label,'Rejected');
+ calls=[];make()('one-facebook','recheck');await settled();assert.deepEqual(calls.map(c=>c.id),['one-facebook']);
+ assert.equal(tasks[0].channels[1].decision,'recheck');
+ assert.ok(source.includes('allChannels: task.channels'));
+}
+test('G3_OFFLINE bulk review contract and partial retry without browser',offlineGate3Contracts);
+
+
+test('G3_BULK persisted status, partial retry, filter isolation and refresh',async({page})=>{
+ const state=await setup(page);state.persist=true;state.fail='one-facebook';
+ const card=page.locator('article').filter({has:page.getByRole('button',{name:'Open task: PACKAGE_one',exact:true})});
+ await expect(card).toContainText('0 Done · 0 Rejected · 3 Chờ review');
+ await page.getByRole('button',{name:'Filter',exact:true}).click();
+ await page.getByRole('button',{name:'Facebook',exact:true}).click();
+ await page.getByRole('button',{name:'Filter',exact:true}).click();
+ await expect(card).toContainText('0 Done · 0 Rejected · 3 Chờ review');
+ await card.getByRole('button',{name:'More item actions',exact:true}).click();
+ await expect(card.getByRole('button',{name:'Done tất cả',exact:true})).toBeDisabled();
+ await card.getByLabel('Bulk Threads variants').selectOption('both');
+ await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+ await expect(card).toContainText('1 Done · 0 Rejected · 2 Chờ review');
+ await expect(card.getByRole('button',{name:'Done tất cả',exact:true})).toBeEnabled();
+ await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+ await expect(card).toContainText('3 Done · 0 Rejected · 0 Chờ review');
+ expect(state.mutations.map(m=>m.path.split('/')[4])).toEqual(['one-threads','one-facebook','one-facebook','one-linkedin']);
+ expect(state.data.channels.find(r=>r.id==='one-threads').content.approvedVariants).toBe('both');
+ await page.reload();await expect(card).toContainText('3 Done · 0 Rejected · 0 Chờ review');
+ await card.getByRole('button',{name:'More item actions',exact:true}).click();
+ await card.getByRole('button',{name:'Reject tất cả',exact:true}).click();
+ await expect(card).toContainText('0 Done · 3 Rejected · 0 Chờ review');
+ expect(state.data.channels.filter(r=>r.package_id==='two').every(r=>r.status==='ready_for_review')).toBe(true);
+ clean(state);
 });
