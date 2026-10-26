@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { postgresClient, putBinary, getBinary, removeBinaries } from './postgres.ts';
 
 /**
  * New Supabase key naming (supabase-js v2.x + @supabase/server):
@@ -10,11 +11,13 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const TABLE = 'kv_store';
 const DOCUMENT_BUCKET = 'writer-documents';
+export const usesPostgres = () => process.env.DATABASE_PROVIDER === 'postgres';
 
 // Singleton — created once when Railway boots, reused for all requests
 let _client: SupabaseClient | null = null;
 
-function getClient(): SupabaseClient {
+function getClient(): any {
+  if (usesPostgres()) return postgresClient;
   if (_client) return _client;
 
   const url = process.env.SUPABASE_URL;
@@ -83,6 +86,7 @@ export async function uploadDocumentBinary(
   data: Buffer,
   contentType: string,
 ): Promise<void> {
+  if (usesPostgres()) return putBinary(storagePath, data, contentType);
   const client = getClient();
   let { error } = await client.storage
     .from(DOCUMENT_BUCKET)
@@ -105,6 +109,7 @@ export async function uploadDocumentBinary(
 }
 
 export async function downloadDocumentBinary(storagePath: string): Promise<Blob> {
+  if (usesPostgres()) return getBinary(storagePath);
   const { data, error } = await getClient().storage.from(DOCUMENT_BUCKET).download(storagePath);
   if (error || !data) {
     throw new Error(`Không thể tải file gốc từ Supabase Storage: ${error?.message ?? 'không có dữ liệu'}`);
@@ -114,6 +119,7 @@ export async function downloadDocumentBinary(storagePath: string): Promise<Blob>
 
 export async function deleteDocumentBinaries(storagePaths: string[]): Promise<void> {
   if (!storagePaths.length) return;
+  if (usesPostgres()) return removeBinaries(storagePaths);
   const { error } = await getClient().storage.from(DOCUMENT_BUCKET).remove(storagePaths);
   if (error) throw new Error(`Không thể xóa file gốc khỏi Supabase Storage: ${error.message}`);
 }

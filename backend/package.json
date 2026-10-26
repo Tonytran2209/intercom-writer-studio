@@ -7,7 +7,9 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx databaseMigrate.ts",
+    "db:import": "tsx databaseImport.ts"
   },
   "engines": {
     "node": ">=22"
@@ -26,6 +28,7 @@
     "multer": "^2.2.0",
     "openai": "^4.100.0",
     "pdfjs-dist": "^5.4.149",
+    "pg": "^8.23.1",
     "read-excel-file": "^9.3.5",
     "tsx": "^4.19.4"
   },
@@ -34,6 +37,7 @@
     "@types/express": "^5.0.2",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.7.0"
   }
 }

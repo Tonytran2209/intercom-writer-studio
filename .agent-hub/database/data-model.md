@@ -8,6 +8,8 @@ source_paths: [supabase/migrations]
 
 Supabase PostgreSQL is server-persisted through `backend/supabase.ts`; browser code calls Railway, not Supabase directly. Migrations `001`–`009` are the schema history and must remain immutable.
 
+Railway PostgreSQL is supported through `backend/postgres.ts` when `DATABASE_PROVIDER=postgres`. `DATABASE_URL` configures the pool; setting it alone does not change the active provider. The explicit `db:migrate` command applies the repository's existing migrations with a hash ledger. `db:import` inventories/copies the source database into an empty target; it never runs on application startup. Production cutover and import verification are operator steps.
+
 ## Existing domains
 
 - Legacy: KV store, relational content plans/items/articles, three-stage sessions, article specs/quality, website inventory/crawl summaries.

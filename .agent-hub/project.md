@@ -22,6 +22,7 @@ source_paths: [package.json, backend/package.json, railway.toml, nixpacks.toml]
 | AI providers and workflow rules | `backend/providers.ts`, `backend/workflowRules.ts`, `src/lib/workflowGuards.ts` |
 | Database | `supabase/migrations/` in numeric order |
 | Persistent binaries | Supabase private `writer-documents` bucket via `backend/supabase.ts` |
+| Railway database option | `backend/postgres.ts`; explicit `DATABASE_PROVIDER=postgres` switch, migration/import commands in `backend/package.json` |
 | Deployment | `railway.toml`, `nixpacks.toml`, `start.sh` |
 
 ## Invariants

@@ -12,6 +12,7 @@ import {
   kvDelete,
   kvGetByPrefix,
   checkConnection,
+  usesPostgres,
   uploadDocumentBinary,
   downloadDocumentBinary,
   deleteDocumentBinaries,
@@ -3644,6 +3645,8 @@ app.get("/health", (_req, res) => {
     version: "1.0.0",
     providers: getAvailableProviders(),
     seoResearch: seoResearchConfigured(),
+    databaseProvider: usesPostgres() ? "postgres" : "supabase",
+    databaseConfigured: usesPostgres() ? !!process.env.DATABASE_URL : !!process.env.SUPABASE_URL,
     supabaseConfigured: !!(
       process.env.SUPABASE_URL &&
       (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)
@@ -3663,6 +3666,8 @@ app.get("/health/dependencies", async (_req, res) => {
   res.status(supabaseOk ? 200 : 503).json({
     status: supabaseOk ? "ok" : "degraded",
     supabase: supabaseOk,
+    database: supabaseOk,
+    databaseProvider: usesPostgres() ? "postgres" : "supabase",
     relationalContentPlans,
     threeStageSessions,
     supabaseUrl: process.env.SUPABASE_URL ?? null,
