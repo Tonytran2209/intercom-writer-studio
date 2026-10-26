@@ -1763,7 +1763,7 @@ function DiscoveryResearch({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-purple-600" />
+              <Lightbulb className="h-4 w-4 text-indigo-600" />
               <h2 className="text-xs font-bold text-slate-800">
                 Discovery research
               </h2>
@@ -1785,7 +1785,7 @@ function DiscoveryResearch({
             }
             title={running ? "Scanning sources" : "Scan sources"}
             aria-label={running ? "Scanning sources" : "Scan sources"}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-purple-600 text-white disabled:opacity-50"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white disabled:opacity-50"
           >
             {running ? (
               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
