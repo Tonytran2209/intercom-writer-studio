@@ -23,3 +23,10 @@ source_paths: [src/components, src/components/workspace, src/components/config]
 - **Discovery:** tag every item `Verified trend`, `Emerging signal`, or `Source lead`; group archive by tag.
 
 Use Lucide icons already imported by the target component. Existing icon-only actions require accessible labels and tooltips/titles.
+
+## EB notification center
+
+- Header connection status is a single dot: amber while synchronising, red on error, emerald when live. Its button retains refresh/retry, an accessible state description, tooltip, focus style and touch target. Explicit dot colors avoid the shell's amber utility override.
+- The bell contains current connection status (with retry on failure), running article/adaptation work, saved Discovery counts, and per-output pending/completed/rejected Review counts across all channels, independent of board filters. Badge count equals panel entries; polling updates these entries rather than appending duplicates.
+- `notifyWorkspace(message, kind)` keeps its signature and appends distinct events to module-owned in-memory session history, including consecutive events in the same millisecond. History survives workspace remount and StrictMode subscription cycles, and resets on page reload; no server or browser-storage persistence is added.
+- General notifications are presented in the center, without a duplicate toast or connection banner and without a four-second expiry. Field validation and audit content remain in context. The center supports keyboard focus containment, Escape and focus return.

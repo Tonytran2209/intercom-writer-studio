@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
+import { useWorkspaceNotices } from "./workspace/WorkspaceNotification"
 import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
@@ -271,6 +272,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const sessionNotices = useWorkspaceNotices()
   const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -903,31 +905,19 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
     : null
+  const reviewCounts = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
+  const connectionLabel = syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live."
   const notices = [
-    { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
-    { id: "article", text: `${tasks.filter((task) => task.gate === "article" && task.status === "drafting").length} website article(s) are being generated`, active: tasks.some((task) => task.gate === "article" && task.status === "drafting") },
-    {
-      id: "adapt",
-      text: `${tasks.filter((task) => task.gate === "adapt").length} channel output(s) are running`,
-      active: tasks.some((task) => task.gate === "adapt"),
-    },
-    {
-      id: "review",
-      text: `${tasks.filter((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")).length} channel output(s) await review`,
-      active: tasks.some((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")),
-    },
-    {
-      id: "discovery",
-      text: `${discoveryIdeas.length} Discovery suggestion(s) saved`,
-      active: discoveryIdeas.length > 0,
-    },
-    {
-      id: "error",
-      text: runtimeError ?? "",
-      active: Boolean(runtimeError),
-      error: true,
-    },
-  ].filter((item) => item.active)
+    { id: "connection", text: connectionLabel, active: true, error: !syncing && Boolean(runtimeError) },
+    { id: "brief", text: `${tasks.filter(task => task.status === "checking").length} brief(s) are being generated`, active: tasks.some(task => task.status === "checking") },
+    { id: "article", text: `${tasks.filter(task => task.status === "drafting").length} website article(s) are being generated`, active: tasks.some(task => task.status === "drafting") },
+    { id: "adapt", text: `${tasks.filter(task => task.gate === "adapt").length} channel output(s) are running`, active: tasks.some(task => task.gate === "adapt") },
+    { id: "review", text: `${reviewCounts.pending} channel output(s) await review`, active: reviewCounts.pending > 0 },
+    { id: "done", text: `${reviewCounts.done} channel output(s) completed`, active: reviewCounts.done > 0 },
+    { id: "rejected", text: `${reviewCounts.rejected} channel output(s) rejected`, active: reviewCounts.rejected > 0 },
+    { id: "discovery", text: `${discoveryIdeas.length} Discovery suggestion(s) saved`, active: discoveryIdeas.length > 0 },
+    ...sessionNotices.map(notice => ({ id: `event-${notice.id}`, text: notice.message, active: true, error: notice.kind === "error" })),
+  ].filter(item => item.active)
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
@@ -950,42 +940,24 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             className="relative grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
           >
             <Bell className="h-3.5 w-3.5" />
-            {notices.filter((notice) => notice.id !== "connection" || notice.error).length > 0 && (
+            {notices.length > 0 && (
               <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
-                {notices.filter((notice) => notice.id !== "connection" || notice.error).length}
+                {notices.length}
               </span>
             )}
           </button>
           <button
             onClick={() => void refresh()}
             disabled={syncing}
-            title={runtimeError || "Refresh V2 workspace"}
+            title={`${connectionLabel} Click to ${runtimeError ? "retry" : "refresh"}.`}
             aria-label={runtimeError ? "Retry V2 connection" : "Refresh V2 workspace"}
-            className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-medium disabled:cursor-not-allowed ${
-              runtimeError
-                ? "bg-red-50 text-red-600 hover:bg-red-100"
-                : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-            }`}
+            className="grid h-7 w-7 place-items-center rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`h-2.5 w-2.5 ${syncing ? "animate-spin" : ""}`} />
-            {!syncing && (runtimeError ? "V2 error" : "V2 live")}
+            <span className="sr-only">{connectionLabel}</span>
+            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: syncing ? "#f59e0b" : runtimeError ? "#ef4444" : "#10b981" }} />
           </button>
         </div>
       </header>
-      {runtimeError && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-4 py-2">
-          <p className="min-w-0 whitespace-pre-line text-[10px] text-red-700">
-            {runtimeError}
-          </p>
-          <button
-            onClick={() => void refresh()}
-            disabled={syncing}
-            className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[10px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-          >
-            Retry
-          </button>
-        </div>
-      )}
       {page === "board" && <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div ref={filterRef} className="relative">
@@ -1163,6 +1135,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {notificationOpen && (
           <NotificationPanel
             notices={notices}
+            onRetry={() => void refresh()}
+            syncing={syncing}
             onClose={() => setNotificationOpen(false)}
           />
         )}
@@ -1173,11 +1147,21 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
 
 function NotificationPanel({
   notices,
+  onRetry,
+  syncing,
   onClose,
 }: {
+  onRetry: () => void
+  syncing: boolean
   notices: Array<{ id: string; text: string; active: boolean; error?: boolean }>
   onClose: () => void
 }) {
+  const panelRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    panelRef.current?.focus()
+    return () => previous?.focus()
+  }, [])
   return (
     <div
       onClick={(event) => {
@@ -1186,6 +1170,20 @@ function NotificationPanel({
       className="eb-overlay absolute inset-0 z-50 flex justify-end p-3"
     >
       <aside
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Notification center"
+        tabIndex={-1}
+        onKeyDown={event => {
+          if (event.key === "Escape") { event.stopPropagation(); onClose() }
+          if (event.key === "Tab") {
+            const controls = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])
+            const first = controls[0], last = controls[controls.length - 1]
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { event.preventDefault(); last?.focus() }
+            else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { event.preventDefault(); first?.focus() }
+          }
+        }}
         onClick={(event) => event.stopPropagation()}
         className="flex h-full w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
@@ -1200,6 +1198,7 @@ function NotificationPanel({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close notifications"
             className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
@@ -1216,7 +1215,8 @@ function NotificationPanel({
                     : "border-slate-200 bg-slate-50 text-slate-700"
                 }`}
               >
-                {notice.text}
+                <p>{notice.text}</p>
+                {notice.id === "connection" && notice.error && <button onClick={onRetry} disabled={syncing} className="mt-2 rounded-md border border-red-200 px-2 py-1 font-semibold disabled:opacity-50">Retry</button>}
               </article>
             ))
           ) : (
