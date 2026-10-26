@@ -50,6 +50,7 @@ type Task = {
   persona?: string
   type?: string
   channel?: "Threads" | "Facebook" | "LinkedIn"
+  allChannels?: ReviewChannel[]
   channels?: ReviewChannel[]
   approvedVariants?: ApprovedVariants
   decision?: Decision
@@ -66,6 +67,13 @@ type DiscoveryIdea = {
   created_at?: string
   updated_at?: string
 }
+function reviewSummary(channels: ReviewChannel[]) {
+  const done = channels.filter((channel) => channel.decision === "done").length
+  const rejected = channels.filter((channel) => channel.decision === "reject").length
+  return { done, rejected, pending: channels.length - done - rejected,
+    label: rejected ? "Rejected" : channels.length > 0 && done === channels.length ? "Done" : "Chờ review" }
+}
+
 function isEmergingDiscovery(item: DiscoveryIdea) {
   return Array.isArray(item.evidence) && item.evidence.some((entry: any) => entry?.kind === "research_topic" && entry?.confidence === "emerging")
 }
@@ -256,6 +264,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     state: "idle" | "running" | "success" | "empty" | "error"
     message?: string
   }>({ state: "idle" })
+  const reviewLock = useRef(false)
   const approvalLock = useRef(false)
   const [approvalPending, setApprovalPending] = useState(false)
   const [approvalError, setApprovalError] = useState<{ id: string; message: string } | null>(null)
@@ -602,27 +611,48 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const approveBrief = (task: Task) => { void approveTask(task, "brief") }
   const approveArticle = (task: Task) => { void approveTask(task, "article") }
   const decide = (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => {
-    if (isShellMode) {
-      setTasks((current) =>
-        current.map((task) => (task.id === id ? { ...task, decision, approvedVariants } : task)),
-      )
+    if (reviewLock.current || syncing) return
+    // Resolve from the unfiltered workspace, never from the visible channel subset.
+    const task = tasks.find((item) => item.id === id || item.channels?.some((channel) => channel.id === id))
+    if (!task || task.gate !== "review") return
+    const channels = task.channels
+      ? id === task.id ? task.channels : task.channels.filter((channel) => channel.id === id)
+      : [{ id: task.id, channel: task.channel, decision: task.decision }]
+    const targets = channels.filter((channel) => id !== task.id || !task.channels || channel.decision !== decision)
+    if (!targets.length) return
+    if (decision === "done" && targets.some((channel) => channel.channel === "Threads") && !approvedVariants) {
+      setRuntimeError("Choose Variant A, Variant B, or both for Threads.")
       return
     }
+    reviewLock.current = true
     setSyncing(true)
-    void db
-      .reviewEbV2Channel(id, decision, approvedVariants)
-      .then((data) => {
-        setTasks(workspaceTasks(data))
-        setRuntimeError(null)
-      })
-      .catch((error) =>
-        setRuntimeError(
-          error instanceof Error
-            ? error.message
-            : "Unable to save review action.",
-        ),
-      )
-      .finally(() => setSyncing(false))
+    setRuntimeError(null)
+    void (async () => {
+      let saved = 0
+      try {
+        for (const channel of targets) {
+          const variants = decision === "done" && channel.channel === "Threads" ? approvedVariants : undefined
+          if (isShellMode) {
+            setTasks((current) => current.map((item) => ({ ...item,
+              ...(item.id === channel.id ? { decision, approvedVariants: variants } : {}),
+              channels: item.channels?.map((output) => output.id === channel.id ? { ...output, decision, approvedVariants: variants } : output),
+            })))
+          } else {
+            setTasks(workspaceTasks(await db.reviewEbV2Channel(channel.id, decision, variants)))
+          }
+          saved++
+        }
+      } catch (error) {
+        // A response can fail after persistence. Reconcile before allowing retry.
+        if (!isShellMode) {
+          try { setTasks(workspaceTasks(await db.fetchEbV2Workspace())) } catch { /* Keep confirmed successes. */ }
+        }
+        setRuntimeError(`${saved}/${targets.length} review action(s) confirmed; remaining outputs may need review. Retry the same action to finish. ${error instanceof Error ? error.message : "Unable to save review action."}`)
+      } finally {
+        reviewLock.current = false
+        setSyncing(false)
+      }
+    })()
   }
   const regenerate = (task: Task) => {
     if (isShellMode) {
@@ -841,7 +871,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const matchesFilter = (task: Task, filter: string) =>
     filter === gateConfig[task.gate].title ||
     filter === task.channel ||
-    (filter === "Needs review" && task.gate === "review" && !task.decision) ||
+    (filter === "Needs review" && task.gate === "review" && (!task.decision || task.decision === "recheck")) ||
     (filter === "Done" && task.decision === "done") ||
     (filter === "Rejected" && task.decision === "reject")
   const channelFilters = filterGroups[1].options.filter((option) => activeFilters.includes(option))
@@ -860,7 +890,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     const channels = task.channels.filter((channel) => {
       const channelMatches = channelFilters.length === 0 || channelFilters.includes(channel.channel)
       const decisionMatches = decisionFilters.length === 0 || decisionFilters.some((filter) =>
-        (filter === "Needs review" && !channel.decision) ||
+        (filter === "Needs review" && (!channel.decision || channel.decision === "recheck")) ||
         (filter === "Done" && channel.decision === "done") ||
         (filter === "Rejected" && channel.decision === "reject"),
       )
@@ -868,7 +898,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     })
     // An empty Review still has metadata and can be opened; explicit channel/decision filters may hide it.
     return channels.length || (!task.channels.length && !channelFilters.length && !decisionFilters.length)
-      ? [{ ...task, channels }] : []
+      ? [{ ...task, allChannels: task.channels, channels }] : []
   })
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
@@ -883,8 +913,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     },
     {
       id: "review",
-      text: `${tasks.filter((task) => task.gate === "review" && !task.decision).length} channel output(s) await review`,
-      active: tasks.some((task) => task.gate === "review" && !task.decision),
+      text: `${tasks.filter((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")).length} channel output(s) await review`,
+      active: tasks.some((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")),
     },
     {
       id: "discovery",
@@ -1300,6 +1330,10 @@ function TaskCard({
   onDelete: (task: Task) => void
   onOpen: (id: string) => void
 }) {
+  const fullChannels = task.allChannels ?? task.channels ?? []
+  const summary = reviewSummary(fullChannels)
+  const needsThreads = fullChannels.some((channel) => channel.channel === "Threads" && channel.decision !== "done")
+  const [bulkVariants, setBulkVariants] = useState<ApprovedVariants | "">("")
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
   const canRegenerate = !isWorking && !task.channels?.length
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -1335,7 +1369,11 @@ function TaskCard({
       >
         <div className="flex flex-wrap gap-1">
           {task.channel && <Tag>{task.channel}</Tag>}
-          {task.channels && <Tag>{task.channels.length} channels</Tag>}
+          {task.channels && <>
+            <Tag>{fullChannels.length} channels</Tag>
+            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${summary.label === "Done" ? "bg-emerald-50 text-emerald-700" : summary.label === "Rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{summary.label}</span>
+            <Tag>{summary.done} Done · {summary.rejected} Rejected · {summary.pending} Chờ review</Tag>
+          </>}
           {task.type && <Tag>{task.type}</Tag>}
           {task.source === "discovery" && <Tag>Discovery suggestion</Tag>}
           {isWorking && (
@@ -1364,7 +1402,7 @@ function TaskCard({
         {task.gate === "review" && (
           <p className="mt-1 text-[10px] text-slate-500">
             {task.channels
-              ? `${task.channels.filter((channel) => !channel.decision).length} channel(s) await reviewer action.`
+              ? `${summary.pending} channel(s) await reviewer action.`
               : "Ready for repetition check and reviewer action."}
           </p>
         )}
@@ -1444,27 +1482,36 @@ function TaskCard({
           </button>
           {actionsOpen && (
             <div className="pointer-events-auto absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+              {task.gate === "review" && task.channels && <>
+                {needsThreads && <label className="block px-2 py-1 text-[10px] text-slate-600">Threads variants
+                  <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">
+                    <option value="">Choose A / B / both</option><option value="a">Variant A</option><option value="b">Variant B</option><option value="both">A + B</option>
+                  </select>
+                </label>}
+                <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} className="w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
+                <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} className="w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
+              </>}
               {canRegenerate && (
-                <button onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <RotateCcw className="h-3.5 w-3.5" /> Regenerate
                 </button>
               )}
               {task.gate === "article" && (
-                <button onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
               )}
               {(task.gate === "adapt" || task.gate === "review") && (
-                <button onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Article · Gate 2
                 </button>
               )}
               {(task.gate === "adapt" || task.gate === "review") && (
-                <button onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
               )}
-              <button onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 hover:bg-red-50">
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 hover:bg-red-50">
                 <Trash2 className="h-3.5 w-3.5" /> Delete item
               </button>
             </div>
@@ -2219,7 +2266,7 @@ function TaskDetail({
                             <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
                             <p className="mt-1 text-[10px] text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
                           </button>
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          <fieldset disabled={approvalDisabled} className="flex shrink-0 items-center gap-1.5">
                             {!channel.decision && <>
                               {channel.channel === "Threads" ? <VariantApproval onApprove={(variants) => { setSelectedChannelId(channel.id); onDecision(channel.id, "done", variants) }} /> : <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "done") }} title={`Mark ${channel.channel} done`} aria-label={`Mark ${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"><Check className="h-3.5 w-3.5" /></button>}
                               <button onClick={() => { setSelectedChannelId(channel.id); onDecision(channel.id, "reject") }} title={`Reject ${channel.channel}`} aria-label={`Reject ${channel.channel}`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"><X className="h-3.5 w-3.5" /></button>
@@ -2233,7 +2280,7 @@ function TaskDetail({
                                 <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={!model} className="flex w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
                               </div>}
                             </div>
-                          </div>
+                          </fieldset>
                         </article>
                       )
                     })}
