@@ -15,6 +15,12 @@ test('notification history, status dot, mixed review counts and keyboard', async
   fail = false;
   await panel.getByRole('button', { name: 'Retry', exact: true }).click();
   for (const message of ['1 channel output(s) await review', '1 channel output(s) completed', '1 channel output(s) rejected']) await expect(panel.getByText(message, { exact: true })).toBeVisible();
+  // Successful retry removes its button; keyboard focus must remain in the modal.
+  await expect(panel).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('button', { name: 'Close notifications', exact: true })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(panel.getByRole('button', { name: 'Close notifications', exact: true })).toBeFocused();
   await page.evaluate(async () => {
     const { notifyWorkspace } = await import('/src/components/workspace/WorkspaceNotification.tsx');
     notifyWorkspace('First event', 'success');

@@ -1163,8 +1163,11 @@ function NotificationPanel({
 }) {
   const panelRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    panelRef.current?.focus()
-  }, [])
+    // Retry can disappear or become disabled as connection state changes.
+    // Keep keyboard handling inside the open modal when its focused control is lost.
+    const panel = panelRef.current
+    if (panel && !panel.contains(document.activeElement)) panel.focus()
+  })
   return (
     <div
       onClick={(event) => {
