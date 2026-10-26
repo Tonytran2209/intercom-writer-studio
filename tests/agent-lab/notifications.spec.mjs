@@ -22,6 +22,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   });
   await expect(panel.getByText('First event', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
   await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeFocused();
   await page.waitForTimeout(4100);
   await page.keyboard.press('Enter');

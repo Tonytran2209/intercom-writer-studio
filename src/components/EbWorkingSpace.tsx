@@ -272,6 +272,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const notificationTriggerRef = useRef<HTMLButtonElement>(null)
   const sessionNotices = useWorkspaceNotices()
   const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -934,6 +935,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            ref={notificationTriggerRef}
             onClick={() => setNotificationOpen(true)}
             title="Notifications"
             aria-label="Notifications"
@@ -1137,7 +1139,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             notices={notices}
             onRetry={() => void refresh()}
             syncing={syncing}
-            onClose={() => setNotificationOpen(false)}
+            onClose={() => {
+              setNotificationOpen(false)
+              notificationTriggerRef.current?.focus()
+            }}
           />
         )}
       </>
@@ -1158,9 +1163,7 @@ function NotificationPanel({
 }) {
   const panelRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
     panelRef.current?.focus()
-    return () => previous?.focus()
   }, [])
   return (
     <div
