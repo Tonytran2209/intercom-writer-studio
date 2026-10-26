@@ -25,7 +25,12 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix backend
       - run: npm run check
-  browser-check:
+      - run: node --test tests/agent-lab/merge-evidence.test.mjs
+  browser-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,14 +43,34 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm install --no-save --package-lock=false --ignore-scripts @playwright/test@1.64.1
       - run: npx --no-install playwright install --with-deps chromium
-      - run: npx --no-install playwright test --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
+      - run: npx --no-install playwright test --project=${{ matrix.project }} --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: agent-lab-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          name: agent-lab-browser-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
           retention-days: 14
+  browser-check:
+    needs: browser-tests
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agent-lab-browser-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: browser-evidence
+      - name: Verify both browser projects and publish evidence
+        env:
+          SHARDS_RESULT: ${{ needs.browser-tests.result }}
+        run: node tests/agent-lab/merge-evidence.mjs browser-evidence

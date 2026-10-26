@@ -113,16 +113,15 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
    const open=page.getByRole('button',{name:`Open task: ${title}`,exact:true});
    const card=page.locator('article').filter({has:open}),metadata=card.getByText(/^Ngày tạo:/);
    await metadata.scrollIntoViewIfNeeded();
-   const dateBox=await metadata.boundingBox(),cardBox=await card.boundingBox();
+   const {dateBox,cardBox,controls}=await card.evaluate((el,title)=>{
+    const box=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
+    return {cardBox:box(el),dateBox:box([...el.querySelectorAll('p')].find(p=>p.textContent.trim().startsWith('Ngày tạo:'))),controls:[...el.querySelectorAll('button')].filter(b=>b.getAttribute('aria-label')!==`Open task: ${title}`).map(box)};
+   },title);
    expect(dateBox.width).toBeGreaterThan(0);
    expect(dateBox.x).toBeGreaterThanOrEqual(cardBox.x);
    expect(dateBox.x+dateBox.width).toBeLessThanOrEqual(cardBox.x+cardBox.width);
    expect(dateBox.y+dateBox.height).toBeLessThanOrEqual(cardBox.y+cardBox.height);
-   for(const control of await card.locator('button').all()) {
-    if(await control.getAttribute('aria-label')===`Open task: ${title}`)continue;
-    const box=await control.boundingBox();
-    expect(box.x>=dateBox.x+dateBox.width||box.x+box.width<=dateBox.x||box.y>=dateBox.y+dateBox.height||box.y+box.height<=dateBox.y).toBeTruthy();
-   }
+   for(const box of controls)expect(box.x>=dateBox.x+dateBox.width||box.x+box.width<=dateBox.x||box.y>=dateBox.y+dateBox.height||box.y+box.height<=dateBox.y).toBeTruthy();
    const menu=card.getByRole('button',{name:'More item actions'});
    await expect(menu).toBeEnabled();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','true');
    await expect(card.getByRole('button',{name:'Delete item'})).toBeVisible();
