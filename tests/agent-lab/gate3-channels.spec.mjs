@@ -321,14 +321,56 @@ async function offlineRefineContracts() {
 }
 test('offline Threads chat approval, persisted retry and shared lock',offlineRefineContracts);
 
-for(const variant of ['a','b'])test(`Threads chat approves ${variant.toUpperCase()} on the revision ID`,async({page})=>{
+for(const variant of ['a','b'])for(const reviewFails of [false,true])test(`Threads chat approves ${variant.toUpperCase()} on the revision ID${reviewFails?' after a review failure':''} and survives reload`,async({page})=>{
  const state=await setup(page);state.persist=true;
- state.data.channels.push({id:'refined-threads',package_id:'one',channel:'threads',status:'ready_for_review',content:{archived:true,feedbackPending:true,text:'Variant A · Tiếng Việt · Bản Việt · English · English A\nVariant B · Tiếng Việt · Bản Việt · English · English B'}});
- state.feedback.push({id:'refinement',role:'assistant',gate:'review',channel:'threads',channel_output_id:'one-threads',result_channel_output_id:'refined-threads',status:'completed',message_markdown:state.data.channels.at(-1).content.text});
+ const content='Variant A · Tiếng Việt · Bản Việt A · English · English A\nVariant B · Tiếng Việt · Bản Việt B · English · English B';
+ const unchanged=structuredClone(state.data.channels.filter(output=>output.id!=='one-threads'));
+ state.data.channels.push({id:'refined-threads',package_id:'one',channel:'threads',status:'ready_for_review',content:{archived:true,feedbackPending:true,text:content}});
+ state.feedback.push({id:'refinement',role:'assistant',gate:'review',channel:'threads',channel_output_id:'one-threads',result_channel_output_id:'refined-threads',status:'completed',message_markdown:content});
+ if(reviewFails)state.fail='refined-threads';
+ const chat=panel(page).locator('section').filter({has:page.getByRole('heading',{name:'Refine with AI',exact:true})});
+ const approve=()=>chat.getByRole('button',{name:`Approve ${variant.toUpperCase()}`,exact:true});
+ async function preserved() {
+  await expect(chat).toBeVisible();
+  await expect(chat).toContainText(content);
+  // Markdown renders each source line as a paragraph, without DOM text separators.
+  await expect(result(page).locator('p')).toHaveText(content.split('\n'));
+  // Copy uses the selected output's verbatim text, checking both language pairs.
+  await panel(page).getByTitle('Copy result as formatted Markdown',{exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__copied.at(-1))).toBe(content);
+ }
  await open(page);await select(page,'threads');
- await panel(page).getByRole('button',{name:`Approve ${variant.toUpperCase()}`,exact:true}).click();
+ await approve().click();
+ if(reviewFails) {
+  await expect(chat).toContainText('Synthetic review failure');
+  await expect(chat).toContainText('Refresh or retry; confirmed changes are preserved.');
+  await expect(approve()).toBeEnabled();
+  await preserved();
+  expect(state.feedback[0].status).toBe('accepted');
+  expect(state.data.channels.find(output=>output.id==='one-threads').content.archived).toBe(true);
+  const revision=state.data.channels.find(output=>output.id==='refined-threads');
+  expect(revision.content.archived).toBe(false);
+  expect(revision.content.feedbackPending).toBe(false);
+  expect(revision.status).toBe('ready_for_review');
+  expect(revision.content.approvedVariants).toBeUndefined();
+  expect(state.data.channels.filter(output=>!['one-threads','refined-threads'].includes(output.id))).toEqual(unchanged);
+  await approve().click();
+ }
  await expect(row(page,'threads')).toContainText(`Approved: ${variant.toUpperCase()}`);
- await expect(result(page)).toContainText('Tiếng Việt');await expect(result(page)).toContainText('English');
- expect(state.mutations.map(item=>item.path)).toEqual(['/api/eb-v2/feedback/refinement/accept','/api/eb-v2/channel-outputs/refined-threads/review']);
- expect(state.mutations[1].body).toEqual({action:'done',approvedVariants:variant});clean(state);
+ await preserved();
+ await expect(approve()).toHaveCount(0);
+ await expect(chat).not.toContainText('Synthetic review failure');
+ const reviewPath='/api/eb-v2/channel-outputs/refined-threads/review';
+ const expectedPaths=['/api/eb-v2/feedback/refinement/accept',reviewPath];
+ if(reviewFails)expectedPaths.push(reviewPath);
+ expect(state.mutations.map(item=>item.path)).toEqual(expectedPaths);
+ for(const mutation of state.mutations.slice(1))expect(mutation.body).toEqual({action:'done',approvedVariants:variant});
+ await page.reload();await open(page);await select(page,'threads');
+ await expect(row(page,'threads')).toContainText(`Approved: ${variant.toUpperCase()}`);
+ await preserved();
+ await expect(approve()).toHaveCount(0);
+ expect(state.mutations.map(item=>item.path)).toEqual(expectedPaths);
+ expect(state.data.channels.filter(output=>!['one-threads','refined-threads'].includes(output.id))).toEqual(unchanged);
+ expect(state.data.channels.find(output=>output.id==='refined-threads').content.text).toBe(content);
+ clean(state);
 });
