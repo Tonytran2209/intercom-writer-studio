@@ -30,6 +30,7 @@ jobs:
       - run: npm run check
       - run: node --test tests/agent-lab/merge-evidence.test.mjs
   browser-tests:
+    if: ${{ vars.LAB_BROWSER_TESTS != 'disabled' }}
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +80,7 @@ jobs:
           retention-days: 14
   browser-check:
     needs: browser-tests
-    if: always()
+    if: ${{ always() && vars.LAB_BROWSER_TESTS != 'disabled' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
