@@ -36,3 +36,9 @@ Chat activation and approval share the card/detail review lock. Each attempt rea
 4. User opens details to audit sources or sends a selected item to Gate 1.
 
 Never represent an emerging/source lead as a verified trend. Earlier archive suggestions remain unless the user deletes/clears them.
+
+## Image evidence at Gate 1
+
+InputEngine (including Discovery preparation) and Gate 1 Source & evidence accept one PNG/JPEG/WebP image up to 15 MiB. Select an image, explicitly scan with the selected Gate 1 model, then review/edit and use the extracted text. Normal input appends confirmed evidence to the unified topic; Discovery preparation and task detail append it to fEvidence. Scanning never runs or approves a brief. Existing validation, snapshot metadata, shared operation locks and regeneration markers still apply.
+
+Errors preserve destination text and permit retry. Changing image, model, task or leaving the editor cancels/ignores obsolete responses. Results stay in a separate editable draft until applied, so a delayed scan cannot overwrite source edits. Extraction is not independent verification; the user must check source references.

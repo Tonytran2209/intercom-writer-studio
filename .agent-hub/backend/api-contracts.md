@@ -28,3 +28,9 @@ Providers/generation, SEO research, KV store, content plans/batches/articles, ap
 - `GET /api/agent-library/retrieve?query=&layer=&maxChars=`: authenticated request required; returns only ranked, size-bounded chunks and document metadata.
 
 Neither endpoint accepts filesystem paths, raw external documents, provider credentials, nor storage object contents.
+
+### Image evidence scan
+
+POST /api/eb-v2/evidence/scan accepts multipart file (one PNG/JPEG/WebP, at most 15 MiB) and model (JSON string with provider and id). Server checks binary signatures, not filename/MIME alone. Returns { evidence: string } with nonempty text up to 16000 characters. Errors return { code, error }: 400 INVALID_UPLOAD/MODEL_REQUIRED, 415 INVALID_IMAGE, 422 UNSUPPORTED_MODEL/UNREADABLE_IMAGE/RESULT_TOO_LONG/SCAN_FAILED. Provider/model errors are sanitized and do not expose provider responses.
+
+This request performs no database/storage writes, snapshot creation, gate transitions or model fallback. The client uses same-origin multipart with cancellation. Confirmed text flows through existing create/regenerate validation.

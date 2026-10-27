@@ -1134,6 +1134,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               </div>
             </section>
             <InputEngine
+              model={selectedModel(config, 1)}
               input={input}
               setInput={setInput}
               fileName={fileName}
@@ -1188,7 +1189,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               if (!task) return null
               const model = selectedModel(
                 config,
-                task.gate === "article" ? 2 : 4,
+                task.gate === "brief" ? 1 : task.gate === "article" ? 2 : 4,
                 task.gate === "review" ? config.ebRuntimeSettings?.adaptModelId : undefined,
               )
               return model ? { provider: model.provider, id: model.id } : null
@@ -1790,7 +1791,61 @@ function InputValidationFeedback({ message }: { message: string }) {
   )
 }
 
+function EvidenceImageInput({ model, disabled, onApply }: {
+  model: { provider: string; id: string } | null
+  disabled: boolean
+  onApply: (value: string) => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [draft, setDraft] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const request = useRef<AbortController | null>(null)
+  const version = useRef(0)
+  useEffect(() => () => { version.current++; request.current?.abort() }, [])
+  useEffect(() => { version.current++; request.current?.abort(); setBusy(false) }, [model?.id, model?.provider, disabled])
+  async function scan() {
+    if (!file || !model || disabled || busy) return
+    const current = ++version.current
+    request.current?.abort()
+    const controller = new AbortController()
+    request.current = controller
+    setBusy(true); setError("")
+    try {
+      const result = await db.scanEbV2Evidence(file, model, controller.signal)
+      if (version.current === current) setDraft(result.evidence)
+    } catch (error) {
+      if (version.current === current) setError(error instanceof Error ? error.message : "Không quét được ảnh. Thử lại.")
+    } finally { if (version.current === current) setBusy(false) }
+  }
+  return <div className="my-2 space-y-2 rounded-lg border border-slate-200 p-2 text-xs">
+    <label className="block">Ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB)
+      <input aria-label="Ảnh dẫn chứng" type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled}
+        className="mt-1 block w-full" onChange={event => {
+          version.current++; request.current?.abort(); setBusy(false); setDraft(""); setError("")
+          const next = event.target.files?.[0] ?? null
+          if (next && (!["image/png", "image/jpeg", "image/webp"].includes(next.type) || next.size > 15 * 1024 * 1024)) {
+            setFile(null); setError("Chọn ảnh PNG/JPEG/WebP tối đa 15 MiB."); return
+          }
+          setFile(next)
+        }} />
+    </label>
+    <button type="button" disabled={disabled || busy || !file || !model} onClick={() => void scan()} className="rounded border border-indigo-200 px-3 py-2 text-indigo-700 disabled:opacity-50">{busy ? "Đang quét ảnh…" : "Quét dẫn chứng"}</button>
+    {!model && <p>Chọn model Gate 1 có hỗ trợ ảnh trong Workflow AI.</p>}
+    {busy && <p role="status">Đang đọc ảnh…</p>}
+    {error && <p role="alert" className="text-red-600">{error}</p>}
+    {draft && <div className="space-y-2">
+      <label className="block">Xem / sửa dẫn chứng từ ảnh
+        <textarea aria-label="Dẫn chứng từ ảnh" value={draft} disabled={disabled || busy} onChange={event => setDraft(event.target.value)} className="mt-1 min-h-24 w-full rounded border p-2" />
+      </label>
+      <p>Kết quả đọc ảnh chưa được xác minh độc lập. Kiểm tra nguồn trước khi dùng.</p>
+      <button type="button" disabled={disabled || busy || !draft.trim()} onClick={() => { onApply(draft.trim()); setDraft("") }} className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-50">Dùng dẫn chứng</button>
+    </div>}
+  </div>
+}
+
 function InputEngine({
+  model,
   input,
   setInput,
   fileName,
@@ -1800,6 +1855,7 @@ function InputEngine({
   syncing,
   preparation, fConnection, setFConnection, fEvidence, setFEvidence, inputError,
 }: {
+  model: { provider: string; id: string } | null
   preparation: DiscoveryIdea | null
   fConnection: string
   setFConnection: (value: string) => void
@@ -1833,6 +1889,8 @@ function InputEngine({
               </label>
             </div>
           )}
+          <EvidenceImageInput key={preparation?.id ?? "input"} model={model} disabled={syncing}
+            onApply={value => preparation ? setFEvidence([fEvidence, value].filter(Boolean).join("\n\n")) : setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))} />
           {inputError && <InputValidationFeedback message={inputError} />}
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
@@ -2541,6 +2599,7 @@ function TaskDetail({
                   <label className="block text-xs text-slate-600">Dẫn chứng / nguồn xác nhận tại F
                     <textarea value={briefFields.fEvidence} onChange={event => setBriefFields(current => ({ ...current, fEvidence: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-slate-200 p-2" />
                   </label>
+                  <EvidenceImageInput key={task.id} model={model} disabled={approvalDisabled || briefSaving || loading} onApply={value => setBriefFields(current => ({ ...current, fEvidence: [current.fEvidence, value].filter(Boolean).join("\n\n") }))} />
                   <button disabled={!briefFields.fConnection.trim() || !briefFields.fEvidence.trim() || briefSaving || approvalDisabled} onClick={async () => {
                     if (briefSaving) return
                     setBriefSaving(true)
