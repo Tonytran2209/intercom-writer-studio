@@ -40,6 +40,13 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   },files);
  }
  if(target!=='popup'){
+  await expect(scope.getByText('Nêu rõ liên hệ với F/sự kiện của F và nguồn xác nhận trong cùng nội dung.',{exact:true})).toHaveCount(0);
+  await expect(scope.getByText('Chọn icon ảnh hoặc kéo thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB.',{exact:true})).toHaveCount(0);
+  await expect(scope.getByRole('status')).toHaveCount(0);
+  await scope.locator('#eb-input').dispatchEvent('dragenter',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  await expect(scope.getByRole('status')).toHaveText('Thả một ảnh dẫn chứng tại đây');
+  await scope.locator('#eb-input').dispatchEvent('dragleave',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  await expect(scope.getByRole('status')).toHaveCount(0);
   const trigger=scope.getByRole('button',{name:'Chọn ảnh dẫn chứng',exact:true});
   await expect(trigger).toHaveAttribute('title',/PNG/);
   await trigger.focus();
