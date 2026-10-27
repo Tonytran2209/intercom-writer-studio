@@ -30,3 +30,9 @@ This contract overrides conflicting configured language, variant-count, or lengt
 The current app is a shared internal deployment: `/api` middleware assigns a shared admin identity in `backend/index.ts`; this is not end-user authentication. New Agent Library sync must still check `req.auth.role === 'admin'`; retrieval requires `req.auth` and must be revisited when real auth is introduced. GET retry policy lives in `src/lib/db.ts`; provider retry/failure handling remains backend-owned.
 
 Do not create background jobs/queues unless an endpoint cannot complete within normal Railway request limits. There is no configured external job queue.
+
+## Temporary evidence images
+
+Evidence scanning holds one image in multer memory only; no binary is stored in database, storage, snapshots or logs. Optional GenerateRequest.images maps to Anthropic base64 image blocks, OpenAI Chat image_url / Responses input_image blocks, and Google inlineData. Text-only request shapes remain unchanged. Only OpenAI, Anthropic and Google adapters accept image requests; individual model capability is provider-validated and failures are returned without fallback. SDK clients use the runtime fetch implementation, enabling isolated network mocks.
+
+The extraction prompt treats image content as untrusted data, asks only for visible facts/references and prohibits invented URLs or company connections. Existing canonical provider language rules still apply. Only user-confirmed text is subsequently persisted through existing workflow contracts; no schema or retention change is needed.

@@ -341,3 +341,11 @@ export async function pingRailway(
     return { ok: false }
   }
 }
+
+
+export async function scanEbV2Evidence(file: File, model: { provider: string; id: string }, signal?: AbortSignal) {
+  const body = new FormData()
+  body.append("file", file)
+  body.append("model", JSON.stringify(model))
+  return railwayRequest<{ evidence: string }>("/api/eb-v2/evidence/scan", { method: "POST", body, signal }, ebV2Origin())
+}

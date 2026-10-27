@@ -4,6 +4,7 @@
  */
 
 export interface GenerateRequest {
+  images?: { mimeType: "image/png" | "image/jpeg" | "image/webp"; data: string }[];
   modelId: string;
   provider: string;
   prompt: string;
@@ -26,7 +27,7 @@ export interface GenerateResponse {
 
 async function callAnthropic(req: GenerateRequest): Promise<GenerateResponse> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, fetch: globalThis.fetch as unknown as import("@anthropic-ai/sdk/core").Fetch });
 
   const systemParts: string[] = [];
   if (req.systemPrompt) systemParts.push(req.systemPrompt);
@@ -35,7 +36,7 @@ async function callAnthropic(req: GenerateRequest): Promise<GenerateResponse> {
   }
 
   if (req.onText && !req.jsonSchema) {
-    const stream = client.messages.stream({ model: req.modelId, max_tokens: req.maxTokens ?? 4096, system: systemParts.join('\n') || undefined, messages: [{ role: 'user', content: req.prompt }] });
+    const stream = client.messages.stream({ model: req.modelId, max_tokens: req.maxTokens ?? 4096, system: systemParts.join('\n') || undefined, messages: [{ role: 'user', content: req.images?.length ? [{ type: 'text' as const, text: req.prompt }, ...req.images.map(image => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: image.mimeType, data: image.data } }))] : req.prompt }] });
     let content = '';
     stream.on('text', text => { content += text; req.onText?.(content); });
     const message = await stream.finalMessage();
@@ -45,7 +46,7 @@ async function callAnthropic(req: GenerateRequest): Promise<GenerateResponse> {
     model: req.modelId,
     max_tokens: req.maxTokens ?? 4096,
     system: systemParts.join('\n') || undefined,
-    messages: [{ role: 'user', content: req.prompt }],
+    messages: [{ role: 'user', content: req.images?.length ? [{ type: 'text' as const, text: req.prompt }, ...req.images.map(image => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: image.mimeType, data: image.data } }))] : req.prompt }],
     ...(req.jsonSchema ? {
       tools: [{
         name: 'emit_structured_response',
@@ -71,7 +72,7 @@ async function callAnthropic(req: GenerateRequest): Promise<GenerateResponse> {
 
 async function callOpenAI(req: GenerateRequest): Promise<GenerateResponse> {
   const { default: OpenAI } = await import('openai');
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch as unknown as import("openai/core").Fetch });
 
   const messages: any[] = [];
   if (req.systemPrompt || req.contextDocs?.length) {
@@ -81,12 +82,12 @@ async function callOpenAI(req: GenerateRequest): Promise<GenerateResponse> {
     ].filter(Boolean).join('\n');
     messages.push({ role: 'system', content: sysContent });
   }
-  messages.push({ role: 'user', content: req.prompt });
+  messages.push({ role: 'user', content: req.images?.length ? [{ type: 'text', text: req.prompt }, ...req.images.map(image => ({ type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } }))] : req.prompt });
 
   if (req.modelId.startsWith('gpt-5.')) {
     const input = messages.map(message => ({
       role: message.role,
-      content: message.content,
+      content: Array.isArray(message.content) ? message.content.map((part: any) => part.type === 'text' ? { type: 'input_text', text: part.text } : { type: 'input_image', image_url: part.image_url.url, detail: 'auto' }) : message.content,
     }));
     if (req.onText) {
       const stream = client.responses.stream({ model: req.modelId, input, max_output_tokens: req.maxTokens ?? 4096 });
@@ -170,12 +171,12 @@ async function callGoogle(req: GenerateRequest): Promise<GenerateResponse> {
   ].filter(Boolean).join('\n\n');
 
   if (req.onText) {
-    const result = await model.generateContentStream(fullPrompt); let content = '';
+    const result = await model.generateContentStream(req.images?.length ? [{ text: fullPrompt }, ...req.images.map(image => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))] : fullPrompt); let content = '';
     for await (const part of result.stream) { content += part.text(); req.onText(content); }
     const response = await result.response;
     return { content, model: modelId, usage: { inputTokens: response.usageMetadata?.promptTokenCount ?? 0, outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0 } };
   }
-  const result = await model.generateContent(fullPrompt);
+  const result = await model.generateContent(req.images?.length ? [{ text: fullPrompt }, ...req.images.map(image => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))] : fullPrompt);
   const text = result.response.text();
 
   return {
@@ -346,6 +347,9 @@ async function callGroq(req: GenerateRequest): Promise<GenerateResponse> {
 // ── Dispatcher ───────────────────────────────────────────────────────────────
 
 export async function generate(req: GenerateRequest): Promise<GenerateResponse> {
+  if (req.images?.length && !['openai', 'anthropic', 'google'].includes(req.provider))
+    throw new Error('Model/provider không hỗ trợ quét ảnh. Chọn model Gate 1 có hỗ trợ ảnh.');
+
   const canonicalRequest: GenerateRequest = {
     ...req,
     systemPrompt: [
