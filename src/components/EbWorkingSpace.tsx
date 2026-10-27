@@ -1880,7 +1880,7 @@ function EvidenceImageInput({ model, disabled, onApply, children }: {
     </div>}
     </div>}
     {children?.(trigger)}
-    {children && <p className="mt-1 text-[10px] text-slate-500" role="status">{dragging && !disabled ? "Thả một ảnh dẫn chứng tại đây" : "Chọn icon ảnh hoặc kéo thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB."}</p>}
+    {children && dragging && !disabled && <p className="mt-1 text-[10px] text-slate-500" role="status">Thả một ảnh dẫn chứng tại đây</p>}
   </div>
 }
 
@@ -1977,7 +1977,7 @@ function InputEngine({
               <ArrowUp className="h-3.5 w-3.5" />
             </button>
           </div>
-          <p className="mt-1 px-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : fileName ? `Đã đính kèm: ${fileName}` : "Nêu rõ liên hệ với F/sự kiện của F và nguồn xác nhận trong cùng nội dung."}</p>
+          {(syncing || fileName) && <p className="mt-1 px-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : `Đã đính kèm: ${fileName}`}</p>}
           </>}
           </EvidenceImageInput>
         </div>
