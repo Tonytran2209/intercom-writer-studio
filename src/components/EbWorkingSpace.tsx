@@ -921,7 +921,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const reviewCounts = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
   const connectionLabel = syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live."
   const notices = [
-    { id: "connection", text: connectionLabel, active: true, error: !syncing && Boolean(runtimeError) },
     { id: "brief", text: `${tasks.filter(task => task.status === "checking").length} brief(s) are being generated`, active: tasks.some(task => task.status === "checking") },
     { id: "article", text: `${tasks.filter(task => task.status === "drafting").length} website article(s) are being generated`, active: tasks.some(task => task.status === "drafting") },
     { id: "adapt", text: `${tasks.filter(task => task.gate === "adapt").length} channel output(s) are running`, active: tasks.some(task => task.gate === "adapt") },
@@ -1152,6 +1151,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {notificationOpen && (
           <NotificationPanel
             notices={notices}
+            runtimeError={runtimeError}
+            counts={workspaceStatusCounts(tasks, discoveryIdeas.length)}
             onRetry={() => void refresh()}
             syncing={syncing}
             onClose={() => {
@@ -1165,17 +1166,35 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   )
 }
 
+function workspaceStatusCounts(tasks: Task[], discovery: number) {
+  const review = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
+  return [
+    { label: "Brief", count: tasks.filter(task => task.gate === "brief").length },
+    { label: "Article", count: tasks.filter(task => task.gate === "article").length },
+    { label: "Adapt", count: tasks.filter(task => task.gate === "adapt").length },
+    { label: "Review · Pending", count: review.pending },
+    { label: "Review · Completed", count: review.done },
+    { label: "Review · Rejected", count: review.rejected },
+    { label: "Discovery", count: discovery },
+  ]
+}
+
 function NotificationPanel({
+  runtimeError, counts,
   notices,
   onRetry,
   syncing,
   onClose,
 }: {
+  runtimeError: string | null
+  counts: Array<{ label: string; count: number }>
   onRetry: () => void
   syncing: boolean
   notices: Array<{ id: string; text: string; active: boolean; error?: boolean; details: NotificationDetail[]; kind?: string }>
   onClose: () => void
 }) {
+  const [tab, setTab] = useState<"notices" | "system">("notices")
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null)
   const selectedNotice = notices.find(notice => notice.id === selectedNoticeId)
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -1193,7 +1212,7 @@ function NotificationPanel({
     // Retry can disappear or become disabled as connection state changes.
     // Keep keyboard handling inside the open modal when its focused control is lost.
     const panel = panelRef.current
-    if (panel && !panel.contains(document.activeElement)) panel.focus()
+    if (panel && (!panel.contains(document.activeElement) || (document.activeElement as HTMLButtonElement)?.disabled)) panel.focus()
   })
   return (
     <div
@@ -1211,7 +1230,7 @@ function NotificationPanel({
         onKeyDown={event => {
           if (event.key === "Escape") { event.stopPropagation(); onClose() }
           if (event.key === "Tab") {
-            const controls = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])
+            const controls = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled):not([tabindex=\"-1\"])") ?? [])
             const first = controls[0], last = controls[controls.length - 1]
             if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { event.preventDefault(); last?.focus() }
             else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { event.preventDefault(); first?.focus() }
@@ -1237,8 +1256,35 @@ function NotificationPanel({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {selectedNoticeId ? (
+        <div role="tablist" aria-label="Notification sections" className="flex shrink-0 gap-1 border-b border-slate-200 p-2">
+          {(["notices", "system"] as const).map((value, index) => <button
+            key={value} ref={node => { tabRefs.current[index] = node }}
+            role="tab" id={`notification-tab-${value}`} aria-controls={`notification-panel-${value}`}
+            aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
+            onClick={() => setTab(value)}
+            onKeyDown={event => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+              event.preventDefault()
+              const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index
+              setTab(next === 0 ? "notices" : "system")
+              tabRefs.current[next]?.focus()
+            }}
+            className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
+          >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
+        </div>
+        <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
+          {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
+            <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h2 className="font-semibold">{syncing ? "Synchronising V2 workspace…" : runtimeError ? "Workspace connection error" : "V2 workspace is live."}</h2>
+              <p className="mt-2">Live describes the workspace connection only.</p>
+              {runtimeError && <p className="mt-2 whitespace-pre-wrap break-words">{runtimeError}</p>}
+              <p className="mt-2">{syncing || runtimeError ? "Workspace counts are unconfirmed. Refresh successfully to confirm current data." : "Counts from the current workspace, across all board filters."}</p>
+            </div>
+            <dl className="grid grid-cols-2 gap-2">
+              {counts.map(item => <div key={item.label} className="rounded-xl border border-slate-200 p-3"><dt>{item.label}</dt><dd className="mt-1 text-lg font-semibold">{syncing || runtimeError ? "—" : item.count}</dd></div>)}
+            </dl>
+            <button onClick={onRetry} disabled={syncing} aria-label={runtimeError ? "Retry" : "Refresh"} className="min-h-10 rounded-lg border border-slate-200 px-4 font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">{syncing ? "Synchronising…" : runtimeError ? "Retry" : "Refresh"}</button>
+          </section> : selectedNoticeId ? (
             <section className="space-y-3 text-xs text-slate-700" aria-label="Notification details">
               <button ref={backRef} onClick={returnToList} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold focus-visible:outline focus-visible:outline-2">← Back to notifications</button>
               {selectedNotice ? <>
@@ -1249,7 +1295,6 @@ function NotificationPanel({
                   <p className="mt-1 break-words">{detail.context}</p>
                   {detail.body && <p className="mt-2 whitespace-pre-wrap break-words">{detail.body}</p>}
                 </article>)}
-                {selectedNotice.id === "connection" && selectedNotice.error && <button onClick={onRetry} disabled={syncing} className="min-h-9 rounded-md border border-red-200 px-3 font-semibold disabled:opacity-50">Retry</button>}
               </> : <p role="status">This notification is no longer available. Workspace data has changed.</p>}
             </section>
           ) : notices.length ? (
@@ -1265,7 +1310,6 @@ function NotificationPanel({
                   {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
                   <span className="mt-2 block text-[10px] font-semibold">View details →</span>
                 </button>
-                {notice.id === "connection" && notice.error && <button onClick={onRetry} disabled={syncing} className="mb-3 ml-3 min-h-9 rounded-md border border-red-200 px-3 font-semibold disabled:opacity-50">Retry</button>}
               </article>
             ))
           ) : <p className="p-4 text-center text-xs text-slate-400">No new notifications.</p>}

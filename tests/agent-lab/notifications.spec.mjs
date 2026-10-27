@@ -11,14 +11,17 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await expect(retry).not.toContainText('V2 error');
   await page.getByRole('button', { name: 'Notifications', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Notification center' });
+  await panel.getByRole('tab', { name: 'Trạng thái hệ thống' }).click();
   await expect(panel.getByText('Synthetic connection failure', { exact: true })).toHaveCount(1);
   fail = false;
   await panel.getByRole('button', { name: 'Retry', exact: true }).click();
-  for (const message of ['1 channel output(s) await review', '1 channel output(s) completed', '1 channel output(s) rejected']) await expect(panel.getByText(message, { exact: true })).toBeVisible();
-  // Successful retry removes its button; keyboard focus must remain in the modal.
   await expect(panel).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(panel.getByRole('button', { name: 'Close notifications', exact: true })).toBeFocused();
+  await expect(panel.getByRole('tab', { name: 'Trạng thái hệ thống' })).toHaveAttribute('aria-selected', 'true');
+  await panel.getByRole('tab', { name: 'Trạng thái hệ thống' }).focus();
+  await page.keyboard.press('ArrowLeft');
+  for (const message of ['1 channel output(s) await review', '1 channel output(s) completed', '1 channel output(s) rejected']) await expect(panel.getByText(message, { exact: true })).toBeVisible();
+  await expect(panel.getByRole('tab', { name: 'Thông báo', exact: true })).toBeFocused();
+  await panel.getByRole('button', { name: 'Close notifications', exact: true }).focus();
   await page.keyboard.press('Shift+Tab');
   await expect(panel.getByRole('button').last()).toBeFocused();
   await page.evaluate(async () => {
@@ -96,4 +99,79 @@ test('NOTIFICATIONS_OFFLINE details use live tasks, all channels and saved Disco
   assert.deepEqual(details('discovery', [], [{ id: 'd', title: 'Saved lead', status: 'Source lead', source_summary: 'Full saved summary' }]), [{ id: 'd', title: 'Saved lead', context: 'Source lead', body: 'Full saved summary' }]);
   assert.match(details('article', [{ id: 'p', title: 'Writing', gate: 'article', status: 'drafting' }], [])[0].context, /Gate 2 · Generating article/);
   assert.deepEqual(details('event-1', [], []), []);
+});
+
+
+test('NOTIFICATIONS_OFFLINE system counts and loading-error-recovery rendering contract', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { strict: assert } = await import('node:assert');
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const ts = (await import('typescript')).default;
+  const source = await readFile('src/components/EbWorkingSpace.tsx', 'utf8');
+  const compile = code => ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const review = new Function(`${compile(source.slice(source.indexOf('function reviewSummary'), source.indexOf('function isEmergingDiscovery')))};return reviewSummary`)();
+  const countsFor = new Function('reviewSummary', `${compile(source.slice(source.indexOf('function workspaceStatusCounts'), source.indexOf('function NotificationPanel')))};return workspaceStatusCounts`)(review);
+  const tasks = [{gate:'brief'}, {gate:'article'}, {gate:'adapt'}, {gate:'review', channels:[{decision:'done'}, {decision:'reject'}, {decision:'recheck'}]}];
+  const counts = countsFor(tasks, 4);
+  assert.deepEqual(counts.map(item => item.count), [1,1,1,1,1,1,4]);
+  const Panel = new Function('React', 'useState', 'useRef', 'useEffect', 'X', `${compile(source.slice(source.indexOf('function NotificationPanel'), source.indexOf('function GateGroup')))};return NotificationPanel`)(React, initial => [initial === 'notices' ? 'system' : initial, () => {}], initial => ({current:initial}), () => {}, () => null);
+  const render = (syncing, runtimeError, currentCounts) => renderToStaticMarkup(React.createElement(Panel, {notices:[], syncing, runtimeError, counts:currentCounts, onRetry(){}, onClose(){}}));
+  const live = render(false, null, counts);
+  assert.match(live, /V2 workspace is live/);
+  assert.match(live, /workspace connection only/);
+  assert.match(live, /aria-selected="true"[^>]*tabindex="0"/);
+  const loading = render(true, null, counts);
+  assert.match(loading, /counts are unconfirmed/);
+  assert.match(loading, /disabled=""/);
+  const failed = render(false, 'Synthetic failure', countsFor([], 4));
+  assert.match(failed, /Synthetic failure/);
+  assert.match(failed, /aria-label="Retry"/);
+  assert.equal((failed.match(/<dd[^>]*>—<\/dd>/g) || []).length, 7);
+  const recovered = render(false, null, countsFor([...tasks, {gate:'brief'}], 5));
+  assert.match(recovered, />2<\/dd>/);
+  assert.match(recovered, />5<\/dd>/);
+  assert.doesNotMatch(recovered, /unconfirmed/);
+  assert.ok(!source.includes('{ id: "connection"'));
+});
+
+
+test('system tab persists through refresh failure and recovery without connection badge', async ({ page }) => {
+  let fail = false;
+  let release;
+  let hold = false;
+  await page.route('**/api/eb-v2/workspace', async route => {
+    if (hold) await new Promise(resolve => { release = resolve; });
+    await route.fulfill(fail ? {status:500, json:{error:'Synthetic refresh failure'}} : {json:{packages:[], articles:[], runs:[], discovery:[]}});
+  });
+  await page.goto('/?screen=eb');
+  await expect(page.getByRole('button', {name:'Refresh V2 workspace', exact:true})).toBeEnabled();
+  const bell = page.getByRole('button', {name:'Notifications', exact:true});
+  await expect(bell).toHaveText('');
+  await bell.click();
+  const panel = page.getByRole('dialog', {name:'Notification center'});
+  await expect(panel.getByRole('tab', {name:'Thông báo', exact:true})).toHaveAttribute('aria-selected','true');
+  await panel.getByRole('tab', {name:'Thông báo', exact:true}).focus();
+  await page.keyboard.press('End');
+  const system = panel.getByRole('tab', {name:'Trạng thái hệ thống'});
+  await expect(system).toBeFocused();
+  hold = true;
+  await panel.getByRole('button', {name:'Refresh', exact:true}).click();
+  await expect(panel.getByRole('button', {name:'Refresh', exact:true})).toBeDisabled();
+  await expect(panel.locator('dd')).toHaveText(Array(7).fill('—'));
+  await expect.poll(() => Boolean(release)).toBe(true);
+  fail = true;
+  hold = false;
+  release();
+  await expect(panel.getByText('Synthetic refresh failure', {exact:true})).toBeVisible();
+  await expect(panel.locator('dd')).toHaveText(Array(7).fill('—'));
+  fail = false;
+  await panel.getByRole('button', {name:'Retry', exact:true}).click();
+  await expect(panel.locator('dd')).toHaveText(Array(7).fill('0'));
+  await expect(system).toHaveAttribute('aria-selected','true');
+  await expect(panel).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(bell).toBeFocused();
+  await bell.click();
+  await expect(panel.getByRole('tab', {name:'Thông báo', exact:true})).toHaveAttribute('aria-selected','true');
 });
