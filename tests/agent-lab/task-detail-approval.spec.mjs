@@ -95,7 +95,7 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
      data={...data,packages:[{...data.packages[0],state:gate==='brief'?'article':'adapt'}],articles:[],channels:gate==='article'?[{id:'output',package_id:'popup',channel:'linkedin',status:'queued'}]:[]};
      return route.fulfill({json:data});
     }
-    if(req.method()==='GET'&&!url.pathname.startsWith('/api/'))return route.continue();
+    if(req.method()==='GET'&&!url.pathname.startsWith('/api/'))return route.fallback();
    }
    unexpected.push(`${req.method()} ${url.origin}${url.pathname}`);return route.abort();
   });

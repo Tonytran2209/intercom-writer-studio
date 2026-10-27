@@ -29,7 +29,7 @@ async function setup(page, theme) {
           activities.push(url.pathname);
           return route.fulfill({ json: { inputs: [], runs: [], actions: [], feedback: [] } });
         }
-      } else if (request.method() === 'GET') return route.continue();
+      } else if (request.method() === 'GET') return route.fallback();
     }
     unexpected.push(`${request.method()} ${url.origin}${url.pathname}`);
     return route.abort();

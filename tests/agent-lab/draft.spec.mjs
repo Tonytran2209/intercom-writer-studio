@@ -7,7 +7,7 @@ async function isolate(page){
   // Keep the visual fixture offline; use the app's fallback font stack.
   if(u.origin==='https://fonts.googleapis.com'&&u.pathname==='/css2')return route.fulfill({contentType:'text/css',body:'/* offline font fixture */'});
   if(u.origin==='http://127.0.0.1:4173'&&u.pathname==='/api/eb-v2/workspace'&&route.request().method()==='GET')return route.fulfill({json:{packages:[{id:'ci-package',title:'CI_BRIEF_SENTINEL',state:'brief',source_type:'input'}],articles:[],channels:[],runs:[],discovery:[]}});
-  if(u.origin==='http://127.0.0.1:4173'&&!u.pathname.startsWith('/api/'))return route.continue();
+  if(u.origin==='http://127.0.0.1:4173'&&!u.pathname.startsWith('/api/'))return route.fallback();
   unexpected.push(u.origin+u.pathname);return route.abort();
  });return unexpected;
 }
@@ -61,7 +61,7 @@ async function isolateCreation(page) {
   if(u.origin==='http://127.0.0.1:4173') {
    if(request.method()==='GET'&&u.pathname==='/api/eb-v2/workspace'){const data=creationWorkspace();if(refresh++%2)data.channels.reverse();return route.fulfill({json:data});}
    if(request.method()==='GET'&&u.pathname.startsWith('/api/eb-v2/activity/'))return route.fulfill({json:{inputs:[],runs:[],actions:[],feedback:[]}});
-   if(!u.pathname.startsWith('/api/')&&request.method()==='GET')return route.continue();
+   if(!u.pathname.startsWith('/api/')&&request.method()==='GET')return route.fallback();
   }
   unexpected.push(`${request.method()} ${u.origin}${u.pathname}`);return route.abort();
  });

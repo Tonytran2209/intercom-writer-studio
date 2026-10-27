@@ -6,6 +6,7 @@ for(const marker of ['first','second'])test(`fixture-isolation ${marker} has fre
  await page.evaluate(()=>localStorage.setItem('isolation-sentinel','fixture'));
  const denied=await page.evaluate(async()=>{try{await fetch('/api/unmocked-fixture');return false;}catch{return true;}});
  expect(denied).toBe(true);
+ expect(await page.evaluate(async()=>{try{await fetch('https://example.invalid/unmocked-fixture');return false;}catch{return true;}})).toBe(true);
  await page.route('**/api/mocked-fixture',route=>route.fulfill({json:{fixture:true}}));
  expect(await page.evaluate(async()=>await(await fetch('/api/mocked-fixture')).json())).toEqual({fixture:true});
  await setTheme(page,'dark');

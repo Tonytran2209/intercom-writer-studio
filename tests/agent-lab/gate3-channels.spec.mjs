@@ -51,7 +51,7 @@ async function setup(page) {
     }
     return route.fulfill({json:state.data});
    }
-   if(req.method()==='GET'&&!url.pathname.startsWith('/api/'))return route.continue();
+   if(req.method()==='GET'&&!url.pathname.startsWith('/api/'))return route.fallback();
   }
   state.unexpected.push(`${req.method()} ${url.origin}${url.pathname}`);
   return route.abort();

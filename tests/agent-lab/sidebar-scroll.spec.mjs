@@ -5,7 +5,7 @@ test.beforeEach(async ({page}) => {
   await page.route('**/*', route => {
     const url = new URL(route.request().url());
     return url.origin === 'http://127.0.0.1:4173' && !url.pathname.startsWith('/api/')
-      ? route.continue() : route.abort();
+      ? route.fallback() : route.abort();
   });
 });
 
