@@ -333,7 +333,8 @@ for(const variant of ['a','b'])for(const reviewFails of [false,true])test(`Threa
  async function preserved() {
   await expect(chat).toBeVisible();
   await expect(chat).toContainText(content);
-  await expect(result(page)).toContainText(content);
+  // Markdown renders each source line as a paragraph, without DOM text separators.
+  await expect(result(page).locator('p')).toHaveText(content.split('\n'));
   // Copy uses the selected output's verbatim text, checking both language pairs.
   await panel(page).getByTitle('Copy result as formatted Markdown',{exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.__copied.at(-1))).toBe(content);
