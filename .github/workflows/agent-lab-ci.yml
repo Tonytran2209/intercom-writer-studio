@@ -28,7 +28,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix backend
       - run: npm run check
-      - run: node --test tests/agent-lab/merge-evidence.test.mjs
+      - run: node --test tests/agent-lab/merge-evidence.test.mjs tests/agent-lab/infrastructure-retry.test.mjs
   browser-tests:
     if: ${{ vars.LAB_BROWSER_TESTS != 'disabled' }}
     strategy:
@@ -36,7 +36,10 @@ jobs:
       matrix:
         project: [desktop, mobile]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,28 +50,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Cache pinned Chromium
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-ubuntu24-chromium-${{ hashFiles('package-lock.json') }}
-      - name: Prepare Chromium system dependencies
-        timeout-minutes: 3
-        run: npx --no-install playwright install-deps chromium
-      - name: Prepare Chromium with bounded retry
-        timeout-minutes: 3
-        env:
-          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "30000"
+      - name: Verify pinned Playwright environment
         run: |
-          for attempt in 1 2; do
-            if timeout --kill-after=10s 70s npx --no-install playwright install chromium; then
-              exit 0
-            fi
-            echo "Chromium download attempt ${attempt} failed; retrying infrastructure only."
-          done
-          echo "::error title=CI infrastructure::Chromium download failed before browser tests."
-          exit 1
-      - run: npx --no-install playwright test --project=${{ matrix.project }} --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
+          node -e "const v = require('@playwright/test/package.json').version; if (v !== '1.64.1') throw Error('Playwright image/package mismatch: ' + v)"
+          node -e "require('@playwright/test').chromium.launch().then(browser => browser.close())"
+      - name: Run browser tests
+        run: npx --no-install playwright test --project=${{ matrix.project }} --config playwright.agent-lab.config.mjs --reporter=list,html,./tests/agent-lab/evidence-reporter.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

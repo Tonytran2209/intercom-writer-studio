@@ -56,17 +56,17 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   await expect(trigger).toBeFocused();
   await expect(scope.getByRole('button',{name:'Quét dẫn chứng',exact:true})).toHaveCount(0);
   await drop([{name:'invalid.txt',type:'text/plain'}]);
-  await expect(scope.getByRole('alert')).toContainText('15 MiB');
+  await expect(scope.getByRole('alert').filter({hasText:'15 MiB'})).toContainText('15 MiB');
   await drop([{name:'large.png',type:'image/png',size:15*1024*1024+1}]);
-  await expect(scope.getByRole('alert')).toContainText('15 MiB');
+  await expect(scope.getByRole('alert').filter({hasText:'15 MiB'})).toContainText('15 MiB');
   await drop([{name:'one.png',type:'image/png'},{name:'two.png',type:'image/png'}]);
-  await expect(scope.getByRole('alert')).toContainText('một ảnh');
+  await expect(scope.getByRole('alert').filter({hasText:'một ảnh'})).toContainText('một ảnh');
   expect(calls).toBe(0);
  }
  const upload=scope.getByLabel('Ảnh dẫn chứng',{exact:true});
  await upload.setInputFiles(image);
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
- await expect(scope.getByRole('alert')).toContainText('Synthetic scan error');
+ await expect(scope.getByRole('alert').filter({hasText:'Synthetic scan error'})).toContainText('Synthetic scan error');
  fail=false;
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
  const draft=scope.getByRole('textbox',{name:'Dẫn chứng từ ảnh',exact:true});

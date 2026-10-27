@@ -1,0 +1,45 @@
+name: Retry browser infrastructure
+on:
+  workflow_run:
+    workflows: [Agent Lab CI]
+    types: [completed]
+permissions: {}
+concurrency:
+  group: browser-infra-retry-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+jobs:
+  retry-browser-infrastructure:
+    if: ${{ github.event.workflow_run.run_attempt == 1 && (github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      actions: write
+    steps:
+      # Metadata only: never checkout or execute code/artifacts from the triggering PR.
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const {owner, repo} = context.repo;
+            if (run.head_repository?.full_name !== `${owner}/${repo}` || run.run_attempt !== 1) return;
+            const current = (await github.rest.actions.getWorkflowRun({owner, repo, run_id: run.id})).data;
+            if (current.head_sha !== run.head_sha || current.run_attempt !== 1 || current.status !== 'completed' || !['failure','timed_out'].includes(current.conclusion)) return;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {owner, repo, run_id: run.id, filter: 'latest', per_page: 100});
+            if (!jobs.some(job => job.name === 'writer-check' && job.conclusion === 'success')) return;
+            const failed = jobs.filter(job => !['success','skipped','neutral'].includes(job.conclusion));
+            const sources = failed.filter(job => job.name !== 'browser-check');
+            if (!sources.length) return;
+            for (const job of sources) {
+              if (!/^browser-tests \((desktop|mobile)\)$/.test(job.name) || job.head_sha !== run.head_sha || job.status !== 'completed') return;
+              const started = job.steps?.some(step => /Run browser tests|playwright test|npm run test:browser/.test(step.name) && step.conclusion !== 'skipped');
+              const broken = job.steps?.find(step => ['failure','timed_out','cancelled'].includes(step.conclusion));
+              if (started || !broken || !/Initialize containers|Set up job|actions\/(checkout|setup-node)@|Prepare Chromium|playwright install|Verify pinned Playwright environment/.test(broken.name)) return;
+            }
+            // Re-run only failed jobs, retaining successful shards and their exact-head artifacts.
+            // run_attempt is owned by GitHub and survives restarts, bounding this to one retry.
+            try {
+              await github.rest.actions.reRunWorkflowFailedJobs({owner, repo, run_id: run.id});
+              await core.summary.addHeading('Browser infrastructure retry').addRaw(`Retried failed environment jobs once for run ${run.id}; no source repair or test assertion retry.`).write();
+            } catch (error) {
+              core.warning(`Infrastructure retry could not be dispatched (HTTP ${error.status || 'unknown'}). Inspect the original failed run.`);
+            }

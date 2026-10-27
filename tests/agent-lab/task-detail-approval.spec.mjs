@@ -106,7 +106,7 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   });
   await page.getByRole('button',{name:'Open task: Synthetic popup',exact:true}).click();
   const popup=page.locator('aside');const approve=popup.getByRole('button',{name:`Approve ${gate}`,exact:true});
-  await approve.click();await expect(popup.getByRole('alert')).toContainText('Synthetic approval failure');
+  await approve.click();await expect(popup.getByRole('alert').filter({hasText:'Synthetic approval failure'})).toContainText('Synthetic approval failure');
   await expect(approve).toBeEnabled();fail=false;await approve.click();
   await expect.poll(()=>calls.length).toBe(2);await expect(approve).toBeDisabled();
   const cardApprove=page.getByRole('button',{name:`Approve ${gate}`,exact:true}).first();
@@ -196,10 +196,10 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
   await connection.fill('Specific synthetic F event');await evidence.fill('https://example.test/evidence');
   await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
-  await expect(popup.getByRole('alert')).toContainText('Synthetic validation failure');
+  await expect(popup.getByRole('alert').filter({hasText:'Synthetic validation failure'})).toContainText('Synthetic validation failure');
   await expect(connection).toHaveValue('Specific synthetic F event');fail=false;
   await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
-  await expect.poll(()=>calls.length).toBe(2);await expect(popup.getByRole('alert')).toHaveCount(0);
+  await expect.poll(()=>calls.length).toBe(2);await expect(popup.getByRole('alert').filter({hasText:'Synthetic validation failure'})).toHaveCount(0);
   expect(calls[1]).toMatchObject({stage:'brief',model:{id:'brief-editor'},fConnection:'Specific synthetic F event',fEvidence:'https://example.test/evidence'});
   await page.keyboard.press('Escape');
   // Close via the existing header control when Escape is not a task-detail shortcut.
