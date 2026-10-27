@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
+import { useWorkspaceNotices } from "./workspace/WorkspaceNotification"
 import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
@@ -72,6 +73,18 @@ function reviewSummary(channels: ReviewChannel[]) {
   const rejected = channels.filter((channel) => channel.decision === "reject").length
   return { done, rejected, pending: channels.length - done - rejected,
     label: rejected ? "Rejected" : channels.length > 0 && done === channels.length ? "Done" : "Chờ review" }
+}
+
+type NotificationDetail = { id: string; title: string; context: string; body?: string }
+function notificationDetails(id: string, tasks: Task[], ideas: DiscoveryIdea[]): NotificationDetail[] {
+  if (id === "discovery") return ideas.map(idea => ({ id: idea.id, title: idea.title, context: discoveryTag(idea), body: idea.source_summary }))
+  const decisionLabel = (decision?: Decision) => decision === "done" ? "Done" : decision === "reject" ? "Rejected" : decision === "recheck" ? "Recheck · awaiting review" : "Awaiting review"
+  if (["review", "done", "rejected"].includes(id)) return tasks.flatMap(task => task.gate === "review" ? (task.channels ?? []).filter(channel =>
+    id === "done" ? channel.decision === "done" : id === "rejected" ? channel.decision === "reject" : channel.decision !== "done" && channel.decision !== "reject"
+  ).map(channel => ({ id: channel.id, title: task.title, context: `Review · Gate 3 · ${channel.channel} · ${decisionLabel(channel.decision)}` })) : [])
+  return tasks.filter(task => id === "brief" ? task.status === "checking" : id === "article" ? task.status === "drafting" : id === "adapt" && task.gate === "adapt").map(task => ({
+    id: task.id, title: task.title, context: `${gateConfig[task.gate].title}${task.channel ? ` · ${task.channel}` : ""} · ${task.status === "checking" ? "Generating brief" : task.status === "drafting" ? "Generating article" : "Adapting"}`,
+  }))
 }
 
 function isEmergingDiscovery(item: DiscoveryIdea) {
@@ -271,6 +284,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const notificationTriggerRef = useRef<HTMLButtonElement>(null)
+  const sessionNotices = useWorkspaceNotices()
   const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -903,31 +918,21 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
     : null
+  const reviewCounts = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
+  const connectionLabel = syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live."
   const notices = [
-    { id: "connection", text: syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live.", active: true, error: Boolean(runtimeError) },
-    { id: "article", text: `${tasks.filter((task) => task.gate === "article" && task.status === "drafting").length} website article(s) are being generated`, active: tasks.some((task) => task.gate === "article" && task.status === "drafting") },
-    {
-      id: "adapt",
-      text: `${tasks.filter((task) => task.gate === "adapt").length} channel output(s) are running`,
-      active: tasks.some((task) => task.gate === "adapt"),
-    },
-    {
-      id: "review",
-      text: `${tasks.filter((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")).length} channel output(s) await review`,
-      active: tasks.some((task) => task.gate === "review" && (!task.decision || task.decision === "recheck")),
-    },
-    {
-      id: "discovery",
-      text: `${discoveryIdeas.length} Discovery suggestion(s) saved`,
-      active: discoveryIdeas.length > 0,
-    },
-    {
-      id: "error",
-      text: runtimeError ?? "",
-      active: Boolean(runtimeError),
-      error: true,
-    },
-  ].filter((item) => item.active)
+    { id: "brief", text: `${tasks.filter(task => task.status === "checking").length} brief(s) are being generated`, active: tasks.some(task => task.status === "checking") },
+    { id: "article", text: `${tasks.filter(task => task.status === "drafting").length} website article(s) are being generated`, active: tasks.some(task => task.status === "drafting") },
+    { id: "adapt", text: `${tasks.filter(task => task.gate === "adapt").length} channel output(s) are running`, active: tasks.some(task => task.gate === "adapt") },
+    { id: "review", text: `${reviewCounts.pending} channel output(s) await review`, active: reviewCounts.pending > 0 },
+    { id: "done", text: `${reviewCounts.done} channel output(s) completed`, active: reviewCounts.done > 0 },
+    { id: "rejected", text: `${reviewCounts.rejected} channel output(s) rejected`, active: reviewCounts.rejected > 0 },
+    { id: "discovery", text: `${discoveryIdeas.length} Discovery suggestion(s) saved`, active: discoveryIdeas.length > 0 },
+    ...sessionNotices.map(notice => ({ id: `event-${notice.id}`, text: notice.message, active: true, error: notice.kind === "error" })),
+  ].filter(item => item.active).map(notice => ({ ...notice,
+    details: notificationDetails(notice.id, tasks, discoveryIdeas),
+    kind: notice.id.startsWith("event-") ? sessionNotices.find(event => `event-${event.id}` === notice.id)?.kind : undefined,
+  }))
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
@@ -944,48 +949,31 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            ref={notificationTriggerRef}
             onClick={() => setNotificationOpen(true)}
             title="Notifications"
             aria-label="Notifications"
             className="relative grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
           >
             <Bell className="h-3.5 w-3.5" />
-            {notices.filter((notice) => notice.id !== "connection" || notice.error).length > 0 && (
+            {notices.length > 0 && (
               <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
-                {notices.filter((notice) => notice.id !== "connection" || notice.error).length}
+                {notices.length}
               </span>
             )}
           </button>
           <button
             onClick={() => void refresh()}
             disabled={syncing}
-            title={runtimeError || "Refresh V2 workspace"}
+            title={`${connectionLabel} Click to ${runtimeError ? "retry" : "refresh"}.`}
             aria-label={runtimeError ? "Retry V2 connection" : "Refresh V2 workspace"}
-            className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-medium disabled:cursor-not-allowed ${
-              runtimeError
-                ? "bg-red-50 text-red-600 hover:bg-red-100"
-                : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-            }`}
+            className="grid h-7 w-7 place-items-center rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`h-2.5 w-2.5 ${syncing ? "animate-spin" : ""}`} />
-            {!syncing && (runtimeError ? "V2 error" : "V2 live")}
+            <span className="sr-only">{connectionLabel}</span>
+            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: syncing ? "#f59e0b" : runtimeError ? "#ef4444" : "#10b981" }} />
           </button>
         </div>
       </header>
-      {runtimeError && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-4 py-2">
-          <p className="min-w-0 whitespace-pre-line text-[10px] text-red-700">
-            {runtimeError}
-          </p>
-          <button
-            onClick={() => void refresh()}
-            disabled={syncing}
-            className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[10px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-          >
-            Retry
-          </button>
-        </div>
-      )}
       {page === "board" && <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div ref={filterRef} className="relative">
@@ -1163,7 +1151,14 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {notificationOpen && (
           <NotificationPanel
             notices={notices}
-            onClose={() => setNotificationOpen(false)}
+            runtimeError={runtimeError}
+            counts={workspaceStatusCounts(tasks, discoveryIdeas.length)}
+            onRetry={() => void refresh()}
+            syncing={syncing}
+            onClose={() => {
+              setNotificationOpen(false)
+              notificationTriggerRef.current?.focus()
+            }}
           />
         )}
       </>
@@ -1171,13 +1166,54 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   )
 }
 
+function workspaceStatusCounts(tasks: Task[], discovery: number) {
+  const review = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
+  return [
+    { label: "Brief", count: tasks.filter(task => task.gate === "brief").length },
+    { label: "Article", count: tasks.filter(task => task.gate === "article").length },
+    { label: "Adapt", count: tasks.filter(task => task.gate === "adapt").length },
+    { label: "Review · Pending", count: review.pending },
+    { label: "Review · Completed", count: review.done },
+    { label: "Review · Rejected", count: review.rejected },
+    { label: "Discovery", count: discovery },
+  ]
+}
+
 function NotificationPanel({
+  runtimeError, counts,
   notices,
+  onRetry,
+  syncing,
   onClose,
 }: {
-  notices: Array<{ id: string; text: string; active: boolean; error?: boolean }>
+  runtimeError: string | null
+  counts: Array<{ label: string; count: number }>
+  onRetry: () => void
+  syncing: boolean
+  notices: Array<{ id: string; text: string; active: boolean; error?: boolean; details: NotificationDetail[]; kind?: string }>
   onClose: () => void
 }) {
+  const [tab, setTab] = useState<"notices" | "system">("notices")
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null)
+  const selectedNotice = notices.find(notice => notice.id === selectedNoticeId)
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  const backRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
+  const returnToList = () => {
+    const previous = selectedNoticeId
+    setSelectedNoticeId(null)
+    requestAnimationFrame(() => (rowRefs.current.get(previous ?? "") ?? panelRef.current)?.focus())
+  }
+  useEffect(() => {
+    if (selectedNoticeId) backRef.current?.focus()
+  }, [selectedNoticeId])
+  useEffect(() => {
+    // Retry can disappear or become disabled as connection state changes.
+    // Keep keyboard handling inside the open modal when its focused control is lost.
+    const panel = panelRef.current
+    if (panel && (!panel.contains(document.activeElement) || (document.activeElement as HTMLButtonElement)?.disabled)) panel.focus()
+  })
   return (
     <div
       onClick={(event) => {
@@ -1186,6 +1222,20 @@ function NotificationPanel({
       className="eb-overlay absolute inset-0 z-50 flex justify-end p-3"
     >
       <aside
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Notification center"
+        tabIndex={-1}
+        onKeyDown={event => {
+          if (event.key === "Escape") { event.stopPropagation(); onClose() }
+          if (event.key === "Tab") {
+            const controls = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled):not([tabindex=\"-1\"])") ?? [])
+            const first = controls[0], last = controls[controls.length - 1]
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { event.preventDefault(); last?.focus() }
+            else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { event.preventDefault(); first?.focus() }
+          }
+        }}
         onClick={(event) => event.stopPropagation()}
         className="flex h-full w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
@@ -1200,30 +1250,69 @@ function NotificationPanel({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close notifications"
             className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-3">
-          {notices.length ? (
+        <div role="tablist" aria-label="Notification sections" className="flex shrink-0 gap-1 border-b border-slate-200 p-2">
+          {(["notices", "system"] as const).map((value, index) => <button
+            key={value} ref={node => { tabRefs.current[index] = node }}
+            role="tab" id={`notification-tab-${value}`} aria-controls={`notification-panel-${value}`}
+            aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
+            onClick={() => setTab(value)}
+            onKeyDown={event => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+              event.preventDefault()
+              const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index
+              setTab(next === 0 ? "notices" : "system")
+              tabRefs.current[next]?.focus()
+            }}
+            className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
+          >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
+        </div>
+        <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
+          {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
+            <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h2 className="font-semibold">{syncing ? "Synchronising V2 workspace…" : runtimeError ? "Workspace connection error" : "V2 workspace is live."}</h2>
+              <p className="mt-2">Live describes the workspace connection only.</p>
+              {runtimeError && <p className="mt-2 whitespace-pre-wrap break-words">{runtimeError}</p>}
+              <p className="mt-2">{syncing || runtimeError ? "Workspace counts are unconfirmed. Refresh successfully to confirm current data." : "Counts from the current workspace, across all board filters."}</p>
+            </div>
+            <dl className="grid grid-cols-2 gap-2">
+              {counts.map(item => <div key={item.label} className="rounded-xl border border-slate-200 p-3"><dt>{item.label}</dt><dd className="mt-1 text-lg font-semibold">{syncing || runtimeError ? "—" : item.count}</dd></div>)}
+            </dl>
+            <button onClick={onRetry} disabled={syncing} aria-label={runtimeError ? "Retry" : "Refresh"} className="min-h-10 rounded-lg border border-slate-200 px-4 font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">{syncing ? "Synchronising…" : runtimeError ? "Retry" : "Refresh"}</button>
+          </section> : selectedNoticeId ? (
+            <section className="space-y-3 text-xs text-slate-700" aria-label="Notification details">
+              <button ref={backRef} onClick={returnToList} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold focus-visible:outline focus-visible:outline-2">← Back to notifications</button>
+              {selectedNotice ? <>
+                <h2 className="whitespace-pre-wrap break-words text-sm font-semibold">{selectedNotice.text}</h2>
+                {selectedNotice.kind && <p className="capitalize">{selectedNotice.kind}</p>}
+                {selectedNotice.details.map(detail => <article key={detail.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <h3 className="whitespace-pre-wrap break-words font-semibold">{detail.title}</h3>
+                  <p className="mt-1 break-words">{detail.context}</p>
+                  {detail.body && <p className="mt-2 whitespace-pre-wrap break-words">{detail.body}</p>}
+                </article>)}
+              </> : <p role="status">This notification is no longer available. Workspace data has changed.</p>}
+            </section>
+          ) : notices.length ? (
             notices.map((notice) => (
-              <article
-                key={notice.id}
-                className={`mb-2 rounded-xl border p-3 text-xs ${
-                  notice.error
-                    ? "border-red-100 bg-red-50 text-red-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700"
-                }`}
-              >
-                {notice.text}
+              <article key={notice.id} className={`mb-2 rounded-xl border text-xs ${notice.error ? "border-red-100 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                <button
+                  ref={node => { if (node) rowRefs.current.set(notice.id, node); else rowRefs.current.delete(notice.id) }}
+                  onClick={() => setSelectedNoticeId(notice.id)}
+                  className="w-full rounded-xl p-3 text-left focus-visible:outline focus-visible:outline-2"
+                >
+                  <span className="block whitespace-pre-wrap break-words font-semibold">{notice.text}</span>
+                  {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="mt-2 block break-words">{detail.title}<span className="mt-0.5 block text-[10px]">{detail.context}</span></span>)}
+                  {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
+                  <span className="mt-2 block text-[10px] font-semibold">View details →</span>
+                </button>
               </article>
             ))
-          ) : (
-            <p className="p-4 text-center text-xs text-slate-400">
-              No new notifications.
-            </p>
-          )}
+          ) : <p className="p-4 text-center text-xs text-slate-400">No new notifications.</p>}
         </div>
       </aside>
     </div>

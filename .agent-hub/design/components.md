@@ -14,6 +14,11 @@ source_paths: [src/components, src/components/workspace, src/components/config]
 | Settings | `ConfigModal`, `TabStepSetup`, `TabModels`, `TabKnowledgeBase`, `WorkflowRulesPanel` | Persisted configuration; do not expose secret values. |
 | Import/activity | `InputEngine` within workspace, `SourceImportPanel`, `ActivityLauncher`, `BatchActivity` | Input/upload/import progress and recoverable error feedback. |
 
+## Settings knowledge sources
+
+- EB Knowledge & Rules exposes three source tabs: EB Library, EB Workflow Rules, and Website Inventory.
+- Legacy Action Plans archive, preview, and download controls are removed. Existing `action` / `action-plan` files and compatibility types remain preserved when Settings loads and saves; no data deletion or migration is performed.
+
 ## Shared interaction states
 
 - **Loading:** disabled action with spinner and an explanatory status message.
@@ -23,3 +28,16 @@ source_paths: [src/components, src/components/workspace, src/components/config]
 - **Discovery:** tag every item `Verified trend`, `Emerging signal`, or `Source lead`; group archive by tag.
 
 Use Lucide icons already imported by the target component. Existing icon-only actions require accessible labels and tooltips/titles.
+
+## EB notification center
+
+- Header connection status is a single dot: amber while synchronising, red on error, emerald when live. Its button retains refresh/retry, an accessible state description, tooltip, focus style and touch target. Explicit dot colors avoid the shell's amber utility override.
+- The center has fixed “Thông báo” and “Trạng thái hệ thống” tabs. Each opening defaults to notifications; tab choice survives data updates within that opening. Arrow Left/Right and Home/End select and focus tabs, with one tab in the Tab sequence.
+- Connection is excluded from notification rows and badge. The badge counts active workflow, Discovery and session notification entries; updates replace groups rather than appending duplicates. Existing notification details and history remain available.
+- The system tab shows synchronising/error/live connection state, current error, Brief/Article/Adapt task counts, per-output Review pending/completed/rejected counts, and saved Discovery count across all board filters. Live describes workspace connectivity only, not provider health. Loading/error hides all counts as unconfirmed (failed refresh clears tasks but may retain older Discovery). Successful refresh restores confirmed counts. A persistent Refresh/Retry button uses the existing workspace refresh and is disabled during synchronisation.
+- `notifyWorkspace(message, kind)` keeps its signature and appends distinct events to module-owned in-memory session history, including consecutive events in the same millisecond. History survives workspace remount and StrictMode subscription cycles, and resets on page reload; no server or browser-storage persistence is added.
+- General notifications are presented in the center, without a duplicate toast or connection banner and without a four-second expiry. Field validation and audit content remain in context. The center supports keyboard focus containment, Escape and focus return.
+- Connection updates retain focus inside the open center when a focused control is disabled or removed, so Tab and Escape continue to work after retry succeeds.
+
+- Notification rows are native buttons with article titles, gate/channel/status previews and an in-panel detail view. Discovery details retain evidence labels, titles and saved summaries; session details retain the full message and recorded kind without inferred timestamps or objects. Retry is an independent action.
+- Details resolve from current workspace data on every refresh. Removed groups show an unavailable message; surviving groups update their contents. Back returns focus to the original row, or the panel if it disappeared. Opening details never executes workflow decisions or changes the badge count.
