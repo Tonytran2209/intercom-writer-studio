@@ -20,7 +20,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await page.keyboard.press('Tab');
   await expect(panel.getByRole('button', { name: 'Close notifications', exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(panel.getByRole('button', { name: 'Close notifications', exact: true })).toBeFocused();
+  await expect(panel.getByRole('button').last()).toBeFocused();
   await page.evaluate(async () => {
     const { notifyWorkspace } = await import('/src/components/workspace/WorkspaceNotification.tsx');
     notifyWorkspace('First event', 'success');
@@ -34,6 +34,16 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await page.keyboard.press('Enter');
   await expect(panel.getByText('First event', { exact: true })).toHaveCount(1);
   await expect(panel.getByText('Second event', { exact: true })).toHaveCount(1);
+  const pending = panel.getByRole('button', { name: /1 channel output\(s\) await review/ });
+  await pending.focus();
+  await page.keyboard.press('Space');
+  const details = panel.getByRole('region', { name: 'Notification details' });
+  await expect(details.getByRole('heading', { name: 'Notification fixture', exact: true })).toBeVisible();
+  await expect(details.getByText('Review · Gate 3 · LinkedIn · Recheck · awaiting review', { exact: true })).toBeVisible();
+  await expect(details.getByRole('button', { name: '← Back to notifications' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(pending).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.locator('.workspace-notification')).toHaveCount(0);
 });
 
@@ -64,4 +74,26 @@ test('NOTIFICATIONS_OFFLINE session store and all-output review contract', async
   assert.deepEqual(summary([{decision:'done'}, {decision:'reject'}, {decision:'recheck'}, {decision:null}]), {done:1,rejected:1,pending:2,label:'Rejected'});
   assert.ok(workspace.includes('reviewSummary(tasks.flatMap'));
   assert.ok(!source.includes('setTimeout'));
+});
+
+test('NOTIFICATIONS_OFFLINE details use live tasks, all channels and saved Discovery context', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { strict: assert } = await import('node:assert');
+  const ts = (await import('typescript')).default;
+  const workspace = await readFile('src/components/EbWorkingSpace.tsx', 'utf8');
+  const code = workspace.slice(workspace.indexOf('function notificationDetails'), workspace.indexOf('function isEmergingDiscovery'));
+  const compiled = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  const details = new Function('gateConfig', 'discoveryTag', `${compiled};return notificationDetails`)({ article: { title: 'Article · Gate 2' }, adapt: { title: 'Adapt' } }, idea => idea.status);
+  const task = { id: 'p', title: 'Saved title', gate: 'review', channels: [{ id: 'a', channel: 'Threads', decision: 'done' }, { id: 'b', channel: 'Facebook', decision: 'reject' }, { id: 'c', channel: 'LinkedIn', decision: 'recheck' }] };
+  assert.match(details('review', [task], [])[0].context, /LinkedIn · Recheck/);
+  assert.match(details('done', [task], [])[0].context, /Threads · Done/);
+  assert.match(details('rejected', [task], [])[0].context, /Facebook · Rejected/);
+  task.title = 'Updated title';
+  task.channels[2].decision = 'done';
+  assert.deepEqual(details('review', [task], []), []);
+  assert.equal(details('done', [task], [])[1].title, 'Updated title');
+  assert.deepEqual(details('done', [], []), []);
+  assert.deepEqual(details('discovery', [], [{ id: 'd', title: 'Saved lead', status: 'Source lead', source_summary: 'Full saved summary' }]), [{ id: 'd', title: 'Saved lead', context: 'Source lead', body: 'Full saved summary' }]);
+  assert.match(details('article', [{ id: 'p', title: 'Writing', gate: 'article', status: 'drafting' }], [])[0].context, /Gate 2 · Generating article/);
+  assert.deepEqual(details('event-1', [], []), []);
 });
