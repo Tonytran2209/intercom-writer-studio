@@ -154,6 +154,44 @@ function formatTaskCreatedAt(value: string | undefined): string {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+// Resolve persisted feedback on every attempt, including retries after a lost response.
+async function useChannelFeedback(
+  packageId: string,
+  feedbackId: string,
+  variants: "a" | "b" | undefined,
+  api: typeof db,
+  onChange: (data: db.EbV2Workspace) => void,
+) {
+  let data = await api.fetchEbV2Workspace()
+  onChange(data)
+  const activity = await api.fetchEbV2Activity(packageId, "package")
+  const entry = activity.feedback?.find((item: any) => item.id === feedbackId)
+  if (!entry || entry.role !== "assistant" || entry.gate !== "review" ||
+      !["completed", "accepted"].includes(entry.status) || !entry.result_channel_output_id)
+    throw new Error("This channel revision is not ready. Refresh and try again.")
+  const active = (rows: any[], id: string) => rows.find((row: any) =>
+    row.id === id && row.package_id === packageId && !row.content?.archived &&
+    !row.content?.feedbackPending && row.status !== "superseded")
+  if (entry.status === "completed") {
+    const staged = activity.channels?.find((row: any) => row.id === entry.result_channel_output_id)
+    if (!staged || staged.package_id !== packageId || staged.channel !== entry.channel)
+      throw new Error("The revision output could not be verified. Refresh and try again.")
+    const source = active(data.channels, entry.channel_output_id)
+    if (!source || source.channel !== entry.channel || (variants && source.channel !== "threads"))
+      throw new Error("The source output changed. Refresh before choosing this revision.")
+    data = await api.acceptEbV2Feedback(feedbackId)
+    onChange(data)
+  }
+  const output = active(data.channels, entry.result_channel_output_id)
+  if (!output || output.channel !== entry.channel || (variants && output.channel !== "threads"))
+    throw new Error("This revision is no longer active. Select the current output.")
+  if (variants && output.status !== "done") {
+    data = await api.reviewEbV2Channel(output.id, "done", variants)
+    onChange(data)
+  }
+  return output.id
+}
+
 function workspaceTasks(
   data: Partial<db.EbV2Workspace> | null | undefined,
 ): Task[] {
@@ -669,6 +707,20 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       }
     })()
   }
+  const useReviewFeedback = async (packageId: string, id: string, variants?: "a" | "b") => {
+    if (reviewLock.current || syncing) throw new Error("Another review action is in progress.")
+    reviewLock.current = true
+    setSyncing(true)
+    try {
+      return await useChannelFeedback(packageId, id, variants, db, (data) => setTasks(workspaceTasks(data)))
+    } catch (reason) {
+      try { setTasks(workspaceTasks(await db.fetchEbV2Workspace())) } catch { /* Preserve confirmed results. */ }
+      throw reason
+    } finally {
+      reviewLock.current = false
+      setSyncing(false)
+    }
+  }
   const regenerate = (task: Task) => {
     if (isShellMode) {
       setTasks((current) =>
@@ -1138,6 +1190,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             })()}
             onWorkspaceChange={(data) => setTasks(workspaceTasks(data))}
             onDecision={decide}
+            onUseReviewFeedback={useReviewFeedback}
             onRegenerate={regenerate}
             onClose={() => setSelectedId(null)}
           />
@@ -2126,6 +2179,7 @@ function MarkdownContent({ value }: { value: string }) {
   )
 }
 function TaskDetail({
+  onUseReviewFeedback,
   task,
   model,
   approvalDisabled,
@@ -2138,6 +2192,7 @@ function TaskDetail({
   onRegenerate,
   onClose,
 }: {
+  onUseReviewFeedback: (packageId: string, id: string, variants?: "a" | "b") => Promise<string>
   approvalDisabled: boolean
   approvalPending: boolean
   approvalError: string | null | undefined
@@ -2152,6 +2207,7 @@ function TaskDetail({
 }) {
   const [activity, setActivity] = useState<any>(null)
   const activityItem = useRef<string | null>(null)
+  const feedbackActionLock = useRef(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -2221,7 +2277,7 @@ function TaskDetail({
   const feedbackThread = (activity?.feedback ?? []).filter((item: any) =>
     task.gate === "article"
       ? item.gate === "article"
-    : item.gate === "review" && item.channel_output_id === (activeChannelId ?? task.id),
+    : item.gate === "review" && (item.channel_output_id === (activeChannelId ?? task.id) || item.result_channel_output_id === activeChannelId),
   )
   const feedbackEnabled = task.gate === "article" || task.gate === "review"
   const copyResult = async () => {
@@ -2242,7 +2298,7 @@ function TaskDetail({
   }
   const submitFeedback = async () => {
     const message = feedback.trim()
-    if (!message || !model) return
+    if (!message || !model || feedbackActionLock.current || approvalDisabled) return
     setFeedbackSending(true)
     setFeedbackError(null)
     try {
@@ -2263,15 +2319,19 @@ function TaskDetail({
       setFeedbackSending(false)
     }
   }
-  const acceptFeedback = async (id: string) => {
+  const acceptFeedback = async (id: string, variants?: "a" | "b") => {
+    if (feedbackActionLock.current || approvalDisabled) return
+    feedbackActionLock.current = true
     setAcceptingFeedbackId(id)
     setFeedbackError(null)
     try {
-      onWorkspaceChange(await db.acceptEbV2Feedback(id))
       if (task.gate === "review") {
-        onClose()
+        const outputId = await onUseReviewFeedback(task.packageId ?? task.id, id, variants)
+        setSelectedChannelId(outputId)
+        if (!variants) onClose()
         return
       }
+      onWorkspaceChange(await db.acceptEbV2Feedback(id))
       setActivity(
         await db.fetchEbV2Activity(
           task.id,
@@ -2280,9 +2340,19 @@ function TaskDetail({
       )
     } catch (reason) {
       setFeedbackError(
-        reason instanceof Error ? reason.message : "Unable to use this revision.",
+        `${reason instanceof Error ? reason.message : "Unable to use this revision."} Refresh or retry; confirmed changes are preserved.`,
       )
     } finally {
+      if (task.gate === "review") {
+        try {
+          const latest = await db.fetchEbV2Activity(task.packageId ?? task.id, "package")
+          setActivity(latest)
+          const entry = latest.feedback?.find((item: any) => item.id === id)
+          if (latest.channels?.some((row: any) => row.id === entry?.result_channel_output_id && !row.content?.archived && !row.content?.feedbackPending))
+            setSelectedChannelId(entry.result_channel_output_id)
+        } catch { /* Retry resolves persisted state again. */ }
+      }
+      feedbackActionLock.current = false
       setAcceptingFeedbackId(null)
     }
   }
@@ -2351,7 +2421,7 @@ function TaskDetail({
                       const status = channel.decision === "done" ? "Done" : channel.decision === "reject" ? "Rejected" : channel.decision === "recheck" ? "Needs recheck" : "Needs review"
                       return (
                         <article key={channel.id} className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs ${isActive ? "border-slate-400" : "border-slate-200/80"}`}>
-                          <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
+                          <button disabled={approvalDisabled || !!acceptingFeedbackId} onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
                             <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
                             <p className="mt-1 text-[10px] text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
                           </button>
@@ -2411,10 +2481,21 @@ function TaskDetail({
                         {entry.role === "assistant" && entry.status === "completed" && (
                           <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[9px] text-slate-400">
                             <span>{entry.model_provider}/{entry.model_id} · {entry.total_tokens ?? 0} tokens</span>
-                            <button onClick={() => void acceptFeedback(entry.id)} disabled={acceptingFeedbackId === entry.id} className="rounded-md bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                            <button onClick={() => void acceptFeedback(entry.id)} disabled={!!acceptingFeedbackId || approvalDisabled} className="rounded-md bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                               {acceptingFeedbackId === entry.id ? "Using…" : "Use this version"}
                             </button>
                           </div>
+                        )}
+                        {task.gate === "review" && entry.role === "assistant" && entry.channel === "threads" &&
+                          ["completed", "accepted"].includes(entry.status) && entry.result_channel_output_id &&
+                          !task.channels?.some(channel => channel.id === entry.result_channel_output_id && channel.decision === "done") && (
+                          <fieldset disabled={approvalDisabled || !!acceptingFeedbackId} className="mt-2 flex flex-wrap gap-2">
+                            {(["a", "b"] as const).map((variant) => <button key={variant}
+                              onClick={() => void acceptFeedback(entry.id, variant)}
+                              className="rounded-md bg-emerald-600 px-3 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                              {acceptingFeedbackId === entry.id ? "Saving…" : `Approve ${variant.toUpperCase()}`}
+                            </button>)}
+                          </fieldset>
                         )}
                         {entry.status === "accepted" && <p className="mt-2 text-[9px] font-semibold text-emerald-600">Accepted as the active revision and editorial learning.</p>}
                       </div>
@@ -2423,8 +2504,8 @@ function TaskDetail({
                   </div>
                   {task.gate === "article" && <label className="mt-3 block text-[10px] text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
                   <div className="mt-3 flex items-end gap-2">
-                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 text-[11px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
-                    <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
+                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 text-[11px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
+                    <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
                       {feedbackSending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArrowUp className="h-3.5 w-3.5" />}
                     </button>
                   </div>
