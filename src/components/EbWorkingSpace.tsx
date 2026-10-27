@@ -721,7 +721,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       setSyncing(false)
     }
   }
-  const regenerate = (task: Task) => {
+  const regenerate = async (task: Task, fields?: { fConnection: string; fEvidence: string }) => {
+    if (approvalLock.current || syncing) return false
     if (isShellMode) {
       setTasks((current) =>
         current.map((item) =>
@@ -774,27 +775,30 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           : item,
       ),
     )
+    approvalLock.current = true
+    setApprovalError(null)
     setSyncing(true)
     const request =
       task.gate === "brief" || task.gate === "article"
         ? db.regenerateEbV2Package(task.packageId ?? task.id, task.gate, {
             provider: model.provider,
             id: model.id,
-          })
+          }, fields)
         : db.regenerateEbV2Channel(task.id, {
             provider: model.provider,
             id: model.id,
           })
-    void request
+    return request
       .then((data) => {
         setTasks(
           workspaceTasks(data).map((item) =>
-            item.id === task.id
+            item.id === task.id && task.gate !== "brief"
               ? { ...item, status: pendingStatus, decision: null }
               : item,
           ),
         )
         setRuntimeError(null)
+        return true
       })
       .catch((error) => {
         setTasks((current) =>
@@ -802,11 +806,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             item.id === task.id ? { ...item, status: "ready" } : item,
           ),
         )
-        setRuntimeError(
-          error instanceof Error ? error.message : "Unable to regenerate item.",
-        )
+        const message = error instanceof Error ? error.message : "Unable to regenerate item."
+        setRuntimeError(message)
+        setApprovalError({ id: task.id, message })
+        return false
       })
-      .finally(() => setSyncing(false))
+      .finally(() => { approvalLock.current = false; setSyncing(false) })
   }
   const moveTo = (task: Task, target: "brief" | "article") => {
     const targetLabel =
@@ -2202,9 +2207,12 @@ function TaskDetail({
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
   onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
-  onRegenerate: (task: Task) => void
+  onRegenerate: (task: Task, fields?: { fConnection: string; fEvidence: string }) => Promise<boolean | undefined>
   onClose: () => void
 }) {
+  const [briefFields, setBriefFields] = useState({ fConnection: "", fEvidence: "" })
+  const briefFieldsTask = useRef<string | null>(null)
+  const [briefSaving, setBriefSaving] = useState(false)
   const [activity, setActivity] = useState<any>(null)
   const activityItem = useRef<string | null>(null)
   const feedbackActionLock = useRef(false)
@@ -2226,13 +2234,22 @@ function TaskDetail({
     const key = task ? `${task.id}:${task.gate}` : null
     if (activityItem.current !== key) {
       setActivity(null)
+      setBriefFields({ fConnection: "", fEvidence: "" })
+      briefFieldsTask.current = null
       activityItem.current = key
     }
     if (!task || isShellMode) return
     setLoading(true)
     setError(null)
     void db.fetchEbV2Activity(task.id, task.gate === "adapt" ? "channel" : "package")
-      .then((data) => { if (active) setActivity(data) })
+      .then((data) => { if (active) {
+        setActivity(data)
+        if (briefFieldsTask.current !== key) {
+          const saved = data.inputs?.[0]?.raw_snapshot?.briefValidation
+          setBriefFields({ fConnection: saved?.connection ?? "", fEvidence: saved?.evidence ?? "" })
+          briefFieldsTask.current = key
+        }
+      } })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load activity.") })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -2517,6 +2534,20 @@ function TaskDetail({
                 <h3 className="text-xs font-bold text-slate-800">
                   Source & evidence
                 </h3>
+                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading} className="mt-3 space-y-3">
+                  <label className="block text-xs text-slate-600">Mối liên hệ với F
+                    <textarea value={briefFields.fConnection} onChange={event => setBriefFields(current => ({ ...current, fConnection: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-slate-200 p-2" />
+                  </label>
+                  <label className="block text-xs text-slate-600">Dẫn chứng / nguồn xác nhận tại F
+                    <textarea value={briefFields.fEvidence} onChange={event => setBriefFields(current => ({ ...current, fEvidence: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-slate-200 p-2" />
+                  </label>
+                  <button disabled={!briefFields.fConnection.trim() || !briefFields.fEvidence.trim() || briefSaving || approvalDisabled} onClick={async () => {
+                    if (briefSaving) return
+                    setBriefSaving(true)
+                    try { await onRegenerate(task, briefFields) } finally { setBriefSaving(false) }
+                  }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{briefSaving ? "Đang kiểm tra và chạy lại…" : "Lưu và chạy lại brief"}</button>
+                  <p className="text-xs text-slate-500">Kiểm tra đầy đủ trước khi lưu. Chỉ duyệt sau khi brief mới hoàn tất.</p>
+                </fieldset>}
                 {sources.length ? (
                   sources.map((source: any) => (
                     <div

@@ -117,3 +117,94 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   expect(unexpected).toEqual([]);
  });
 }
+
+// Synthetic persistence/AI boundaries around the actual regenerate route.
+const backendSource = readFileSync(new URL('../../backend/ebV2.ts', import.meta.url), 'utf8');
+const backendAst = ts.createSourceFile('ebV2.ts', backendSource, ts.ScriptTarget.Latest, true);
+function backendRoute(path) {
+ let callback;
+ function visit(node) {
+  if (ts.isCallExpression(node) && node.expression.getText(backendAst) === 'app.post' && node.arguments[0]?.text === path) callback=node.arguments[1].getText(backendAst);
+  ts.forEachChild(node,visit);
+ }
+ visit(backendAst);assert.ok(callback);
+ return ts.transpileModule(`return (${callback});`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+}
+function regenerationHarness() {
+ const state={writes:[],inputs:[{id:'old',input_text:'Original topic',raw_snapshot:{sourceType:'upload',briefValidation:{connection:'old connection',evidence:'old evidence'}}}],runs:[],locks:new Set(),validationError:false,saveError:false,aiError:false};
+ class BriefInputError extends Error {}
+ const deps={
+  randomUUID:()=> 'synthetic-unique-id', text:value=>String(value??'').trim(), modelFrom:()=>({provider:'mock',modelId:'gate-one'}),
+  one:async()=>({id:'pkg',title:'Topic'}),briefRegenerationLocks:state.locks,BriefInputError,
+  tableSelect:async(table)=>table==='eb_v2_package_inputs'?state.inputs:state.runs,
+  requireBriefInput:(_input,connection,evidence)=>{if(!connection||!evidence||connection==='N/A')throw new BriefInputError('missing fields');},
+  preflightBrief:async(_input,fields)=>{if(state.validationError)throw new BriefInputError('validation failed');return {connection:fields.fConnection,evidence:fields.fEvidence,validatedAt:'new-validation'};},
+  tableInsert:async(table,row)=>{if(state.saveError)throw new Error('save failed');state.writes.push([table,row]);state.inputs.unshift({...row,id:'new'});return row;},
+  archiveOutputs:async()=>state.writes.push(['archiveOutputs']),archiveArticles:async()=>state.writes.push(['archiveArticles']),
+  tableUpdate:async(...args)=>state.writes.push(args),stages:{brief:'brief'},libraryContext:async()=>[],
+  runGate:async(...args)=>{state.generation=args;if(state.pause)await state.pause;if(state.aiError)throw new Error('AI failed');state.runs=[{status:'completed',output_snapshot:{content:'Fresh brief'},rule_snapshot:args[6]}];},
+  workspace:async()=>({packages:[]}),hasUnresolvedValue:value=>!value,
+ };
+ const make=path=>new Function(...Object.keys(deps),backendRoute(path))(...Object.values(deps));
+ const invoke=async(body={},path='regenerate')=>{const res={code:200,status(code){this.code=code;return this;},json(data){this.data=data;return this;}};await make(`/api/eb-v2/packages/:id/${path}`)({params:{id:'pkg'},body:{stage:'brief',model:{id:'gate-one'},...body}},res);return res;};
+ return {state,invoke};
+}
+test('regenerate validates before writes, preserves source metadata, and supplies saved evidence to the real run call',async()=>{
+ const h=regenerationHarness();
+ for(const body of [{fConnection:'N/A',fEvidence:'source'},{fConnection:'',fEvidence:''}]){assert.equal((await h.invoke(body)).code,422);assert.equal(h.state.writes.length,0);}
+ h.state.validationError=true;assert.equal((await h.invoke()).code,422);assert.equal(h.state.writes.length,0);
+ h.state.validationError=false;
+ assert.equal((await h.invoke({fConnection:'Specific F event',fEvidence:'https://example.test/reference'})).code,200);
+ assert.equal(h.state.inputs[0].input_text,'Original topic');assert.equal(h.state.inputs[0].raw_snapshot.sourceType,'upload');
+ assert.match(h.state.generation[3],/Specific F event/);assert.match(h.state.generation[3],/https:\/\/example.test\/reference/);
+ assert.equal(h.state.generation[4].modelId,'gate-one');assert.equal(h.state.generation[6].briefRegenerationAt,'new-validation:synthetic-unique-id');
+});
+test('regenerate blocks concurrent calls and approval, keeps failed snapshots safe, and permits retry',async()=>{
+ const h=regenerationHarness();let release;h.state.pause=new Promise(resolve=>{release=resolve;});
+ const pending=h.invoke();while(!h.state.generation)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal((await h.invoke()).code,409);
+ assert.match((await h.invoke({},'approve-brief')).data.error,/Gate 1/);
+ release();await pending;assert.equal(h.state.locks.size,0);
+ h.state.pause=null;h.state.aiError=true;assert.equal((await h.invoke()).code,500);
+ h.state.runs=[{status:'completed',output_snapshot:{content:'Old brief'},rule_snapshot:{}}];
+ assert.match((await h.invoke({},'approve-brief')).data.error,/Brief/);
+ h.state.aiError=false;assert.equal((await h.invoke()).code,200);
+ h.state.saveError=true;assert.equal((await h.invoke()).code,500);assert.equal(h.state.locks.size,0);
+ h.state.saveError=false;assert.equal((await h.invoke()).code,200);
+});
+
+if (!process.env.TASK_APPROVAL_OFFLINE) {
+ const {expect}=await import('@playwright/test');
+ test('existing brief detail saves connection and evidence, retains failed edits, and reloads saved values',async({page})=>{
+  const data={packages:[{id:'existing',title:'Existing brief',state:'brief'}],articles:[],channels:[],runs:[],discovery:[]};
+  let saved={connection:'Saved F connection',evidence:'Saved source'};let fail=true;const calls=[];
+  await page.route('**/api/eb-v2/**',async route=>{
+   const req=route.request(),path=new URL(req.url()).pathname;
+   if(path.endsWith('/workspace'))return route.fulfill({json:data});
+   if(path.includes('/activity/'))return route.fulfill({json:{inputs:[{id:'input',input_text:'Synthetic original topic',raw_snapshot:{briefValidation:saved}}],runs:[],articles:[],channels:[],feedback:[],actions:[]}});
+   if(path.endsWith('/regenerate')){
+    const body=req.postDataJSON();calls.push(body);
+    if(fail)return route.fulfill({status:422,json:{error:'Synthetic validation failure'}});
+    saved={connection:body.fConnection,evidence:body.fEvidence};return route.fulfill({json:data});
+   }
+   return route.abort();
+  });
+  await page.goto('/?screen=eb');
+  await page.evaluate(async()=>{const {DEFAULT_CONFIG,DEFAULT_MODELS}=await import('/src/lib/defaultData.ts');DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'brief-editor',enabled:true}];});
+  await page.getByRole('button',{name:'Open task: Existing brief',exact:true}).click();
+  const popup=page.locator('aside');const connection=popup.getByLabel('Mối liên hệ với F');const evidence=popup.getByLabel('Dẫn chứng / nguồn xác nhận tại F');
+  await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
+  await connection.fill('Specific synthetic F event');await evidence.fill('https://example.test/evidence');
+  await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
+  await expect(popup.getByRole('alert')).toContainText('Synthetic validation failure');
+  await expect(connection).toHaveValue('Specific synthetic F event');fail=false;
+  await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
+  await expect.poll(()=>calls.length).toBe(2);await expect(popup.getByRole('alert')).toHaveCount(0);
+  expect(calls[1]).toMatchObject({stage:'brief',model:{id:'brief-editor'},fConnection:'Specific synthetic F event',fEvidence:'https://example.test/evidence'});
+  await page.keyboard.press('Escape');
+  // Close via the existing header control when Escape is not a task-detail shortcut.
+  if(await connection.isVisible())await popup.locator('header button').last().click();
+  await page.getByRole('button',{name:'Open task: Existing brief',exact:true}).click();
+  await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
+ });
+}

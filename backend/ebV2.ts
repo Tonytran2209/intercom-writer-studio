@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { BriefInputError, hasUnresolvedValue, requireBriefInput, validateBriefInput } from "./briefValidation.ts"
 import type express from "express"
 import multer from "multer"
@@ -450,6 +451,8 @@ async function repetitionModel(fallback: Required<ModelInput>) {
     ? { provider: text(configured.provider), modelId: text(configured.id) }
     : fallback
 }
+
+const briefRegenerationLocks = new Set<string>()
 
 export function registerEbV2Routes(app: express.Express) {
   app.get("/api/eb-v2/health", async (_req, res) => {
@@ -1373,11 +1376,13 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const item = await one<any>("eb_v2_packages", req.params.id)
       if (!item) return res.status(404).json({ error: "Package not found." })
+      if (briefRegenerationLocks.has(item.id)) throw new BriefInputError("Gate 1 đang kiểm tra hoặc chạy lại. Vui lòng chờ.")
       const savedInput = (await tableSelect<any>("eb_v2_package_inputs", (query) => query.eq("package_id", item.id).order("created_at", { ascending: false }).limit(1)))[0]
       const saved = savedInput?.raw_snapshot?.briefValidation
       requireBriefInput(savedInput?.input_text, saved?.connection, saved?.evidence)
       const latestBrief = (await tableSelect<any>("eb_v2_gate_runs", (query) => query.eq("package_id", item.id).eq("gate", "brief").order("created_at", { ascending: false }).limit(1)))[0]
-      if (latestBrief?.status !== "completed" || hasUnresolvedValue(latestBrief?.output_snapshot?.content))
+      if (latestBrief?.status !== "completed" || hasUnresolvedValue(latestBrief?.output_snapshot?.content) ||
+          (savedInput?.raw_snapshot?.briefRegenerationAt && latestBrief?.rule_snapshot?.briefRegenerationAt !== savedInput.raw_snapshot.briefRegenerationAt))
         throw new BriefInputError("Brief chưa hoàn tất hoặc còn N/A. Writer cần bổ sung thông tin trước khi duyệt Gate 1.")
       await tableUpdate("eb_v2_packages", item.id, {
         state: "article",
@@ -1581,41 +1586,39 @@ export function registerEbV2Routes(app: express.Express) {
       return res
         .status(400)
         .json({ error: "Choose a configured AI model before regenerating." })
+    let lockedBriefId: string | undefined
     try {
       const item = await one<any>("eb_v2_packages", text(req.params.id))
       if (!item) return res.status(404).json({ error: "Package not found." })
       if (stage === "brief") {
+        if (briefRegenerationLocks.has(item.id)) return res.status(409).json({ error: "Gate 1 đang chạy lại. Vui lòng chờ." })
+        briefRegenerationLocks.add(item.id)
+        lockedBriefId = item.id
         const savedInput = (await tableSelect<any>("eb_v2_package_inputs", (query) => query.eq("package_id", item.id).order("created_at", { ascending: false }).limit(1)))[0]
         const saved = savedInput?.raw_snapshot?.briefValidation
-        await preflightBrief(savedInput?.input_text ?? "", { fConnection: saved?.connection, fEvidence: saved?.evidence }, model)
+        const fields = {
+          fConnection: req.body?.fConnection === undefined ? saved?.connection : req.body.fConnection,
+          fEvidence: req.body?.fEvidence === undefined ? saved?.evidence : req.body.fEvidence,
+        }
+        if (req.body?.fConnection !== undefined || req.body?.fEvidence !== undefined)
+          requireBriefInput(savedInput?.input_text, fields.fConnection, fields.fEvidence)
+        const validation = await preflightBrief(savedInput?.input_text ?? "", fields, model)
+        const briefRegenerationAt = `${validation.validatedAt}:${randomUUID()}`
+        // A persisted marker invalidates old output even if the next write or AI call fails.
+        await tableInsert("eb_v2_package_inputs", {
+          package_id: item.id,
+          input_text: savedInput?.input_text ?? "",
+          upload_name: savedInput?.upload_name ?? null,
+          raw_snapshot: { ...savedInput?.raw_snapshot, briefValidation: validation, briefRegenerationAt },
+        })
         await archiveOutputs(item.id)
         await archiveArticles(item.id)
-        await tableUpdate("eb_v2_packages", item.id, {
-          state: "brief",
-          updated_at: new Date().toISOString(),
-        })
-        void (async () => {
-          try {
-            const input = (
-              await tableSelect<any>("eb_v2_package_inputs", (query) =>
-                query
-                  .eq("package_id", item.id)
-                  .order("created_at", { ascending: false })
-                  .limit(1),
-              )
-            )[0]
-            await runGate(
-              item.id,
-              "brief",
-              stages.brief,
-              `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${input?.input_text ?? item.title}`,
-              model,
-              await libraryContext(),
-            )
-          } catch (error) {
-            console.error("[eb-v2] brief regeneration failed:", error)
-          }
-        })()
+        await tableUpdate("eb_v2_packages", item.id, { state: "brief", updated_at: new Date().toISOString() })
+        await runGate(
+          item.id, "brief", stages.brief,
+          `Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n${savedInput?.input_text ?? item.title}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`,
+          model, await libraryContext(), { briefRegenerationAt },
+        )
       } else {
         await archiveOutputs(item.id)
         await archiveArticles(item.id)
@@ -1696,6 +1699,8 @@ export function registerEbV2Routes(app: express.Express) {
               ? error.message
               : "Unable to regenerate package.",
         })
+    } finally {
+      if (lockedBriefId) briefRegenerationLocks.delete(lockedBriefId)
     }
   })
 
