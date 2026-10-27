@@ -75,6 +75,18 @@ function reviewSummary(channels: ReviewChannel[]) {
     label: rejected ? "Rejected" : channels.length > 0 && done === channels.length ? "Done" : "Chờ review" }
 }
 
+type NotificationDetail = { id: string; title: string; context: string; body?: string }
+function notificationDetails(id: string, tasks: Task[], ideas: DiscoveryIdea[]): NotificationDetail[] {
+  if (id === "discovery") return ideas.map(idea => ({ id: idea.id, title: idea.title, context: discoveryTag(idea), body: idea.source_summary }))
+  const decisionLabel = (decision?: Decision) => decision === "done" ? "Done" : decision === "reject" ? "Rejected" : decision === "recheck" ? "Recheck · awaiting review" : "Awaiting review"
+  if (["review", "done", "rejected"].includes(id)) return tasks.flatMap(task => task.gate === "review" ? (task.channels ?? []).filter(channel =>
+    id === "done" ? channel.decision === "done" : id === "rejected" ? channel.decision === "reject" : channel.decision !== "done" && channel.decision !== "reject"
+  ).map(channel => ({ id: channel.id, title: task.title, context: `Review · Gate 3 · ${channel.channel} · ${decisionLabel(channel.decision)}` })) : [])
+  return tasks.filter(task => id === "brief" ? task.status === "checking" : id === "article" ? task.status === "drafting" : id === "adapt" && task.gate === "adapt").map(task => ({
+    id: task.id, title: task.title, context: `${gateConfig[task.gate].title}${task.channel ? ` · ${task.channel}` : ""} · ${task.status === "checking" ? "Generating brief" : task.status === "drafting" ? "Generating article" : "Adapting"}`,
+  }))
+}
+
 function isEmergingDiscovery(item: DiscoveryIdea) {
   return Array.isArray(item.evidence) && item.evidence.some((entry: any) => entry?.kind === "research_topic" && entry?.confidence === "emerging")
 }
@@ -918,7 +930,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     { id: "rejected", text: `${reviewCounts.rejected} channel output(s) rejected`, active: reviewCounts.rejected > 0 },
     { id: "discovery", text: `${discoveryIdeas.length} Discovery suggestion(s) saved`, active: discoveryIdeas.length > 0 },
     ...sessionNotices.map(notice => ({ id: `event-${notice.id}`, text: notice.message, active: true, error: notice.kind === "error" })),
-  ].filter(item => item.active)
+  ].filter(item => item.active).map(notice => ({ ...notice,
+    details: notificationDetails(notice.id, tasks, discoveryIdeas),
+    kind: notice.id.startsWith("event-") ? sessionNotices.find(event => `event-${event.id}` === notice.id)?.kind : undefined,
+  }))
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
@@ -1158,10 +1173,22 @@ function NotificationPanel({
 }: {
   onRetry: () => void
   syncing: boolean
-  notices: Array<{ id: string; text: string; active: boolean; error?: boolean }>
+  notices: Array<{ id: string; text: string; active: boolean; error?: boolean; details: NotificationDetail[]; kind?: string }>
   onClose: () => void
 }) {
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null)
+  const selectedNotice = notices.find(notice => notice.id === selectedNoticeId)
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  const backRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
+  const returnToList = () => {
+    const previous = selectedNoticeId
+    setSelectedNoticeId(null)
+    requestAnimationFrame(() => (rowRefs.current.get(previous ?? "") ?? panelRef.current)?.focus())
+  }
+  useEffect(() => {
+    if (selectedNoticeId) backRef.current?.focus()
+  }, [selectedNoticeId])
   useEffect(() => {
     // Retry can disappear or become disabled as connection state changes.
     // Keep keyboard handling inside the open modal when its focused control is lost.
@@ -1210,26 +1237,38 @@ function NotificationPanel({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-3">
-          {notices.length ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {selectedNoticeId ? (
+            <section className="space-y-3 text-xs text-slate-700" aria-label="Notification details">
+              <button ref={backRef} onClick={returnToList} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold focus-visible:outline focus-visible:outline-2">← Back to notifications</button>
+              {selectedNotice ? <>
+                <h2 className="whitespace-pre-wrap break-words text-sm font-semibold">{selectedNotice.text}</h2>
+                {selectedNotice.kind && <p className="capitalize">{selectedNotice.kind}</p>}
+                {selectedNotice.details.map(detail => <article key={detail.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <h3 className="whitespace-pre-wrap break-words font-semibold">{detail.title}</h3>
+                  <p className="mt-1 break-words">{detail.context}</p>
+                  {detail.body && <p className="mt-2 whitespace-pre-wrap break-words">{detail.body}</p>}
+                </article>)}
+                {selectedNotice.id === "connection" && selectedNotice.error && <button onClick={onRetry} disabled={syncing} className="min-h-9 rounded-md border border-red-200 px-3 font-semibold disabled:opacity-50">Retry</button>}
+              </> : <p role="status">This notification is no longer available. Workspace data has changed.</p>}
+            </section>
+          ) : notices.length ? (
             notices.map((notice) => (
-              <article
-                key={notice.id}
-                className={`mb-2 rounded-xl border p-3 text-xs ${
-                  notice.error
-                    ? "border-red-100 bg-red-50 text-red-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700"
-                }`}
-              >
-                <p>{notice.text}</p>
-                {notice.id === "connection" && notice.error && <button onClick={onRetry} disabled={syncing} className="mt-2 rounded-md border border-red-200 px-2 py-1 font-semibold disabled:opacity-50">Retry</button>}
+              <article key={notice.id} className={`mb-2 rounded-xl border text-xs ${notice.error ? "border-red-100 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                <button
+                  ref={node => { if (node) rowRefs.current.set(notice.id, node); else rowRefs.current.delete(notice.id) }}
+                  onClick={() => setSelectedNoticeId(notice.id)}
+                  className="w-full rounded-xl p-3 text-left focus-visible:outline focus-visible:outline-2"
+                >
+                  <span className="block whitespace-pre-wrap break-words font-semibold">{notice.text}</span>
+                  {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="mt-2 block break-words">{detail.title}<span className="mt-0.5 block text-[10px]">{detail.context}</span></span>)}
+                  {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
+                  <span className="mt-2 block text-[10px] font-semibold">View details →</span>
+                </button>
+                {notice.id === "connection" && notice.error && <button onClick={onRetry} disabled={syncing} className="mb-3 ml-3 min-h-9 rounded-md border border-red-200 px-3 font-semibold disabled:opacity-50">Retry</button>}
               </article>
             ))
-          ) : (
-            <p className="p-4 text-center text-xs text-slate-400">
-              No new notifications.
-            </p>
-          )}
+          ) : <p className="p-4 text-center text-xs text-slate-400">No new notifications.</p>}
         </div>
       </aside>
     </div>
