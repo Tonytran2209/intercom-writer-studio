@@ -7,6 +7,8 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   if(path.endsWith('/workspace'))return route.fulfill({json:data});
+  // Preparation loads source details separately from the workspace snapshot.
+  if(path==='/api/eb-v2/discovery/idea-image/details')return route.fulfill({json:{item:data.discovery[0],sources:[]}});
   if(path.includes('/activity/'))return route.fulfill({json:{inputs:[],runs:[],articles:[],channels:[],feedback:[],actions:[]}});
   if(path.endsWith('/evidence/scan')){
    calls++;
@@ -26,6 +28,7 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  if(target==='discovery'){
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
   await page.getByRole('button',{name:'Bổ sung thông tin cho Gate 1',exact:true}).click();
+  await expect(page.locator('.eb-input-engine').getByText('Suggestion chưa lưu ID nguồn trích dẫn.',{exact:true})).toBeVisible();
  }
  let scope=page.locator('.eb-input-engine');
  if(target==='popup'){
