@@ -7,6 +7,7 @@ import '../../src/index.css';
 import '../../src/codex-theme.css';
 import EbWorkingSpace from '../../src/components/EbWorkingSpace';
 import EbSidebar from '../../src/components/EbSidebar';
+import ConfigModal from '../../src/components/config/ConfigModal';
 const original='# CI fixture\n\nIntroduction — source remains unchanged.\n\n## Main body\nBODY_SENTINEL: Keep this section.\n\n## Conclusion\nCONCLUSION_SENTINEL: Keep this conclusion.';
 function Fixture(){
  const [article,setArticle]=useState({id:'ci-fixture',topic:'CI fixture',draft:original,keywords:'fixture',tone:'professional',outline:[],currentStep:4,status:'draft'});
@@ -24,5 +25,12 @@ function SidebarFixture(){
  },[]);
  return <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900"><EbSidebar onOpenSettings={()=>setAction('settings')} onNewPackage={()=>setAction('new')} onOpenDiscovery={()=>setAction('discovery')}/><main className="min-h-0 min-w-0 flex-1 overflow-hidden"><output data-testid="sidebar-action">{action}</output></main></div>;
 }
+// Synthetic legacy files validate preservation; these are not production samples.
+const settingsFiles=['action','action-plan','rules'].map(category=>({id:`fixture-${category}`,name:`fixture-${category}.txt`,category,fileType:'txt',size:'17 B',uploadedAt:'2026-01-01',content:`sentinel-${category}`}));
+function SettingsFixture(){
+ const [open,setOpen]=useState(true);
+ const [saved,setSaved]=useState(null);
+ return <><output data-testid="saved-settings">{JSON.stringify(saved)}</output>{open?<ConfigModal config={DEFAULT_CONFIG} files={settingsFiles} articles={[]} onSave={(config,files)=>setSaved({config,files})} onClose={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Reopen settings</button>}</>;
+}
 const screen=new URLSearchParams(location.search).get('screen');
-createRoot(document.getElementById('root')).render(<LanguageProvider>{screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>}</LanguageProvider>);
+createRoot(document.getElementById('root')).render(<LanguageProvider>{screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>}</LanguageProvider>);
