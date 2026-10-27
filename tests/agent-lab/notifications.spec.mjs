@@ -175,3 +175,79 @@ test('system tab persists through refresh failure and recovery without connectio
   await bell.click();
   await expect(panel.getByRole('tab', {name:'Thông báo', exact:true})).toHaveAttribute('aria-selected','true');
 });
+
+// Synthetic API payloads exercise the real workspace mapping, not production samples.
+test('nonempty system counts ignore board filters and update through refresh and retry', async ({ page }) => {
+  const fixture = copies => {
+    const data = { packages: [], articles: [], channels: [], runs: [], discovery: [] };
+    for (let i = 0; i < copies; i++) {
+      const packageId = state => `${state}-${i}`;
+      for (const state of ['brief', 'article', 'adapt', 'review']) {
+        data.packages.push({ id: packageId(state), title: `Synthetic ${state} ${i}`, state });
+      }
+      data.packages.push({ id: `article-extra-${i}`, title: `Synthetic extra article ${i}`, state: 'article' });
+      for (const [index, status] of ['queued', 'generating', 'queued'].entries()) {
+        data.channels.push({ id: `adapt-${i}-${index}`, package_id: packageId('adapt'), channel: ['threads', 'facebook', 'linkedin'][index], status, content: {} });
+      }
+      for (const [index, status] of ['ready', 'recheck', 'done', 'rejected'].entries()) {
+        data.channels.push({ id: `review-${i}-${index}`, package_id: packageId('review'), channel: ['threads', 'facebook', 'linkedin', 'threads'][index], status, content: {} });
+      }
+      for (let index = 0; index < 4; index++) {
+        data.discovery.push({ id: `discovery-${i}-${index}`, title: `Synthetic lead ${i}-${index}`, status: 'suggested' });
+      }
+    }
+    return data;
+  };
+  let copies = 1;
+  let fail = false;
+  await page.route('**/api/eb-v2/workspace', route => route.fulfill(fail
+    ? { status: 500, json: { error: 'Synthetic nonempty refresh failure' } }
+    : { json: fixture(copies) }));
+  await page.goto('/?screen=eb');
+  await expect(page.getByRole('button', { name: 'Refresh V2 workspace', exact: true })).toBeEnabled();
+  const bell = page.getByRole('button', { name: 'Notifications', exact: true });
+  const panel = page.getByRole('dialog', { name: 'Notification center' });
+  const system = panel.getByRole('tab', { name: 'Trạng thái hệ thống', exact: true });
+  const labels = ['Brief', 'Article', 'Adapt', 'Review · Pending', 'Review · Completed', 'Review · Rejected', 'Discovery'];
+  const assertCounts = async expected => {
+    await expect(system).toHaveAttribute('aria-selected', 'true');
+    await expect(panel.locator('dt')).toHaveText(labels);
+    await expect(panel.locator('dd')).toHaveText(expected.map(String));
+  };
+  const openSystem = async () => {
+    await bell.click();
+    await expect(panel.getByRole('tab', { name: 'Thông báo', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(panel.getByRole('tabpanel')).not.toContainText('V2 workspace is live.');
+    // Article, Adapt, three Review groups and Discovery; connection adds no entry.
+    await expect(bell).toHaveText('6');
+    await system.click();
+  };
+  await openSystem();
+  await assertCounts([1, 2, 3, 2, 1, 1, 4]);
+  await page.keyboard.press('Escape');
+  // Exercise workflow, channel and decision filters together. Review retains only
+  // its done LinkedIn output on the board, while status must retain every output.
+  await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  for (const name of ['Review · Gate 3', 'LinkedIn', 'Done']) {
+    await page.getByRole('button', { name, exact: true }).click();
+  }
+  await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  await expect(page.getByText('Synthetic brief 0', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Synthetic article 0', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Synthetic review 0', { exact: true })).toBeVisible();
+  await openSystem();
+  await assertCounts([1, 2, 3, 2, 1, 1, 4]);
+  copies = 2;
+  await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await assertCounts([2, 4, 6, 4, 2, 2, 8]);
+  fail = true;
+  await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(panel.getByText('Synthetic nonempty refresh failure', { exact: true })).toBeVisible();
+  await assertCounts(Array(7).fill('—'));
+  copies = 3;
+  fail = false;
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await assertCounts([3, 6, 9, 6, 3, 3, 12]);
+  await expect(panel.getByText('V2 workspace is live.', { exact: true })).toBeVisible();
+  await expect(panel.getByText(/counts are unconfirmed/)).toHaveCount(0);
+});
