@@ -32,6 +32,27 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   await page.getByRole('button',{name:'Open task: Image evidence fixture',exact:true}).click();
   scope=page.locator('aside');
  }
+ async function drop(files){
+  await scope.evaluate((element,files)=>{
+   const transfer=new DataTransfer();
+   for(const file of files)transfer.items.add(new File([new Uint8Array(file.size??1)],file.name,{type:file.type}));
+   for(const type of ['dragenter','dragover','drop'])element.querySelector('#eb-input').dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:transfer}));
+  },files);
+ }
+ if(target!=='popup'){
+  const trigger=scope.getByRole('button',{name:'Chọn ảnh dẫn chứng',exact:true});
+  await expect(trigger).toHaveAttribute('title',/PNG/);
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  await expect(scope.getByRole('button',{name:'Quét dẫn chứng',exact:true})).toHaveCount(0);
+  await drop([{name:'invalid.txt',type:'text/plain'}]);
+  await expect(scope.getByRole('alert')).toContainText('15 MiB');
+  await drop([{name:'large.png',type:'image/png',size:15*1024*1024+1}]);
+  await expect(scope.getByRole('alert')).toContainText('15 MiB');
+  await drop([{name:'one.png',type:'image/png'},{name:'two.png',type:'image/png'}]);
+  await expect(scope.getByRole('alert')).toContainText('một ảnh');
+  expect(calls).toBe(0);
+ }
  const upload=scope.getByLabel('Ảnh dẫn chứng',{exact:true});
  await upload.setInputFiles(image);
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
@@ -47,7 +68,8 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  hold=true;
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
  await expect.poll(()=>calls).toBe(3);
- await upload.setInputFiles({...image,name:'replacement.png'});
+ if(target==='popup')await upload.setInputFiles({...image,name:'replacement.png'});
+ else await drop([{name:'replacement.png',type:'image/png'}]);
  release();
  await expect(draft).toHaveCount(0);
  await expect(destination).toHaveValue(/Human confirmed source/);
