@@ -12,7 +12,7 @@ function workspace() {
   })))};
 }
 async function setup(page) {
- const state={data:workspace(),mutations:[],unexpected:[],errors:[]};
+ const state={data:workspace(),feedback:[],mutations:[],unexpected:[],errors:[]};
  page.on('pageerror',error=>state.errors.push(error.message));
  await page.addInitScript(()=>{
   window.__copied=[];
@@ -26,8 +26,18 @@ async function setup(page) {
    if(req.method()==='GET'&&url.pathname.startsWith('/api/eb-v2/activity/')) {
     const pkg=url.pathname.split('/').pop();
     return route.fulfill({json:{channels:state.data.channels.filter(row=>row.package_id===pkg),
-     selectedChannel:{id:`${pkg}-linkedin`},inputs:[],articles:[],actions:[],feedback:[],
+     selectedChannel:{id:`${pkg}-linkedin`},inputs:[],articles:[],actions:[],feedback:state.feedback,
      runs:[{gate:'adapt',status:'completed',output_snapshot:{content:'RUN_DISTRACTOR'}}]}});
+   }
+   if(req.method()==='POST'&&/^\/api\/eb-v2\/feedback\/[^/]+\/accept$/.test(url.pathname)) {
+    state.mutations.push({path:url.pathname,body:null});
+    const entry=state.feedback.find(item=>item.id===url.pathname.split('/')[4]);
+    const old=state.data.channels.find(item=>item.id===entry.channel_output_id);
+    const revision=state.data.channels.find(item=>item.id===entry.result_channel_output_id);
+    old.content.archived=true;
+    revision.content.archived=false;revision.content.feedbackPending=false;
+    entry.status='accepted';
+    return route.fulfill({json:state.data});
    }
    if(req.method()==='POST'&&/^\/api\/eb-v2\/channel-outputs\/[^/]+\/(review|regenerate)$/.test(url.pathname)) {
     state.mutations.push({path:url.pathname,body:req.postDataJSON()});
@@ -230,4 +240,95 @@ test('G3_BULK persisted status, partial retry, filter isolation and refresh',asy
  await expect(card).toContainText('0 Done · 3 Rejected · 0 Chờ review');
  expect(state.data.channels.filter(r=>r.package_id==='two').every(r=>r.status==='ready_for_review')).toBe(true);
  clean(state);
+});
+
+// Isolated behavioral regression: runs via source extraction without launching a browser.
+async function offlineRefineContracts() {
+ const {default:ts}=await import('typescript');
+ const {strict:assert}=await import('node:assert');
+ const source=await readFile('src/components/EbWorkingSpace.tsx','utf8');
+ const ast=ts.createSourceFile('workspace.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const declaration=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='useChannelFeedback');
+ const compile=code=>ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+ const run=new Function(`${compile(declaration.getText(ast))};return useChannelFeedback`)();
+ function fixture() {
+  const old={id:'old',package_id:'one',channel:'threads',status:'ready_for_review',content:{text:'Tiếng Việt\nBản Việt\nEnglish\nEnglish post'}};
+  const revision={...old,id:'new',content:{...old.content,archived:true,feedbackPending:true}};
+  const entry={id:'response',gate:'review',role:'assistant',status:'completed',channel:'threads',channel_output_id:'old',result_channel_output_id:'new'};
+  const calls=[],updates=[];
+  const data={channels:[old,revision],packages:[{id:'one',state:'review'}]};
+  let fail=null;
+  const api={
+   async fetchEbV2Workspace(){calls.push('workspace');return data},
+   async fetchEbV2Activity(){calls.push('activity');return {feedback:[entry],channels:[old,revision]}},
+   async acceptEbV2Feedback(id){
+    calls.push(['accept',id]);
+    if(fail==='accept')throw new Error('accept failed');
+    old.content.archived=true;revision.content.archived=false;revision.content.feedbackPending=false;entry.status='accepted';
+    if(fail==='accept-response')throw new Error('accept response lost');
+    return data;
+   },
+   async reviewEbV2Channel(id,action,variant){
+    calls.push(['review',id,action,variant]);
+    if(fail==='review')throw new Error('review failed');
+    revision.status='done';revision.content.approvedVariants=variant;
+    if(fail==='review-response')throw new Error('review response lost');
+    return data;
+   },
+  };
+  return {api,entry,old,revision,calls,updates,setFail:value=>{fail=value},run:variant=>run('one','response',variant,api,data=>updates.push(structuredClone(data)))};
+ }
+ for(const variant of ['a','b']) {
+  const f=fixture();const content=f.revision.content.text;
+  assert.equal(await f.run(variant),'new');
+  assert.deepEqual(f.calls.filter(Array.isArray),[['accept','response'],['review','new','done',variant]]);
+  assert.equal(f.revision.content.text,content);assert.equal(f.revision.content.approvedVariants,variant);
+  assert.equal(f.updates.length,3);assert.equal(f.updates[1].channels[1].status,'ready_for_review');
+ }
+ const use=fixture();await use.run();assert.deepEqual(use.calls.filter(Array.isArray),[['accept','response']]);
+ for(const failure of ['accept','review','accept-response','review-response']) {
+  const f=fixture();f.setFail(failure);await assert.rejects(f.run('a'));
+  const count=f.calls.filter(Array.isArray).length;
+  f.setFail(null);await f.run('a');
+  const retry=f.calls.filter(Array.isArray).slice(count);
+  assert.deepEqual(retry,failure==='accept'?[['accept','response'],['review','new','done','a']]:failure==='review-response'?[]:[['review','new','done','a']]);
+ }
+ for(const mutate of [
+  f=>{f.entry.status='running'},f=>{f.entry.role='user'},
+  f=>{f.old.content.archived=true},f=>{f.revision.channel='facebook'},
+  f=>{f.entry.result_channel_output_id='missing'},f=>{f.old.package_id='two'},
+ ]) {
+  const f=fixture();mutate(f);await assert.rejects(f.run('b'));assert.deepEqual(f.calls.filter(Array.isArray),[]);
+ }
+ const stale=fixture();await stale.run();stale.revision.content.archived=true;
+ await assert.rejects(stale.run('b'));assert.equal(stale.calls.filter(Array.isArray).length,1);
+ const done=fixture();await done.run('a');await done.run('b');assert.equal(done.revision.content.approvedVariants,'a');
+ // The shared parent lock blocks another chat action synchronously and releases on failure.
+ const handler=source.slice(source.indexOf('  const useReviewFeedback = '),source.indexOf('  const regenerate = '));
+ let release,calls=0;const lock={current:false};
+ const execute=new Function('reviewLock','syncing','setSyncing','useChannelFeedback','db','setTasks','workspaceTasks',`${compile(handler)};return useReviewFeedback`)(lock,false,()=>{},async()=>{calls++;await new Promise(resolve=>{release=resolve});throw new Error('mock failure')},{fetchEbV2Workspace:async()=>({})},()=>{},data=>data);
+ const first=execute('one','response','a');
+ await assert.rejects(execute('one','response','b'),/in progress/);assert.equal(calls,1);
+ const decideCode=source.slice(source.indexOf('  const decide = '),source.indexOf('  const useReviewFeedback = '));
+ const cardDecision=new Function('reviewLock','syncing',`${compile(decideCode)};return decide`)(lock,false);
+ cardDecision('old','done','a'); // Must return before resolving tasks or sending a request.
+ release();await assert.rejects(first,/mock failure/);assert.equal(lock.current,false);
+ const filterCode=source.slice(source.indexOf('  const feedbackThread = '),source.indexOf('  const feedbackEnabled = '));
+ const thread=new Function('activity','task','activeChannelId',`${compile(filterCode)};return feedbackThread`);
+ const entry={gate:'review',channel_output_id:'old',result_channel_output_id:'new'};
+ assert.equal(thread({feedback:[entry]},{gate:'review'},'new').length,1);
+ assert.equal(thread({feedback:[entry]},{gate:'review'},'facebook').length,0);
+}
+test('offline Threads chat approval, persisted retry and shared lock',offlineRefineContracts);
+
+for(const variant of ['a','b'])test(`Threads chat approves ${variant.toUpperCase()} on the revision ID`,async({page})=>{
+ const state=await setup(page);state.persist=true;
+ state.data.channels.push({id:'refined-threads',package_id:'one',channel:'threads',status:'ready_for_review',content:{archived:true,feedbackPending:true,text:'Variant A · Tiếng Việt · Bản Việt · English · English A\nVariant B · Tiếng Việt · Bản Việt · English · English B'}});
+ state.feedback.push({id:'refinement',role:'assistant',gate:'review',channel:'threads',channel_output_id:'one-threads',result_channel_output_id:'refined-threads',status:'completed',message_markdown:state.data.channels.at(-1).content.text});
+ await open(page);await select(page,'threads');
+ await panel(page).getByRole('button',{name:`Approve ${variant.toUpperCase()}`,exact:true}).click();
+ await expect(row(page,'threads')).toContainText(`Approved: ${variant.toUpperCase()}`);
+ await expect(result(page)).toContainText('Tiếng Việt');await expect(result(page)).toContainText('English');
+ expect(state.mutations.map(item=>item.path)).toEqual(['/api/eb-v2/feedback/refinement/accept','/api/eb-v2/channel-outputs/refined-threads/review']);
+ expect(state.mutations[1].body).toEqual({action:'done',approvedVariants:variant});clean(state);
 });
