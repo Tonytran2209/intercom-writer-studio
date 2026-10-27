@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect,setTheme} from './browser-fixture.mjs';
 import {readFile} from 'node:fs/promises';
 async function isolate(page){
  const unexpected=[];
@@ -99,7 +99,7 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
  test(`GATE_DATE_STABILITY ${theme} ${view} metadata and controls`,async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const unexpected=await isolateCreation(page);await page.goto('/?screen=eb');
-  await page.locator('body').evaluate((body,theme)=>body.classList.toggle('codex-dark',theme==='dark'),theme);
+  await setTheme(page,theme);
   await creationView(page,view);
   const dateValues=()=>page.locator('article').evaluateAll(cards=>cards.map(card=>({title:card.querySelector('[aria-label^="Open task:"]')?.getAttribute('aria-label'),date:[...card.querySelectorAll('p')].find(span=>span.textContent.trim().startsWith('Ngày tạo:'))?.textContent})).sort((a,b)=>a.title.localeCompare(b.title)));
   await expect(page.getByRole('button',{name:'Open task: CREATED_brief-valid',exact:true})).toBeVisible();

@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './browser-fixture.mjs';
 import {readFile} from 'node:fs/promises';
 
 // Synthetic contract fixtures, not evidence of a production reproduction.

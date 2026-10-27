@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './browser-fixture.mjs';
 
 test('Settings exposes current sources and preserves synthetic legacy files on save',async({page})=>{
  await page.route('**/api/**',async route=>{

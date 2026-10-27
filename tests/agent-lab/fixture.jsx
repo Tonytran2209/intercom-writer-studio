@@ -1,10 +1,7 @@
+import {mountFixture} from './bootstrap';
 import React,{useEffect,useState} from 'react';
-import {createRoot} from 'react-dom/client';
 import Step4Draft from '../../src/components/workspace/Step4Draft';
-import {LanguageProvider} from '../../src/lib/i18n';
 import {DEFAULT_CONFIG,DEFAULT_MODELS} from '../../src/lib/defaultData';
-import '../../src/index.css';
-import '../../src/codex-theme.css';
 import EbWorkingSpace from '../../src/components/EbWorkingSpace';
 import EbSidebar from '../../src/components/EbSidebar';
 import ConfigModal from '../../src/components/config/ConfigModal';
@@ -33,4 +30,4 @@ function SettingsFixture(){
  return <><output data-testid="saved-settings">{JSON.stringify(saved)}</output>{open?<ConfigModal config={DEFAULT_CONFIG} files={settingsFiles} articles={[]} onSave={(config,files)=>setSaved({config,files})} onClose={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Reopen settings</button>}</>;
 }
 const screen=new URLSearchParams(location.search).get('screen');
-createRoot(document.getElementById('root')).render(<LanguageProvider>{screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>}</LanguageProvider>);
+mountFixture(screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>);

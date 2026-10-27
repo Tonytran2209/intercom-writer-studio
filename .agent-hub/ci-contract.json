@@ -1,0 +1,9 @@
+{
+  "protocol": "writer-ci-v1",
+  "workflow": ".github/workflows/agent-lab-ci.yml",
+  "browserConfig": "playwright.agent-lab.config.mjs",
+  "playwrightVersion": "1.64.1",
+  "fixtureBootstrap": "tests/agent-lab/bootstrap.jsx",
+  "fixtureIsolation": "tests/agent-lab/browser-fixture.mjs",
+  "toolsMode": "pinned-base"
+}

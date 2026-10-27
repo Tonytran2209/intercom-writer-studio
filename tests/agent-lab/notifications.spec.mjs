@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './browser-fixture.mjs';
 
 // Synthetic contract scenarios; these do not reproduce production data.
 test('notification history, status dot, mixed review counts and keyboard', async ({ page }) => {

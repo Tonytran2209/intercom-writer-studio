@@ -21,6 +21,7 @@ test('does not retry assertions, unknown failures, code failures, stale or forei
   {number:2},{repository:'fork/r'},{latest:{run_attempt:2}},{latest:{status:'in_progress'}},{latest:{head_sha:'b'.repeat(40)}},
   {jobs:[writer,{...shard,steps:[{name:'Run browser tests',conclusion:'failure'}]}]},
   {jobs:[writer,{...shard,steps:[]}]},
+  {jobs:[writer,{...shard,steps:[{name:'Verify CI configuration',conclusion:'failure'}]}]},
   {jobs:[{...writer,conclusion:'failure'},shard]},
   {jobs:[writer,{...shard,head_sha:'b'.repeat(40)}]},
   {jobs:[writer,{name:'browser-check',conclusion:'failure'}]},

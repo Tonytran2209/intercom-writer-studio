@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './browser-fixture.mjs';
 
 // Isolated synthetic contract regression; no production API or data is used.
 test.beforeEach(async ({page}) => {

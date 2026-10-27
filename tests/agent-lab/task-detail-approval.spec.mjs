@@ -5,7 +5,7 @@ import ts from 'typescript';
 // These synthetic offline contract regressions execute the real handlers with mocked
 // API/state dependencies. They do not reproduce production or verify browser layout.
 const {test} = process.env.TASK_APPROVAL_OFFLINE
-  ? await import('node:test') : await import('@playwright/test');
+  ? await import('node:test') : await import('./browser-fixture.mjs');
 const source = readFileSync(new URL('../../src/components/EbWorkingSpace.tsx', import.meta.url), 'utf8');
 const parsed = ts.createSourceFile('workspace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function declaration(name) {
@@ -78,7 +78,7 @@ test('persisted brief approval cannot be repeated after a failed workspace read'
 });
 
 if (!process.env.TASK_APPROVAL_OFFLINE) {
- const {expect}=await import('@playwright/test');
+ const {expect}=await import('./browser-fixture.mjs');
  for(const gate of ['brief','article'])test(`${gate} popup approval shows errors, locks card and popup, and advances`,async({page})=>{
   let data={packages:[{id:'popup',title:'Synthetic popup',state:gate}],articles:gate==='article'?[{package_id:'popup',status:'draft',revision:1}]:[],channels:[],runs:[],discovery:[]};
   const calls=[];const unexpected=[];let fail=true;let release;
@@ -174,7 +174,7 @@ test('regenerate blocks concurrent calls and approval, keeps failed snapshots sa
 });
 
 if (!process.env.TASK_APPROVAL_OFFLINE) {
- const {expect}=await import('@playwright/test');
+ const {expect}=await import('./browser-fixture.mjs');
  test('existing brief detail saves connection and evidence, retains failed edits, and reloads saved values',async({page})=>{
   const data={packages:[{id:'existing',title:'Existing brief',state:'brief'}],articles:[],channels:[],runs:[],discovery:[]};
   let saved={connection:'Saved F connection',evidence:'Saved source'};let fail=true;const calls=[];

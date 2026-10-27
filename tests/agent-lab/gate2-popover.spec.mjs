@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect,setTheme } from './browser-fixture.mjs';
 
 // Synthetic layout fixture; this does not claim to reproduce production data.
 const approvedTitle = 'G2_APPROVED_FIXTURE';
@@ -38,10 +38,7 @@ async function setup(page, theme) {
   // The fixture mounts the workspace directly, without App's h-dvh flex shell.
   // Supply only that parent constraint so the real board owns scrolling.
   await page.addStyleTag({ content: '#root { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }' });
-  await page.locator('body').evaluate((body, theme) => {
-    body.classList.toggle('codex-dark', theme === 'dark');
-    body.classList.toggle('writer-light', theme === 'light');
-  }, theme);
+  await setTheme(page,theme);
   await expect(page.getByRole('button', { name: `Open task: ${approvedTitle}`, exact: true })).toBeAttached();
   return { unexpected, mutations, activities, errors };
 }

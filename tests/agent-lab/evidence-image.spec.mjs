@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './browser-fixture.mjs';
 // Synthetic fixtures exercise the real UI; no production image/sample is asserted.
 const image={name:'source.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQ0AAAAASUVORK5CYII=','base64')};
 for(const target of ['input','popup','discovery']) test(target+': review, edit, apply, error retry and stale image response',async({page})=>{

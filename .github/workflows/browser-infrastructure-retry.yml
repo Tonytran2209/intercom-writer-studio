@@ -33,7 +33,7 @@ jobs:
               if (!/^browser-tests \((desktop|mobile)\)$/.test(job.name) || job.head_sha !== run.head_sha || job.status !== 'completed') return;
               const started = job.steps?.some(step => /Run browser tests|playwright test|npm run test:browser/.test(step.name) && step.conclusion !== 'skipped');
               const broken = job.steps?.find(step => ['failure','timed_out','cancelled'].includes(step.conclusion));
-              if (started || !broken || !/Initialize containers|Set up job|actions\/(checkout|setup-node)@|Prepare Chromium|playwright install|Verify pinned Playwright environment/.test(broken.name)) return;
+              if (started || !broken || !/Initialize containers|Set up job|Checkout pinned CI tools|actions\/(checkout|setup-node)@|Prepare Chromium|playwright install|Verify pinned Playwright environment/.test(broken.name)) return;
             }
             // Re-run only failed jobs, retaining successful shards and their exact-head artifacts.
             // run_attempt is owned by GitHub and survives restarts, bounding this to one retry.
