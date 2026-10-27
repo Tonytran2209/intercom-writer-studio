@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Grid2X2,
+  ImagePlus,
   Lightbulb,
   List,
   LoaderCircle,
@@ -1791,7 +1792,8 @@ function InputValidationFeedback({ message }: { message: string }) {
   )
 }
 
-function EvidenceImageInput({ model, disabled, onApply }: {
+function EvidenceImageInput({ model, disabled, onApply, children }: {
+  children?: (trigger: ReactNode) => ReactNode
   model: { provider: string; id: string } | null
   disabled: boolean
   onApply: (value: string) => void
@@ -1800,6 +1802,9 @@ function EvidenceImageInput({ model, disabled, onApply }: {
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const picker = useRef<HTMLInputElement | null>(null)
+  const dragDepth = useRef(0)
+  const [dragging, setDragging] = useState(false)
   const request = useRef<AbortController | null>(null)
   const version = useRef(0)
   useEffect(() => () => { version.current++; request.current?.abort() }, [])
@@ -1818,18 +1823,50 @@ function EvidenceImageInput({ model, disabled, onApply }: {
       if (version.current === current) setError(error instanceof Error ? error.message : "Không quét được ảnh. Thử lại.")
     } finally { if (version.current === current) setBusy(false) }
   }
-  return <div className="my-2 space-y-2 rounded-lg border border-slate-200 p-2 text-xs">
-    <label className="block">Ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB)
-      <input aria-label="Ảnh dẫn chứng" type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled}
-        className="mt-1 block w-full" onChange={event => {
-          version.current++; request.current?.abort(); setBusy(false); setDraft(""); setError("")
-          const next = event.target.files?.[0] ?? null
-          if (next && (!["image/png", "image/jpeg", "image/webp"].includes(next.type) || next.size > 15 * 1024 * 1024)) {
-            setFile(null); setError("Chọn ảnh PNG/JPEG/WebP tối đa 15 MiB."); return
-          }
-          setFile(next)
-        }} />
-    </label>
+  function receiveFiles(files: FileList | null) {
+    if (disabled || !files?.length) return
+    version.current++; request.current?.abort(); setBusy(false); setDraft(""); setError("")
+    setFile(null)
+    if (files.length !== 1) { setError("Chọn một ảnh mỗi lần."); return }
+    const next = files[0]
+    if (!["image/png", "image/jpeg", "image/webp"].includes(next.type) || next.size > 15 * 1024 * 1024) {
+      setError("Chọn ảnh PNG/JPEG/WebP tối đa 15 MiB."); return
+    }
+    setFile(next)
+  }
+  const input = <input ref={picker} aria-label="Ảnh dẫn chứng" type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled}
+    className={children ? "hidden" : "mt-1 block w-full"} onChange={event => {
+      receiveFiles(event.target.files)
+      event.target.value = ""
+    }} />
+  const trigger = <button type="button" disabled={disabled} aria-label="Chọn ảnh dẫn chứng" title="Chọn ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB)"
+    onClick={() => picker.current?.click()} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40">
+    <ImagePlus aria-hidden="true" className="h-3.5 w-3.5" />
+  </button>
+  return <div className={dragging ? "rounded-lg outline-2 outline-offset-2 outline-indigo-500" : undefined}
+    onDragEnter={children ? event => {
+      if (!event.dataTransfer.types.includes("Files")) return
+      event.preventDefault(); dragDepth.current++
+      if (!disabled) setDragging(true)
+    } : undefined}
+    onDragOver={children ? event => {
+      if (!event.dataTransfer.types.includes("Files")) return
+      event.preventDefault(); event.dataTransfer.dropEffect = disabled ? "none" : "copy"
+    } : undefined}
+    onDragLeave={children ? event => {
+      if (!event.dataTransfer.types.includes("Files")) return
+      event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1)
+      if (!dragDepth.current) setDragging(false)
+    } : undefined}
+    onDrop={children ? event => {
+      if (!event.dataTransfer.types.includes("Files")) return
+      event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragging(false)
+      receiveFiles(event.dataTransfer.files)
+    } : undefined}>
+    {children && input}
+    {(!children || file || error) && <div className="my-2 space-y-2 rounded-lg border border-slate-200 p-2 text-xs">
+    {!children && <label className="block">Ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB){input}</label>}
+    {children && file && <p className="break-all">Ảnh dẫn chứng: {file.name}</p>}
     <button type="button" disabled={disabled || busy || !file || !model} onClick={() => void scan()} className="rounded border border-indigo-200 px-3 py-2 text-indigo-700 disabled:opacity-50">{busy ? "Đang quét ảnh…" : "Quét dẫn chứng"}</button>
     {!model && <p>Chọn model Gate 1 có hỗ trợ ảnh trong Workflow AI.</p>}
     {busy && <p role="status">Đang đọc ảnh…</p>}
@@ -1841,6 +1878,9 @@ function EvidenceImageInput({ model, disabled, onApply }: {
       <p>Kết quả đọc ảnh chưa được xác minh độc lập. Kiểm tra nguồn trước khi dùng.</p>
       <button type="button" disabled={disabled || busy || !draft.trim()} onClick={() => { onApply(draft.trim()); setDraft("") }} className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-50">Dùng dẫn chứng</button>
     </div>}
+    </div>}
+    {children?.(trigger)}
+    {children && <p className="mt-1 text-[10px] text-slate-500" role="status">{dragging && !disabled ? "Thả một ảnh dẫn chứng tại đây" : "Chọn icon ảnh hoặc kéo thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB."}</p>}
   </div>
 }
 
@@ -1890,7 +1930,8 @@ function InputEngine({
             </div>
           )}
           <EvidenceImageInput key={preparation?.id ?? "input"} model={model} disabled={syncing}
-            onApply={value => preparation ? setFEvidence([fEvidence, value].filter(Boolean).join("\n\n")) : setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))} />
+            onApply={value => preparation ? setFEvidence([fEvidence, value].filter(Boolean).join("\n\n")) : setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))}>
+          {imageTrigger => <>
           {inputError && <InputValidationFeedback message={inputError} />}
           <div className="flex items-start gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
@@ -1904,6 +1945,7 @@ function InputEngine({
               placeholder="Nhập topic/câu chuyện, mối liên hệ với F hoặc sự kiện của F, kèm link hay nguồn xác nhận…"
               className="min-h-12 max-h-40 min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
             />
+            {imageTrigger}
             <label
               title={fileName || "Upload material"}
               className={`grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border hover:bg-slate-50 ${
@@ -1936,6 +1978,8 @@ function InputEngine({
             </button>
           </div>
           <p className="mt-1 px-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : fileName ? `Đã đính kèm: ${fileName}` : "Nêu rõ liên hệ với F/sự kiện của F và nguồn xác nhận trong cùng nội dung."}</p>
+          </>}
+          </EvidenceImageInput>
         </div>
       </div>
     </div>
