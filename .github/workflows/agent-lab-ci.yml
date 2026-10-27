@@ -52,6 +52,8 @@ jobs:
       - run: npm ci
       - name: Verify pinned Playwright environment
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git rev-parse HEAD
           node -e "const v = require('@playwright/test/package.json').version; if (v !== '1.64.1') throw Error('Playwright image/package mismatch: ' + v)"
           node -e "require('@playwright/test').chromium.launch().then(browser => browser.close())"
       - name: Run browser tests
