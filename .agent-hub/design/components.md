@@ -14,6 +14,11 @@ source_paths: [src/components, src/components/workspace, src/components/config]
 | Settings | `ConfigModal`, `TabStepSetup`, `TabModels`, `TabKnowledgeBase`, `WorkflowRulesPanel` | Persisted configuration; do not expose secret values. |
 | Import/activity | `InputEngine` within workspace, `SourceImportPanel`, `ActivityLauncher`, `BatchActivity` | Input/upload/import progress and recoverable error feedback. |
 
+## Settings knowledge sources
+
+- EB Knowledge & Rules exposes three source tabs: EB Library, EB Workflow Rules, and Website Inventory.
+- Legacy Action Plans archive, preview, and download controls are removed. Existing `action` / `action-plan` files and compatibility types remain preserved when Settings loads and saves; no data deletion or migration is performed.
+
 ## Shared interaction states
 
 - **Loading:** disabled action with spinner and an explanatory status message.

@@ -525,7 +525,7 @@ export interface ContentType {
 }
 
 export type ActiveTab = "step-setup" | "models" | "knowledge-base"
-export type KbSubTab = "kb" | "rules" | "website" | "legacy-action"
+export type KbSubTab = "kb" | "rules" | "website"
 
 // ── Knowledge/Skill source import ────────────────────────────────────────────
 
