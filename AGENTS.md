@@ -19,7 +19,7 @@ This is the canonical project structure. Start with task-relevant files below. O
 - `index.html` - Vite HTML shell containing the `#root` element and loading `src/main.tsx`
 - `package.json` - Project dependencies and the Vite build, development, preview, and formatting scripts
 - `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
-- `.mise.toml` - Toolchain versions for Node.js and pnpm
+- `.mise.toml` - Node.js toolchain; npm is pinned in `package.json`
 
 ## Dependencies
 
@@ -39,3 +39,7 @@ This project uses **Tailwind CSS v4** through the `@tailwindcss/vite` plugin con
 - Use double quotes for strings containing apostrophes (`"We're here to help"`), or escape them in single-quoted strings. An unescaped apostrophe in a single-quoted string breaks the build.
 - Ensure JSX tags are closed and braces are balanced.
 - Export components as default exports.
+
+## Dependency installs and deployment
+
+Use npm for this repository. `package-lock.json` and `backend/package-lock.json` are authoritative; update the matching npm lockfile when changing dependencies. Do not introduce a second package-manager lockfile. Use `npm ci` and `npm ci --prefix backend` for frozen installs. Railway Railpack reads `railpack.json`, builds the frontend and runs `bash start.sh` with the backend dependencies included.

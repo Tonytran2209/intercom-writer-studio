@@ -48,6 +48,8 @@ jobs:
             .github/workflows
             tests/agent-lab
           persist-credentials: false
+      - name: Verify deployment install contract
+        run: node .lab-ci-tools/tests/agent-lab/check-deploy-contract.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -58,7 +60,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix backend
       - run: npm run check
-      - run: node --test .lab-ci-tools/tests/agent-lab/merge-evidence.test.mjs .lab-ci-tools/tests/agent-lab/infrastructure-retry.test.mjs .lab-ci-tools/tests/agent-lab/sync-baseline-specs.test.mjs
+      - run: node --test .lab-ci-tools/tests/agent-lab/merge-evidence.test.mjs .lab-ci-tools/tests/agent-lab/infrastructure-retry.test.mjs .lab-ci-tools/tests/agent-lab/sync-baseline-specs.test.mjs .lab-ci-tools/tests/agent-lab/deploy-contract.test.mjs
   browser-tests:
     needs: ci-tools
     if: ${{ vars.LAB_BROWSER_TESTS != 'disabled' }}

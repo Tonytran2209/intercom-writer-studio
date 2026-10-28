@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "install": {
+      "inputs": [
+        "...",
+        {
+          "local": true,
+          "include": [
+            "backend/package.json",
+            "backend/package-lock.json"
+          ]
+        }
+      ],
+      "commands": [
+        "npm ci",
+        "npm ci --prefix backend"
+      ]
+    },
+    "build": {
+      "commands": [
+        "npm run build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "bash start.sh",
+    "inputs": [
+      "...",
+      {
+        "step": "build",
+        "include": [
+          "dist",
+          "backend",
+          "package.json",
+          "start.sh"
+        ]
+      }
+    ]
+  }
+}
