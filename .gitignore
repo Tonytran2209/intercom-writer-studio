@@ -13,3 +13,6 @@ logs/
 .claude-replay.*
 .tmp-*
 dist/
+
+# CI baseline provenance (not application source)
+.lab-ci-baseline.json

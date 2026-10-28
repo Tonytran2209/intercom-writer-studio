@@ -45,7 +45,10 @@ test('short desktop sidebar scrolls while footer controls remain usable', async 
     await expect(sidebar.getByRole('button',{name:'Search',exact:true})).toBeInViewport({ratio:1});
     await sidebar.getByRole('button',{name:'Search',exact:true}).click();
     await page.getByPlaceholder('Search started packages…').fill('Fixture package 20');
-    await sidebar.getByRole('button',{name:'Fixture package 20',exact:true}).last().click();
+    // Search is a viewport overlay, rendered outside the aside on mobile-capable shells.
+    // The visible input scopes the popup; do not click the obscured background package.
+    const searchPopup=page.getByPlaceholder('Search started packages…').locator('..').locator('..');
+    await searchPopup.getByRole('button',{name:'Fixture package 20',exact:true}).click();
     await expect(page.getByTestId('sidebar-action')).toHaveText('selected:sidebar-20');
     await expect(page.getByPlaceholder('Search started packages…')).toHaveCount(0);
     await expectNoPageOverflow(page);

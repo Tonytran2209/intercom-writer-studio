@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix backend
       - run: npm run check
-      - run: node --test .lab-ci-tools/tests/agent-lab/merge-evidence.test.mjs .lab-ci-tools/tests/agent-lab/infrastructure-retry.test.mjs
+      - run: node --test .lab-ci-tools/tests/agent-lab/merge-evidence.test.mjs .lab-ci-tools/tests/agent-lab/infrastructure-retry.test.mjs .lab-ci-tools/tests/agent-lab/sync-baseline-specs.test.mjs
   browser-tests:
     if: ${{ vars.LAB_BROWSER_TESTS != 'disabled' }}
     strategy:
@@ -54,6 +54,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Checkout pinned CI tools
         uses: actions/checkout@v4
@@ -78,6 +79,10 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git rev-parse HEAD
           node -e "require('@playwright/test').chromium.launch().then(browser => browser.close())"
+      - name: Refresh unchanged baseline browser specs
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: node .lab-ci-tools/tests/agent-lab/sync-baseline-specs.mjs
       - name: Run browser tests
         run: npx --no-install playwright test --project=${{ matrix.project }} --config playwright.agent-lab.config.mjs --reporter=list,html,./.lab-ci-tools/tests/agent-lab/evidence-reporter.cjs
       - uses: actions/upload-artifact@v4
