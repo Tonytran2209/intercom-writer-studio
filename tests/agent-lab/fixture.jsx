@@ -1,5 +1,6 @@
 import {mountFixture} from './bootstrap';
-import React,{useEffect,useState} from 'react';
+import React,{StrictMode,useEffect,useState} from 'react';
+import App from '../../src/App';
 import Step4Draft from '../../src/components/workspace/Step4Draft';
 import {DEFAULT_CONFIG,DEFAULT_MODELS} from '../../src/lib/defaultData';
 import EbWorkingSpace from '../../src/components/EbWorkingSpace';
@@ -30,4 +31,4 @@ function SettingsFixture(){
  return <><output data-testid="saved-settings">{JSON.stringify(saved)}</output>{open?<ConfigModal config={DEFAULT_CONFIG} files={settingsFiles} articles={[]} onSave={(config,files)=>setSaved({config,files})} onClose={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Reopen settings</button>}</>;
 }
 const screen=new URLSearchParams(location.search).get('screen');
-mountFixture(screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>);
+mountFixture(screen==='onboarding'?<StrictMode><App/></StrictMode>:screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>);

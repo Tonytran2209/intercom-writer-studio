@@ -46,6 +46,80 @@ function createNewArticle(): Article {
 type SyncStatus = "idle" | "loading" | "saving" | "error"
 type ArticleUpdateOptions = { silent?: boolean }
 
+const ONBOARDING_KEY = "writer:onboarding:v1"
+
+function SoftOnboarding() {
+  const { tr } = useI18n()
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(ONBOARDING_KEY) !== "seen" }
+    catch { return true }
+  })
+  const [step, setStep] = useState(0)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const guideRef = useRef<HTMLButtonElement>(null)
+  const close = () => {
+    try { localStorage.setItem(ONBOARDING_KEY, "seen") }
+    catch { /* React state remembers dismissal for this mount when storage is unavailable. */ }
+    setOpen(false)
+  }
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!open || !dialog) return
+    dialog.showModal()
+    return () => {
+      dialog.close()
+      guideRef.current?.focus()
+    }
+  }, [open])
+  const steps = [
+    {
+      title: tr("Bắt đầu từ ý tưởng thật", "Start with a real idea"),
+      text: tr("Chọn New activity, nhập ý tưởng hoặc tải tài liệu cùng bối cảnh, mối liên hệ với F và nguồn dẫn chứng. Có thể quét ảnh để hỗ trợ nhập; hãy kiểm tra và xác nhận dẫn chứng trước khi dùng.", "Choose New activity, enter an idea or upload a document with context, its connection to F and source evidence. Image scanning can help capture evidence; check and confirm it before use."),
+      detail: tr("Khi đã sẵn sàng, bấm Analyze để tạo brief.", "When ready, select Analyze to create a brief."),
+    },
+    {
+      title: tr("Đi từng bước, duyệt từng Gate", "Work step by step, review each Gate"),
+      text: tr("Brief → Website article → Adapt → Review. Đọc và duyệt brief, rồi bài website để tạo nội dung LinkedIn, Facebook và Threads. Review riêng từng kênh; với Threads, chọn Variant A, B hoặc cả hai.", "Brief → Website article → Adapt → Review. Read and approve the brief, then the website article to create LinkedIn, Facebook and Threads content. Review each channel separately; for Threads, choose Variant A, B or both."),
+      detail: tr("App hỗ trợ chuẩn bị nội dung; bạn thực hiện xuất bản lên kênh bên ngoài.", "The app helps prepare content; you publish to external channels."),
+    },
+    {
+      title: tr("Khám phá và tìm lại nội dung", "Discover and revisit content"),
+      text: tr("Discovery tìm ý tưởng có nguồn: đọc Details và phân biệt Verified trend, Emerging signal, Source lead trước khi dùng. Library Article giúp tìm lại bài. Settings quản lý model, thư viện và quy tắc workflow.", "Discovery finds sourced ideas: read Details and distinguish Verified trend, Emerging signal and Source lead before use. Library Article helps revisit articles. Settings manages models, knowledge and workflow rules."),
+      detail: tr("Mở lại hướng dẫn bất cứ lúc nào bằng nút Hướng dẫn. Nội dung đang nhập vẫn được giữ.", "Reopen this introduction anytime with Guide. Your current input stays in place."),
+    },
+  ]
+  const buttonClass = "rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+  return <>
+    <button ref={guideRef} type="button" onClick={() => { setStep(0); setOpen(true) }} className={`${buttonClass} fixed right-4 top-1 z-30 bg-white py-1 text-xs shadow-sm`}>
+      {tr("Hướng dẫn", "Guide")}
+    </button>
+    <dialog ref={dialogRef} aria-labelledby="onboarding-title" aria-describedby="onboarding-description" onCancel={(event) => { event.preventDefault(); close() }} onKeyDown={(event) => {
+      if (event.key !== "Tab") return
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"))
+      const first = controls[0]
+      const last = controls[controls.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-900/30 sm:p-7">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-slate-500">{tr("Làm quen Writer Studio", "Meet Writer Studio")} · {step + 1}/3</p>
+        <button type="button" autoFocus onClick={close} aria-label={tr("Đóng hướng dẫn", "Close guide")} className={buttonClass}>×</button>
+      </div>
+      <div aria-live="polite" className="py-6">
+        <h2 id="onboarding-title" className="text-xl font-semibold tracking-tight">{steps[step].title}</h2>
+        <p id="onboarding-description" className="mt-4 text-sm leading-6 text-slate-600">{steps[step].text}</p>
+        <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{steps[step].detail}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={close} className={buttonClass}>{tr("Bỏ qua", "Skip")}</button>
+        <div className="flex-1" />
+        <button type="button" disabled={step === 0} onClick={() => setStep(step - 1)} className={`${buttonClass} disabled:opacity-40`}>{tr("Quay lại", "Back")}</button>
+        <button type="button" onClick={() => step === 2 ? close() : setStep(step + 1)} className={`${buttonClass} border-blue-600 bg-blue-600 text-white hover:bg-blue-700`}>{step === 2 ? tr("Bắt đầu", "Get started") : tr("Tiếp", "Next")}</button>
+      </div>
+    </dialog>
+  </>
+}
+
 export default function App() {
   // The EB workspace owns both shell and connected V2 modes. Legacy article
   // screens remain in the codebase only for historical data, never as the V2 entry point.
@@ -672,6 +746,7 @@ export default function App() {
 
   return (
     <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
+      {useEbWorkspace && <SoftOnboarding />}
       {useEbWorkspace ? <EbSidebar
         onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}
         onOpenDiscovery={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(true) }}

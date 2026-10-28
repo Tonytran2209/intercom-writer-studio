@@ -12,7 +12,7 @@ source_paths: [src/App.tsx, src/components/EbSidebar.tsx, src/components/EbWorki
 ## Bắt đầu: app làm được gì?
 Intercom Writer Studio / F.Learning EB Article Writer biến ý tưởng hoặc tài liệu thực tế thành brief, bài website fab.careers và nội dung Threads, Facebook, LinkedIn. Luồng chính là **Brief · Gate 1 → Website article · Gate 2 → Adapt channel → Review · Gate 3**. Mỗi thẻ là một công việc; mở thẻ để xem output, nguồn và hoạt động AI.
 
-Hướng dẫn này mô tả EB V2 đang được `src/App.tsx` mở mặc định. Các màn hình article/SEO legacy còn trong repo không phải luồng khởi tạo của EB V2. Phiên bản đối chiếu chưa có pop-up onboarding tự động; tài liệu này là nội dung tham chiếu cho hướng dẫn và các yêu cầu onboarding sau này.
+Hướng dẫn này mô tả EB V2 đang được `src/App.tsx` mở mặc định. Các màn hình article/SEO legacy còn trong repo không phải luồng khởi tạo của EB V2. Sau màn hình tải settings, app hiển thị hướng dẫn nhẹ 3 bước nếu trình duyệt chưa có dấu `writer:onboarding:v1`: chuẩn bị input/dẫn chứng; Brief → Website article → Adapt/Review; Discovery, Library và Settings. Dùng **Tiếp**, **Quay lại**, **Bỏ qua**, **Đóng** (hoặc Escape) và **Bắt đầu**. Đóng/bỏ qua/hoàn tất mới lưu dấu, nên lần tải lại không tự mở. Dấu áp dụng theo trình duyệt/origin, không theo tài khoản; người dùng cũ chưa có dấu cũng thấy một lần. Nếu storage bị chặn, vẫn đóng được và nhớ trong lần mount hiện tại; tải lại có thể hiện lại. Nút **Hướng dẫn** mở lại từ bước đầu, giữ nguyên workspace và nội dung đang nhập, không chạy AI hay chuyển Gate.
 
 ## 1. Chuẩn bị Workspace và model
 - Người phụ trách cấu hình mở **Settings → Workflow AI**, chọn model đang bật cho các bước; Gate 1 dùng model Brief, duyệt brief dùng model Article và duyệt article dùng model Adapt.
