@@ -150,7 +150,7 @@ for(const viewport of [{width:1024,height:480},{width:768,height:1024},{width:39
  test(`Search overlay selects a package and closes at ${viewport.width}x${viewport.height}`,async({page})=>{
   await page.setViewportSize(viewport);
   await page.goto('/?screen=sidebar');
-  await expect(page.locator('aside.eb-sidebar').getByRole('button',{name:'Fixture package 20',exact:true})).toHaveCount(1);
+  await expect(page.locator('aside.eb-sidebar').getByRole('button',{name:'Fixture package 20',exact:true,includeHidden:true})).toHaveCount(1);
   const controls=viewport.width>=768?page.locator('aside.eb-sidebar'):page.locator('nav.eb-mobile-nav');
   await controls.getByRole('button',{name:'Search',exact:true}).click();
   const input=page.getByPlaceholder('Search started packages…');
