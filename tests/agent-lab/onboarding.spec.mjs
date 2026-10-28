@@ -101,3 +101,65 @@ test('existing marker suppresses first opening and English guide can be complete
  await expect(page.getByRole('button',{name:'Guide',exact:true})).toBeFocused();
  expect(writes).toEqual([]);
 });
+
+for (const viewport of [{width:320,height:568},{width:390,height:844},{width:768,height:1024},{width:1024,height:768},{width:740,height:360}]) {
+ test(`guide layout, hover and focus at ${viewport.width}x${viewport.height}`,async({page})=>{
+  await page.setViewportSize(viewport);
+  const writes=await openApp(page,{seen:true});
+  await expect(guide(page)).toBeVisible();
+  const search=page.getByRole('button',{name:'Search',exact:true});
+  await expect(search).toBeVisible();
+  const guideBounds=await guide(page).boundingBox();
+  const searchBounds=await search.boundingBox();
+  expect(Math.abs(guideBounds.y-searchBounds.y)).toBeLessThan(48);
+  await search.click();
+  await expect(page.getByPlaceholder('Search started packages…')).toBeVisible();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  if(viewport.width>=768){
+   await page.getByRole('button',{name:'Toggle sidebar'}).click();
+   await expect(guide(page)).toBeVisible();
+   await expect(search).toBeVisible();
+  }
+  await guide(page).click();
+  for(let step=0;step<3;step++){
+   const primary=page.getByRole('button',{name:step===2?'Bắt đầu':'Tiếp',exact:true});
+   if(step>0){
+    const back=page.getByRole('button',{name:'Quay lại',exact:true});
+    await back.hover();
+    const backColor=await back.evaluate(node=>getComputedStyle(node).color);
+    await primary.hover();
+    expect(await primary.evaluate(node=>getComputedStyle(node).color)).toBe(backColor);
+    expect(await primary.evaluate(node=>getComputedStyle(node).color)).not.toBe(await primary.evaluate(node=>getComputedStyle(node).backgroundColor));
+   }
+   const bounds=await primary.boundingBox();
+   expect(bounds.y).toBeGreaterThanOrEqual(0);
+   expect(bounds.y+bounds.height).toBeLessThanOrEqual(viewport.height);
+   expect(await dialog(page).evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
+   if(step<2)await primary.click();
+  }
+  await page.setViewportSize({width:viewport.width>=768?390:1024,height:768});
+  await page.keyboard.press('Escape');
+  await expect(guide(page)).toBeFocused();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  expect(writes).toEqual([]);
+ });
+}
+
+
+for(const viewport of [{width:1024,height:480},{width:768,height:1024},{width:390,height:568}]){
+ test(`Search overlay selects a package and closes at ${viewport.width}x${viewport.height}`,async({page})=>{
+  await page.setViewportSize(viewport);
+  await page.goto('/?screen=sidebar');
+  await expect(page.locator('aside.eb-sidebar').getByRole('button',{name:'Fixture package 20',exact:true,includeHidden:true})).toHaveCount(1);
+  const controls=viewport.width>=768?page.locator('aside.eb-sidebar'):page.locator('nav.eb-mobile-nav');
+  await controls.getByRole('button',{name:'Search',exact:true}).click();
+  const input=page.getByPlaceholder('Search started packages…');
+  await expect(input).toBeVisible();
+  await input.fill('Fixture package 20');
+  const popup=input.locator('..').locator('..');
+  await expect(popup.getByRole('button',{name:'Fixture package 20',exact:true})).toHaveCount(1);
+  await popup.getByRole('button',{name:'Fixture package 20',exact:true}).click();
+  await expect(page.getByTestId('sidebar-action')).toHaveText('selected:sidebar-20');
+  await expect(input).toHaveCount(0);
+ });
+}

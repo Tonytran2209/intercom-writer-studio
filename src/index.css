@@ -2748,3 +2748,30 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .filter-checkbox { display: grid; width: .875rem; height: .875rem; flex: 0 0 .875rem; place-items: center; border: 1px solid #cbd5e1; border-radius: .25rem; color: #fff; }
 .filter-checkbox.is-selected { border-color: #4f46e5; background: #4f46e5; }
 .filter-checkbox svg { width: .625rem; height: .625rem; stroke-width: 2.5; }
+
+/* Onboarding owns its colors instead of inheriting migrated utility overrides. */
+.writer-light .onboarding-dialog button { color: #0f172a; min-height: 44px; }
+.writer-light .onboarding-dialog .onboarding-primary { background: #eff6ff; border-color: #bfdbfe; color: #0f172a; }
+.writer-light .onboarding-dialog button:hover:not(:disabled) { background: #f1f5f9; color: #0f172a; }
+.writer-light .onboarding-dialog button:disabled { opacity: .4; cursor: default; }
+.onboarding-dialog { overscroll-behavior: contain; overflow-wrap: anywhere; }
+.onboarding-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.onboarding-dialog > div:first-child { flex-shrink: 0; }
+.onboarding-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.onboarding-actions { display: grid; grid-template-columns: auto 1fr auto; gap: .5rem; flex-shrink: 0; padding-top: .5rem; }
+.onboarding-actions button:nth-child(2) { justify-self: end; }
+.sidebar-guide-button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; }
+.sidebar-guide-button:hover { background: #e2e8f0; }
+.sidebar-guide-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.eb-mobile-tools { display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; border-top: 1px solid #e2e8f0; margin-top: .25rem; }
+@media (max-width: 359px) {
+  .onboarding-dialog { padding: 1rem; }
+  .onboarding-actions { grid-template-columns: 1fr 1fr; }
+  .onboarding-actions button:first-child { grid-column: 1 / -1; }
+  .onboarding-actions button:nth-child(2) { justify-self: stretch; }
+  .eb-mobile-nav > button { min-width: 0; padding-inline: .25rem; }
+}
+@media (max-height: 480px) {
+  .onboarding-dialog { padding: .75rem; }
+  .onboarding-content { padding-block: .75rem; }
+}
