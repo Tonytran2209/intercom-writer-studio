@@ -102,6 +102,32 @@ test('existing marker suppresses first opening and English guide can be complete
  expect(writes).toEqual([]);
 });
 
+// Synthetic offline coverage for guide copy and its existing read-only contract.
+for(const english of [false,true]){
+ test(`workflow guide content in ${english?'English':'Vietnamese'}`,async({page})=>{
+  const writes=await openApp(page,{english});
+  const next=()=>page.getByRole('button',{name:english?'Next':'Tiếp',exact:true}).click();
+  await expect(dialog(page).getByRole('listitem')).toHaveCount(4);
+  for(const text of [english?'AI workflow':'Workflow AI',english?'EB knowledge & rules':'EB Knowledge & Rules','EB Library','EB Workflow Rules','Website Inventory','New activity','Quét dẫn chứng','Dùng dẫn chứng','Analyze']){
+   await expect(dialog(page)).toContainText(text);
+  }
+  await next();
+  await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+  for(const text of ['Source & evidence','Lưu và chạy lại brief','Approve brief','Approve article','Channel output','Done','Reject','Re-check','Variant A, B']){
+   await expect(dialog(page)).toContainText(text);
+  }
+  await next();
+  await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+  for(const text of ['Scan sources','Details','Verified trend','Emerging signal','Source lead','Run Gate 1','Website articles','Final review','Library Article','Search','refresh']){
+   await expect(dialog(page)).toContainText(text);
+  }
+  expect(await page.evaluate(()=>localStorage.getItem('writer:onboarding:v1'))).toBeNull();
+  await page.getByRole('button',{name:english?'Get started':'Bắt đầu',exact:true}).click();
+  await expect(dialog(page)).not.toBeVisible();
+  expect(writes).toEqual([]);
+ });
+}
+
 for (const viewport of [{width:320,height:568},{width:390,height:844},{width:768,height:1024},{width:1024,height:768},{width:740,height:360}]) {
  test(`guide layout, hover and focus at ${viewport.width}x${viewport.height}`,async({page})=>{
   await page.setViewportSize(viewport);
@@ -131,6 +157,9 @@ for (const viewport of [{width:320,height:568},{width:390,height:844},{width:768
     expect(await primary.evaluate(node=>getComputedStyle(node).color)).toBe(backColor);
     expect(await primary.evaluate(node=>getComputedStyle(node).color)).not.toBe(await primary.evaluate(node=>getComputedStyle(node).backgroundColor));
    }
+   const content=dialog(page).locator('.onboarding-content');
+   await content.evaluate(node=>{node.scrollTop=node.scrollHeight;});
+   expect(await content.evaluate(node=>Math.abs(node.scrollHeight-node.clientHeight-node.scrollTop)<=1)).toBe(true);
    const bounds=await primary.boundingBox();
    expect(bounds.y).toBeGreaterThanOrEqual(0);
    expect(bounds.y+bounds.height).toBeLessThanOrEqual(viewport.height);
