@@ -144,3 +144,22 @@ for (const viewport of [{width:320,height:568},{width:390,height:844},{width:768
   expect(writes).toEqual([]);
  });
 }
+
+
+for(const viewport of [{width:1024,height:480},{width:390,height:568}]){
+ test(`Search overlay selects a package and closes at ${viewport.width}x${viewport.height}`,async({page})=>{
+  await page.setViewportSize(viewport);
+  await page.goto('/?screen=sidebar');
+  await expect(page.locator('aside.eb-sidebar').getByRole('button',{name:'Fixture package 20',exact:true})).toHaveCount(1);
+  const controls=viewport.width>=768?page.locator('aside.eb-sidebar'):page.locator('nav.eb-mobile-nav');
+  await controls.getByRole('button',{name:'Search',exact:true}).click();
+  const input=page.getByPlaceholder('Search started packages…');
+  await expect(input).toBeVisible();
+  await input.fill('Fixture package 20');
+  const popup=input.locator('..').locator('..');
+  await expect(popup.getByRole('button',{name:'Fixture package 20',exact:true})).toHaveCount(1);
+  await popup.getByRole('button',{name:'Fixture package 20',exact:true}).click();
+  await expect(page.getByTestId('sidebar-action')).toHaveText('selected:sidebar-20');
+  await expect(input).toHaveCount(0);
+ });
+}
