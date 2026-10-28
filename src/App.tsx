@@ -48,7 +48,7 @@ type ArticleUpdateOptions = { silent?: boolean }
 
 const ONBOARDING_KEY = "writer:onboarding:v1"
 
-function SoftOnboarding() {
+function SoftOnboarding({ children }: { children: (openGuide: () => void) => import("react").ReactNode }) {
   const { tr } = useI18n()
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(ONBOARDING_KEY) !== "seen" }
@@ -56,7 +56,6 @@ function SoftOnboarding() {
   })
   const [step, setStep] = useState(0)
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const guideRef = useRef<HTMLButtonElement>(null)
   const close = () => {
     try { localStorage.setItem(ONBOARDING_KEY, "seen") }
     catch { /* React state remembers dismissal for this mount when storage is unavailable. */ }
@@ -68,7 +67,7 @@ function SoftOnboarding() {
     dialog.showModal()
     return () => {
       dialog.close()
-      guideRef.current?.focus()
+      Array.from(document.querySelectorAll<HTMLButtonElement>("[data-guide-trigger]")).find(button => button.getClientRects().length > 0)?.focus()
     }
   }, [open])
   const steps = [
@@ -90,9 +89,7 @@ function SoftOnboarding() {
   ]
   const buttonClass = "rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
   return <>
-    <button ref={guideRef} type="button" onClick={() => { setStep(0); setOpen(true) }} className={`${buttonClass} fixed right-4 top-1 z-30 bg-white py-1 text-xs shadow-sm`}>
-      {tr("Hướng dẫn", "Guide")}
-    </button>
+    {children(() => { setStep(0); setOpen(true) })}
     <dialog ref={dialogRef} aria-labelledby="onboarding-title" aria-describedby="onboarding-description" onCancel={(event) => { event.preventDefault(); close() }} onKeyDown={(event) => {
       if (event.key !== "Tab") return
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"))
@@ -100,21 +97,20 @@ function SoftOnboarding() {
       const last = controls[controls.length - 1]
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-    }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-900/30 sm:p-7">
+    }} className="onboarding-dialog fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-900/30 sm:p-7">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-slate-500">{tr("Làm quen Writer Studio", "Meet Writer Studio")} · {step + 1}/3</p>
         <button type="button" autoFocus onClick={close} aria-label={tr("Đóng hướng dẫn", "Close guide")} className={buttonClass}>×</button>
       </div>
-      <div aria-live="polite" className="py-6">
+      <div aria-live="polite" className="onboarding-content py-6">
         <h2 id="onboarding-title" className="text-xl font-semibold tracking-tight">{steps[step].title}</h2>
         <p id="onboarding-description" className="mt-4 text-sm leading-6 text-slate-600">{steps[step].text}</p>
         <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{steps[step].detail}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="onboarding-actions">
         <button type="button" onClick={close} className={buttonClass}>{tr("Bỏ qua", "Skip")}</button>
-        <div className="flex-1" />
         <button type="button" disabled={step === 0} onClick={() => setStep(step - 1)} className={`${buttonClass} disabled:opacity-40`}>{tr("Quay lại", "Back")}</button>
-        <button type="button" onClick={() => step === 2 ? close() : setStep(step + 1)} className={`${buttonClass} border-blue-600 bg-blue-600 text-white hover:bg-blue-700`}>{step === 2 ? tr("Bắt đầu", "Get started") : tr("Tiếp", "Next")}</button>
+        <button type="button" onClick={() => step === 2 ? close() : setStep(step + 1)} className={`${buttonClass} onboarding-primary`}>{step === 2 ? tr("Bắt đầu", "Get started") : tr("Tiếp", "Next")}</button>
       </div>
     </dialog>
   </>
@@ -746,12 +742,12 @@ export default function App() {
 
   return (
     <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
-      {useEbWorkspace && <SoftOnboarding />}
-      {useEbWorkspace ? <EbSidebar
+      {useEbWorkspace ? <SoftOnboarding>{openGuide => <EbSidebar
+        onOpenGuide={openGuide}
         onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}
         onOpenDiscovery={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(true) }}
         onOpenSettings={() => setShowConfig(true)}
-      /> : <Sidebar
+      />}</SoftOnboarding> : <Sidebar
         articles={articles}
         activeArticleId={activeId}
         onSelectArticle={(id) => {
