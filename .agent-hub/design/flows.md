@@ -8,7 +8,7 @@ source_paths: [src/App.tsx, src/components/EbWorkingSpace.tsx, backend/ebV2.ts]
 
 ## Soft onboarding
 
-After the shell settings loading screen, a native modal dialog introduces three steps: input/documents and checked evidence; Brief → Website article → Adapt/Review; Discovery, Library and Settings. The workspace remains mounted. Opening, stepping and closing the guide never trigger New activity, AI, workflow decisions or server writes.
+After the shell settings loading screen, a native modal dialog introduces three steps with short lists and emphasized action names in Vietnamese and English: model/library setup, input/documents, checked image evidence and Analyze; plain-language Gate checkpoints, Source & evidence edits and rerun, Approve brief → Approve article → per-channel review with Threads A/B; Discovery source auditing, Website articles/Final review/Library Article/Search and recoverable error guidance. Content scrolls within the existing modal while navigation remains visible. The workspace remains mounted. Opening, stepping and closing the guide never trigger New activity, AI, workflow decisions or server writes.
 
 Without browser/origin marker `writer:onboarding:v1=seen`, it opens automatically. Skip, close button, Escape and Get started save the marker; merely opening or stepping does not. Guide reopens at step one without changing input. Storage failures fall back to mount-local dismissal; a reload may show it again. This is not account-level tracking. The scrollable native modal contains keyboard focus and returns focus to Guide on dismissal, including automatic first opening.
 

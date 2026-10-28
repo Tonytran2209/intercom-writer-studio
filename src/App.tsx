@@ -73,18 +73,34 @@ function SoftOnboarding({ children }: { children: (openGuide: () => void) => imp
   const steps = [
     {
       title: tr("Bắt đầu từ ý tưởng thật", "Start with a real idea"),
-      text: tr("Chọn New activity, nhập ý tưởng hoặc tải tài liệu cùng bối cảnh, mối liên hệ với F và nguồn dẫn chứng. Có thể quét ảnh để hỗ trợ nhập; hãy kiểm tra và xác nhận dẫn chứng trước khi dùng.", "Choose New activity, enter an idea or upload a document with context, its connection to F and source evidence. Image scanning can help capture evidence; check and confirm it before use."),
-      detail: tr("Khi đã sẵn sàng, bấm Analyze để tạo brief.", "When ready, select Analyze to create a brief."),
+      text: tr("Chuẩn bị một lần, rồi bắt đầu với bối cảnh và nguồn thật.", "Set up once, then start with real context and sources."),
+      items: [
+        { label: tr("Chuẩn bị", "Set up"), text: tr("Trong Settings → Workflow AI, chọn model cho Brief, Article và Adapt. Trong EB Knowledge & Rules, chuẩn bị EB Library, EB Workflow Rules và Website Inventory.", "In Settings → AI workflow, choose models for Brief, Article and Adapt. In EB knowledge & rules, prepare EB Library, EB Workflow Rules and Website Inventory.") },
+        { label: "New activity", text: tr("Nhập ý tưởng hoặc tải tài liệu. Nêu bối cảnh, mối liên hệ với F/F.Learning và nguồn xác nhận.", "Enter an idea or upload a document. Include context, its connection to F/F.Learning and supporting sources.") },
+        { label: tr("Dẫn chứng từ ảnh", "Image evidence"), text: tr("Có thể chọn hoặc thả một ảnh PNG/JPEG/WebP tối đa 15 MiB. Bấm Quét dẫn chứng, đọc và sửa text, rồi Dùng dẫn chứng. AI đọc ảnh, không tự xác minh nguồn.", "Optionally select or drop one PNG/JPEG/WebP image up to 15 MiB. Select Quét dẫn chứng (scan evidence), review and edit the text, then Dùng dẫn chứng (use evidence). AI reads the image; it does not independently verify the source.") },
+        { label: "Analyze", text: tr("Bấm để tạo brief (bản định hướng bài viết). Nếu thấy Cần bổ sung, sửa các mục được yêu cầu rồi gửi lại.", "Select to create a brief (the direction for your article). If more information is requested, complete the listed fields and submit again.") },
+      ],
+      detail: tr("Bạn luôn kiểm tra và xác nhận dẫn chứng trước khi dùng.", "Always check and confirm evidence before using it."),
     },
     {
       title: tr("Đi từng bước, duyệt từng Gate", "Work step by step, review each Gate"),
-      text: tr("Brief → Website article → Adapt → Review. Đọc và duyệt brief, rồi bài website để tạo nội dung LinkedIn, Facebook và Threads. Review riêng từng kênh; với Threads, chọn Variant A, B hoặc cả hai.", "Brief → Website article → Adapt → Review. Read and approve the brief, then the website article to create LinkedIn, Facebook and Threads content. Review each channel separately; for Threads, choose Variant A, B or both."),
+      text: tr("Gate là điểm bạn đọc và duyệt trước khi sang bước tiếp theo: Brief → Website article → Adapt → Review.", "A Gate is a checkpoint where you read and approve before continuing: Brief → Website article → Adapt → Review."),
+      items: [
+        { label: "Gate 1 · Approve brief", text: tr("Mở brief để đọc. Nếu nguồn chưa đúng, sửa Source & evidence → Lưu và chạy lại brief. Đợi brief mới thành công, đọc lại rồi duyệt để tạo bài website.", "Open and read the brief. If sources need changes, edit Source & evidence → Lưu và chạy lại brief (save and rerun). Wait for the new brief to succeed, review it, then approve to create the website article.") },
+        { label: "Gate 2 · Approve article", text: tr("Đọc bài website fab.careers rồi duyệt. Bước Adapt sẽ tạo nội dung LinkedIn, Facebook và Threads.", "Read and approve the fab.careers website article. Adapt then creates LinkedIn, Facebook and Threads content.") },
+        { label: "Gate 3 · Review", text: tr("Đọc Channel output và review từng kênh bằng Done, Reject hoặc Re-check. Với Threads, đọc cả Tiếng Việt và English, rồi chọn Variant A, B hoặc cả hai khi duyệt.", "Read Channel output and review each channel using Done, Reject or Re-check. For Threads, read both Vietnamese and English, then choose Variant A, B or both when approving.") },
+      ],
       detail: tr("App hỗ trợ chuẩn bị nội dung; bạn thực hiện xuất bản lên kênh bên ngoài.", "The app helps prepare content; you publish to external channels."),
     },
     {
       title: tr("Khám phá và tìm lại nội dung", "Discover and revisit content"),
-      text: tr("Discovery tìm ý tưởng có nguồn: đọc Details và phân biệt Verified trend, Emerging signal, Source lead trước khi dùng. Library Article giúp tìm lại bài. Settings quản lý model, thư viện và quy tắc workflow.", "Discovery finds sourced ideas: read Details and distinguish Verified trend, Emerging signal and Source lead before use. Library Article helps revisit articles. Settings manages models, knowledge and workflow rules."),
-      detail: tr("Mở lại hướng dẫn bất cứ lúc nào bằng nút Hướng dẫn. Nội dung đang nhập vẫn được giữ.", "Reopen this introduction anytime with Guide. Your current input stays in place."),
+      text: tr("Tìm ý tưởng mới, mở lại bài đang làm và tiếp tục khi gặp lỗi.", "Find new ideas, revisit your work and recover from errors."),
+      items: [
+        { label: "Discovery", text: tr("Bấm Scan sources, mở Details và đọc nguồn. Phân biệt Verified trend (xu hướng có bằng chứng), Emerging signal (tín hiệu mới) và Source lead (đầu mối nguồn). Run Gate 1 mở phần chuẩn bị; bổ sung liên hệ với F và dẫn chứng trước khi gửi.", "Select Scan sources, open Details and read the sources. Distinguish Verified trend, Emerging signal and Source lead by their evidence level. Run Gate 1 opens preparation; add the connection to F and supporting evidence before submitting.") },
+        { label: tr("Tìm lại bài", "Find your work"), text: tr("Mở Website articles để đọc bài website, kể cả khi đã sang review. Final review cho từng kênh; Library Article để tra cứu bài. Dùng Search để tìm package đã bắt đầu.", "Open Website articles to read website articles, including those already in review. Use Final review for individual channels, Library Article to browse articles, and Search to find started packages.") },
+        { label: tr("Khi cần trợ giúp", "When you need help"), text: tr("Lỗi model: kiểm tra model của đúng bước trong Settings. Mất kết nối hoặc phản hồi: refresh workspace và đọc trạng thái đã lưu trước khi thử lại. Tránh bấm tạo nội dung liên tiếp.", "For model errors, check the model for that step in Settings. After a connection error or lost response, refresh the workspace and check saved state before retrying. Avoid repeated generation clicks.") },
+      ],
+      detail: tr("Mở lại bằng Hướng dẫn cạnh Search bất cứ lúc nào. Nội dung đang nhập vẫn được giữ; đọc hướng dẫn không chạy AI hay duyệt bài.", "Reopen Guide beside Search anytime. Your current input stays in place; reading the guide does not run AI or approve work."),
     },
   ]
   const buttonClass = "rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
@@ -105,6 +121,9 @@ function SoftOnboarding({ children }: { children: (openGuide: () => void) => imp
       <div aria-live="polite" className="onboarding-content py-6">
         <h2 id="onboarding-title" className="text-xl font-semibold tracking-tight">{steps[step].title}</h2>
         <p id="onboarding-description" className="mt-4 text-sm leading-6 text-slate-600">{steps[step].text}</p>
+        <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-6 text-slate-600">
+          {steps[step].items.map(item => <li key={item.label}><strong className="font-semibold">{item.label}</strong><span> — {item.text}</span></li>)}
+        </ul>
         <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{steps[step].detail}</p>
       </div>
       <div className="onboarding-actions">
