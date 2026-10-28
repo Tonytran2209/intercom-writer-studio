@@ -39,3 +39,7 @@ source_paths: [package.json, backend/package.json, railway.toml, nixpacks.toml]
 2. The relevant layer document: `design/`, `backend/`, or `database/`.
 3. Exact referenced source files and migrations before proposing a change.
 4. `policies/automation.md` before executing mutations.
+
+## User guide / Hướng dẫn sử dụng
+
+[Hướng dẫn sử dụng Intercom Writer Studio](design/user-guide.md) là tài liệu canonical cho onboarding, input/ảnh dẫn chứng, Discovery, Gate 1–3, review và refine Threads A/B. AI Agent Lab nạp hướng dẫn theo cùng commit của library; hành vi thực tế vẫn cần đối chiếu source.
