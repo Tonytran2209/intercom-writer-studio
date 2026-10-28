@@ -146,7 +146,7 @@ for (const viewport of [{width:320,height:568},{width:390,height:844},{width:768
 }
 
 
-for(const viewport of [{width:1024,height:480},{width:390,height:568}]){
+for(const viewport of [{width:1024,height:480},{width:768,height:1024},{width:390,height:568}]){
  test(`Search overlay selects a package and closes at ${viewport.width}x${viewport.height}`,async({page})=>{
   await page.setViewportSize(viewport);
   await page.goto('/?screen=sidebar');
