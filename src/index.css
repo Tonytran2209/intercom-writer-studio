@@ -2760,8 +2760,6 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .onboarding-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .onboarding-actions { display: grid; grid-template-columns: auto 1fr auto; gap: .5rem; flex-shrink: 0; padding-top: .5rem; }
 .onboarding-actions button:nth-child(2) { justify-self: end; }
-.sidebar-guide-button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; }
-.sidebar-guide-button:hover { background: #e2e8f0; }
 .sidebar-guide-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .eb-mobile-tools { display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; border-top: 1px solid #e2e8f0; margin-top: .25rem; }
 @media (max-width: 359px) {
