@@ -19,3 +19,22 @@ test('refreshes only unchanged existing specs from the exact pinned base, preser
 });
 test('rejects unpinned/mismatched baseline and leaves source intact',()=>{const f=fixture();try{for(const bad of [undefined,'main','../main','a'.repeat(40)])assert.throws(()=>syncBaselineSpecs(f.root,f.tools,bad));assert.equal(f.read('tests/agent-lab/sidebar-scroll.spec.mjs'),'old locator\n');}finally{f.close();}});
 test('same-head runs have no maintenance overlay or fabricated source commit',()=>{const f=fixture();try{f.git('checkout','-q','--detach',f.base);const manifest=syncBaselineSpecs(f.root,f.tools,f.base);assert.deepEqual(manifest.files,[]);assert.equal(manifest.commit,f.base);}finally{f.close();}});
+
+test('workflow shares one resolved target SHA across all tools checkouts without changing the source pin',()=>{
+ const yaml=readFileSync(new URL('../../.github/workflows/agent-lab-ci.yml',import.meta.url),'utf8');
+ assert.equal((yaml.match(/ref: \$\{\{ needs\.ci-tools\.outputs\.sha \}\}/g)||[]).length,3);
+ assert.equal((yaml.match(/ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/g)||[]).length,3);
+ assert.ok(yaml.includes('CI_BASE_SHA: ${{ needs.ci-tools.outputs.sha }}'));
+ assert.ok(!yaml.includes('github.event.pull_request.base.sha'));
+ assert.ok(yaml.includes("core.setOutput('sha', sha)"));assert.ok(yaml.includes('github.rest.git.getRef'));
+});
+
+test('target resolver reads metadata once for PRs, pins push SHAs directly and rejects invalid API refs',async()=>{
+ const yaml=readFileSync(new URL('../../.github/workflows/agent-lab-ci.yml',import.meta.url),'utf8');
+ const body=yaml.split('          script: |\n')[1].split('  writer-check:')[0].split('\n').filter(Boolean).map(l=>l.slice(12)).join('\n');
+ const invoke=new (Object.getPrototypeOf(async function(){}).constructor)('context','github','core',body);
+ const run=async(eventName,apiSha='b'.repeat(40))=>{const calls=[],outputs=[];await invoke({eventName,sha:'a'.repeat(40),repo:{owner:'trusted',repo:'project'},payload:{pull_request:{base:{ref:'main'}}}},{rest:{git:{getRef:async args=>{calls.push(args);return {data:{object:{sha:apiSha}}};}}}},{setOutput:(k,v)=>outputs.push([k,v]),info(){}});return {calls,outputs};};
+ assert.deepEqual(await run('pull_request'),{calls:[{owner:'trusted',repo:'project',ref:'heads/main'}],outputs:[['sha','b'.repeat(40)]]});
+ for(const event of ['push','workflow_dispatch'])assert.deepEqual(await run(event),{calls:[],outputs:[['sha','a'.repeat(40)]]});
+ await assert.rejects(run('pull_request','main'));
+});

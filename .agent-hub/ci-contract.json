@@ -5,5 +5,5 @@
   "playwrightVersion": "1.64.1",
   "fixtureBootstrap": "tests/agent-lab/bootstrap.jsx",
   "fixtureIsolation": "tests/agent-lab/browser-fixture.mjs",
-  "toolsMode": "pinned-base"
+  "toolsMode": "pinned-target"
 }
