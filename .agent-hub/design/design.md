@@ -22,6 +22,12 @@ The product uses Inter (400/500/600/700), antialiased, with Tailwind utility cla
 - Keep long archive/workspace lists scrollable within their own flex containers. Avoid page-level overflow regressions.
 - Loading, empty, error, and success states are product states, not optional polish; follow `EbWorkingSpace.tsx` patterns.
 
+## Main Input Engine
+
+`InputEngine` in `src/components/EbWorkingSpace.tsx` uses a white pill with a thin gray border and subtle shadow. Document upload is the accessible plus control on the left, topic input is in the middle, and image evidence and the neutral Analyze pill sit on the right. On narrow screens the actions wrap below the input. Long input remains vertically resizable and scrollable; attachment names wrap.
+
+The existing gradient colors, blur, opacity and hover/focus-within transitions are preserved, with the glow radius following the pill. Keyboard focus remains visible. Discovery preparation, validation and image scan/review panels expand outside the pill; their locks, callbacks and evidence workflow are unchanged. Styles are scoped to `.eb-input-engine` in `src/index.css`.
+
 ## Change rule
 
 Before changing visual treatment, inspect the active component plus global light/dark overrides. Do not infer a design token from a screenshot alone.
