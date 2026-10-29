@@ -136,6 +136,44 @@ test('NOTIFICATIONS_OFFLINE system counts and loading-error-recovery rendering c
 });
 
 
+test('NOTIFICATIONS_OFFLINE system totals use the complete workspace despite board filters', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { strict: assert } = await import('node:assert');
+  const ts = (await import('typescript')).default;
+  const source = await readFile('src/components/EbWorkingSpace.tsx', 'utf8');
+  const ast = ts.createSourceFile('EbWorkingSpace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const functions = new Map();
+  let countsExpression;
+  const visit = node => {
+    if (ts.isFunctionDeclaration(node)) functions.set(node.name?.text, node.getText(ast));
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'NotificationPanel') {
+      const counts = node.attributes.properties.find(prop => ts.isJsxAttribute(prop) && prop.name.getText(ast) === 'counts');
+      countsExpression = counts?.initializer?.expression?.getText(ast);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
+  assert.ok(countsExpression, 'The real panel must receive workspace totals');
+  const compiled = ts.transpileModule(
+    `${functions.get('reviewSummary')}\n${functions.get('workspaceStatusCounts')}`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } },
+  ).outputText;
+  const panelCounts = new Function('tasks', 'filteredTasks', 'discoveryIdeas', `${compiled}; return (${countsExpression});`);
+  const tasks = [
+    { gate: 'brief' }, { gate: 'brief' }, { gate: 'article' }, { gate: 'adapt' },
+    { gate: 'review', channels: [{ channel: 'Threads', decision: 'done' }, { channel: 'Facebook', decision: 'reject' }, { channel: 'LinkedIn', decision: 'recheck' }, { channel: 'Threads', decision: null }] },
+  ];
+  const discovery = [{ id: 'saved-1' }, { id: 'saved-2' }, { id: 'saved-3' }];
+  const expected = [2, 1, 1, 2, 1, 1, 3];
+  // Synthetic filtered views deliberately omit gates and review channels.
+  for (const filtered of [[], tasks.slice(0, 1), [{ ...tasks[4], channels: tasks[4].channels.slice(0, 1) }]]) {
+    assert.deepEqual(panelCounts(tasks, filtered, discovery).map(item => item.count), expected);
+  }
+  const refreshed = tasks.map(task => task.gate === 'review' ? { ...task, channels: task.channels.map(channel => ({ ...channel, decision: 'done' })) } : task);
+  assert.deepEqual(panelCounts(refreshed, [], []).map(item => item.count), [2, 1, 1, 0, 4, 0, 0]);
+  assert.deepEqual(panelCounts(tasks, [], discovery).map(item => item.count), expected, 'Refresh must not mutate the prior snapshot');
+});
+
 test('system tab persists through refresh failure and recovery without connection badge', async ({ page }) => {
   let fail = false;
   let release;
