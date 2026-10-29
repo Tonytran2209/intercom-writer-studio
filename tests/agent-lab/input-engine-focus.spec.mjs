@@ -35,7 +35,7 @@ for (const theme of ['light', 'dark']) {
     await expect(topic).toHaveValue('Topic with F source');
     await expect(analyze).toBeEnabled();
     await expectNoStroke();
-    await expect(topic).toHaveCSS('resize', 'y');
+    await expect(topic).toHaveCSS('resize', 'vertical');
     await expect(topic).toHaveCSS('overflow-y', 'auto');
     await expect(engine.locator('.eb-input-row')).toHaveCSS('border-top-width', '1px');
     await expect.poll(() => engine.locator('.eb-input-pill').evaluate(el => getComputedStyle(el, '::before').opacity)).toBe('0.85');
