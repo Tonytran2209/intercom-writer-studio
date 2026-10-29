@@ -2797,9 +2797,16 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   overflow-y: auto;
   line-height: 1.25rem;
 }
+.eb-input-engine .eb-input-topic:focus {
+  outline: none;
+}
+/* Draw file-picker focus on its visible label, including in the dark theme. */
+.eb-input-engine .eb-input-upload input:focus {
+  outline: none !important;
+}
 .eb-input-engine .eb-input-topic:focus-visible,
-.eb-input-engine .eb-input-upload:focus-within {
-  outline: 2px solid #818cf8;
+.eb-input-engine .eb-input-upload:has(input:focus-visible) {
+  outline: 2px solid #64748b;
   outline-offset: 2px;
   border-radius: .75rem;
 }
