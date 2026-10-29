@@ -2797,14 +2797,21 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   overflow-y: auto;
   line-height: 1.25rem;
 }
-.eb-input-engine .eb-input-topic:focus {
-  outline: none;
+/* Override both themes' control focus rules without drawing a textarea stroke. */
+.eb-input-engine .eb-input-topic:focus,
+.eb-input-engine .eb-input-topic:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  background: #f1f5f9 !important;
+  border-radius: .75rem;
+}
+.codex-dark .eb-input-engine .eb-input-topic:focus {
+  background: #303030 !important;
 }
 /* Draw file-picker focus on its visible label, including in the dark theme. */
 .eb-input-engine .eb-input-upload input:focus {
   outline: none !important;
 }
-.eb-input-engine .eb-input-topic:focus-visible,
 .eb-input-engine .eb-input-upload:has(input:focus-visible) {
   outline: 2px solid #64748b;
   outline-offset: 2px;
