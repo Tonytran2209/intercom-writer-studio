@@ -1912,8 +1912,8 @@ function InputEngine({
 }) {
   return (
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
-      <div className="glow-input-container mx-auto max-w-4xl rounded-xl p-px">
-        <div className="rounded-[11px] bg-white p-2 shadow-sm">
+      <div className="mx-auto max-w-4xl">
+        <div className="space-y-2">
           {preparation && (
             <div className="mb-3 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 text-xs">
               <h3 className="font-semibold">Chuẩn bị Gate 1 · {discoveryTag(preparation)}</h3>
@@ -1933,32 +1933,22 @@ function InputEngine({
             onApply={value => preparation ? setFEvidence([fEvidence, value].filter(Boolean).join("\n\n")) : setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))}>
           {imageTrigger => <>
           {inputError && <InputValidationFeedback message={inputError} />}
-          <div className="flex items-start gap-2">
-            <Sparkles className="h-4 w-4 shrink-0 text-indigo-600" />
-            <textarea
-              id="eb-input"
-              disabled={syncing}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              aria-label="Nội dung topic, mối liên hệ với F và nguồn xác nhận"
-              rows={2}
-              placeholder="Nhập topic/câu chuyện, mối liên hệ với F hoặc sự kiện của F, kèm link hay nguồn xác nhận…"
-              className="min-h-12 max-h-40 min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
-            />
-            {imageTrigger}
+          <div className="glow-input-container eb-input-pill">
+          <div className="eb-input-row">
             <label
               title={fileName || "Upload material"}
-              className={`grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border hover:bg-slate-50 ${
+              className={`eb-input-upload relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-full hover:bg-slate-50 ${
                 fileName
                   ? "border-indigo-200 bg-indigo-50 text-indigo-600"
                   : "border-slate-200 text-slate-500"
               }`}
             >
-              <Upload className="h-3.5 w-3.5" />
+              <span aria-hidden="true" className="text-2xl leading-none">+</span>
               <input
                 type="file"
                 disabled={syncing || Boolean(preparation)}
-                className="hidden"
+                aria-label="Upload material"
+                className="sr-only"
                 accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md"
                 onChange={(event) => {
                   const next = event.target.files?.[0] ?? null
@@ -1967,17 +1957,32 @@ function InputEngine({
                 }}
               />
             </label>
+            <textarea
+              id="eb-input"
+              disabled={syncing}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              aria-label="Nội dung topic, mối liên hệ với F và nguồn xác nhận"
+              rows={1}
+              placeholder="Nhập topic/câu chuyện, mối liên hệ với F hoặc sự kiện của F, kèm link hay nguồn xác nhận…"
+              className="eb-input-topic min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 placeholder:text-slate-400"
+            />
+            <div className="eb-input-actions">
+            {imageTrigger}
             <button
               disabled={syncing || (!input.trim() && !fileName)}
               onClick={analyze}
               title="Kiểm tra thông tin và chạy Gate 1"
               aria-label="Kiểm tra thông tin và chạy Gate 1"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white disabled:opacity-40"
+              className="eb-input-analyze flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40"
             >
-              <ArrowUp className="h-3.5 w-3.5" />
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              <span>Analyze</span>
             </button>
+            </div>
           </div>
-          {(syncing || fileName) && <p className="mt-1 px-1 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : `Đã đính kèm: ${fileName}`}</p>}
+          </div>
+          {(syncing || fileName) && <p className="mt-1 break-all px-3 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : `Đã đính kèm: ${fileName}`}</p>}
           </>}
           </EvidenceImageInput>
         </div>

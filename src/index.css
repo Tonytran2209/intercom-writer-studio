@@ -2773,3 +2773,48 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   .onboarding-dialog { padding: .75rem; }
   .onboarding-content { padding-block: .75rem; }
 }
+
+/* Main Input Engine: keep expanded evidence and validation outside the pill. */
+.eb-input-engine .eb-input-pill { border-radius: 2rem; }
+.eb-input-engine .eb-input-pill::before { border-radius: inherit; }
+.eb-input-engine .eb-input-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+  padding: .625rem .75rem;
+  border: 1px solid #d8dbe0;
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 10%);
+}
+.eb-input-engine .eb-input-topic {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 10rem;
+  padding: .625rem .25rem;
+  border: 0;
+  overflow-y: auto;
+  line-height: 1.25rem;
+}
+.eb-input-engine .eb-input-topic:focus-visible,
+.eb-input-engine .eb-input-upload:focus-within {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+  border-radius: .75rem;
+}
+.eb-input-engine .eb-input-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+.eb-input-engine .eb-input-actions > button:first-child {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 9999px;
+}
+.eb-input-engine .eb-input-actions > button:first-child svg { width: 1.125rem; height: 1.125rem; }
+.eb-input-engine .eb-input-analyze { background: #f3f4f6; color: #202124; }
+.eb-input-engine .eb-input-analyze:hover:not(:disabled) { background: #e5e7eb; }
+@media (max-width: 480px) {
+  .eb-input-engine .eb-input-row { flex-wrap: wrap; gap: .375rem; padding: .5rem; }
+  .eb-input-engine .eb-input-topic { flex-basis: calc(100% - 3.5rem); }
+  .eb-input-engine .eb-input-actions { margin-left: auto; }
+}
