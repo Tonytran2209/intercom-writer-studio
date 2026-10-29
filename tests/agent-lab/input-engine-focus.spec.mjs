@@ -2,7 +2,7 @@ import { test, expect, setTheme } from './browser-fixture.mjs';
 
 // Synthetic empty workspace exercises real controls; this is not a production reproduction.
 for (const theme of ['light', 'dark']) {
-  test(`Input Engine focus without textarea stroke: ${theme}`, async ({ page }) => {
+  test(`Input Engine stable background without textarea stroke: ${theme}`, async ({ page }) => {
     await page.route('**/api/**', route => {
       if (new URL(route.request().url()).pathname.endsWith('/workspace')) {
         return route.fulfill({ json: { packages: [], runs: [], articles: [], channels: [], discovery: [] } });
@@ -17,8 +17,9 @@ for (const theme of ['light', 'dark']) {
     const analyze = engine.getByRole('button', { name: 'Kiểm tra thông tin và chạy Gate 1', exact: true });
     await expect(upload).toBeEnabled();
     await expect(analyze).toBeDisabled();
-    const idleBackground = await topic.evaluate(el => getComputedStyle(el).backgroundColor);
+    await expect(topic).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     async function expectNoStroke() {
+      await expect(topic).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
       await expect(topic).toHaveCSS('outline-style', 'none');
       await expect(topic).toHaveCSS('box-shadow', 'none');
       for (const side of ['top', 'right', 'bottom', 'left']) {
@@ -29,8 +30,6 @@ for (const theme of ['light', 'dark']) {
     await expectNoStroke();
     await topic.click();
     await expectNoStroke();
-    await expect(topic).toHaveCSS('background-color', theme === 'light' ? 'rgb(241, 245, 249)' : 'rgb(48, 48, 48)');
-    expect(await topic.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(idleBackground);
     await topic.pressSequentially('Topic with F source');
     await expect(topic).toHaveValue('Topic with F source');
     await expect(analyze).toBeEnabled();
@@ -51,7 +50,6 @@ for (const theme of ['light', 'dark']) {
     await upload.press('Tab');
     await expect(topic).toBeFocused();
     await expectNoStroke();
-    await expect(topic).toHaveCSS('background-color', theme === 'light' ? 'rgb(241, 245, 249)' : 'rgb(48, 48, 48)');
     await expect(topic).toHaveValue('Topic with F source');
     await topic.fill('');
     await expect(analyze).toBeDisabled();
