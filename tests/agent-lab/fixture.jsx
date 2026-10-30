@@ -30,5 +30,14 @@ function SettingsFixture(){
  const [saved,setSaved]=useState(null);
  return <><output data-testid="saved-settings">{JSON.stringify(saved)}</output>{open?<ConfigModal config={DEFAULT_CONFIG} files={settingsFiles} articles={[]} onSave={(config,files)=>setSaved({config,files})} onClose={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Reopen settings</button>}</>;
 }
+// Brand review uses real components without connecting to production services.
+function BrandFixture(){
+ const [settings,setSettings]=useState(false);
+ return <div className="writer-light writer-app h-dvh flex flex-col overflow-hidden md:flex-row">
+  <EbSidebar onOpenSettings={()=>setSettings(true)} onNewPackage={()=>window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'new'}))} onOpenDiscovery={()=>window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'}))}/>
+  <EbWorkingSpace config={DEFAULT_CONFIG}/>
+  {settings && <ConfigModal config={DEFAULT_CONFIG} files={[]} articles={[]} onSave={()=>{}} onClose={()=>setSettings(false)}/>}
+ </div>;
+}
 const screen=new URLSearchParams(location.search).get('screen');
-mountFixture(screen==='onboarding'?<StrictMode><App/></StrictMode>:screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>);
+mountFixture(screen==='brand'?<BrandFixture/>:screen==='onboarding'?<StrictMode><App/></StrictMode>:screen==='settings'?<SettingsFixture/>:screen==='sidebar'?<SidebarFixture/>:screen==='eb'?<EbWorkingSpace config={DEFAULT_CONFIG}/>:<Fixture/>);

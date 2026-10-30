@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import './settings-interactions.css'
+import './flearning-theme.css'
 import { LanguageProvider } from './lib/i18n'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

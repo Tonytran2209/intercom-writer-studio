@@ -1,0 +1,120 @@
+/* Product layout from DESIGN.md; brand values from Flearning's supplied assets.
+   Loaded last in production and browser fixtures to supersede legacy palettes. */
+:root {
+  --f-orange: #ff9333;
+  --f-orange-soft: #ffeada;
+  --f-yellow-soft: #fff6dd;
+  --f-purple-soft: #eee9ff;
+  --f-green-soft: #e2f3e6;
+  --f-blue-soft: #e5f7ff;
+  /* Neutral 50 follows the source label, pending the source-file discrepancy. */
+  --f-canvas: #ffffff;
+  --f-sidebar: #fcf8f3;
+  --f-ink: #202833;
+  --f-muted: #595959;
+  --f-border: #d9dde3;
+  --f-control-border: #767676;
+  --f-link: #8a3d00;
+  --f-hover: #f2eee8;
+  --f-radius: 10px;
+  --f-heading: 'Rethink Sans', 'Inter', Arial, sans-serif;
+  --f-body: 'Inter', Arial, sans-serif;
+}
+html, body, #root { background: var(--f-canvas) !important; color: var(--f-ink); }
+.writer-light { font-family: var(--f-body); color: var(--f-ink); background: var(--f-canvas); }
+.writer-app { gap: 0; padding: 0; background: var(--f-canvas) !important; }
+.writer-app > div { min-width: 0; }
+.writer-light h1, .writer-light h2, .writer-light h3, .writer-light h4 {
+  font-family: var(--f-heading); font-weight: 600; letter-spacing: 0;
+}
+.writer-light h1 { font-size: 28px; line-height: 1.286; }
+.writer-light h2 { line-height: 1.444; }
+.writer-light main, .writer-light .eb-workspace { background: var(--f-canvas) !important; color: var(--f-ink) !important; }
+.writer-light .eb-workspace { border: 0; border-radius: 0; box-shadow: none; }
+.writer-light .eb-workspace > header { min-height: 52px; border-color: var(--f-border); padding-inline: 24px; }
+.writer-light .eb-sidebar, .writer-light .writer-sidebar {
+  background: var(--f-sidebar) !important; border: 0; border-right: 1px solid var(--f-border) !important;
+  border-radius: 0; box-shadow: none; color: var(--f-muted) !important;
+}
+.writer-light .eb-sidebar > div:first-child > div:first-child { padding: 6px 6px 18px; background: transparent; }
+.brand-wordmark { display: block; width: 160px; height: 35px; max-width: none; object-fit: contain; }
+.writer-light .eb-sidebar button.h-8, .writer-light .sidebar-nav { min-height: 36px; border-radius: var(--f-radius); }
+.writer-light .eb-sidebar button.is-active, .writer-light .sidebar-recent-card:has(.font-semibold) {
+  background: var(--f-orange-soft) !important; color: var(--f-ink) !important;
+}
+.writer-light .eb-sidebar button:hover, .writer-light .sidebar-nav:hover { background: var(--f-hover); color: var(--f-ink); }
+.writer-light .eb-sidebar button.is-active > svg { color: var(--f-link); }
+.writer-light .eb-mobile-nav { background: var(--f-sidebar); border-radius: 0; border: 0; border-bottom: 1px solid var(--f-border); box-shadow: none; }
+.writer-light :is(.text-slate-400, .text-slate-500, .text-slate-600) { color: var(--f-muted) !important; }
+.writer-light :is(.text-slate-700, .text-slate-800, .text-slate-900) { color: var(--f-ink) !important; }
+.writer-light :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--f-ink) !important; outline-offset: 3px; box-shadow: none !important;
+}
+.writer-light :is(input, textarea, select):not([type=checkbox]):not([type=radio]) {
+  border-color: var(--f-control-border) !important; color: var(--f-ink) !important;
+  font-family: var(--f-body); accent-color: var(--f-orange);
+}
+.writer-light :is(input, textarea)::placeholder { color: var(--f-muted) !important; opacity: 1; }
+.writer-light :is(input[type=checkbox], input[type=radio]) { accent-color: var(--f-link); }
+/* Explicit action classes avoid changing status indicators and chart swatches. */
+.writer-light button:is(.bg-indigo-600, .bg-violet-600, .bg-blue-600, .bg-slate-900),
+.writer-light .eb-workspace button.bg-indigo-600,
+.writer-light .minimal-step button:is(.bg-slate-900, .bg-indigo-600, .bg-emerald-600),
+.writer-light .onboarding-dialog .onboarding-primary,
+.writer-light .eb-input-analyze {
+  background: var(--f-orange) !important; color: var(--f-ink) !important;
+  border: 1px solid var(--f-control-border) !important; border-radius: var(--f-radius); font-weight: 600;
+}
+.writer-light button:is(.bg-indigo-600, .bg-violet-600, .bg-blue-600, .bg-slate-900):hover:not(:disabled),
+.writer-light .eb-workspace button.bg-indigo-600:hover:not(:disabled),
+.writer-light .eb-input-analyze:hover:not(:disabled),
+.writer-light .onboarding-dialog .onboarding-primary:hover { background: var(--f-orange) !important; color: var(--f-ink) !important; text-decoration: underline; }
+.writer-light button:is(.bg-indigo-600, .bg-violet-600, .bg-blue-600, .bg-slate-900):disabled,
+.writer-light .eb-workspace button.bg-indigo-600:disabled,
+.writer-light .eb-input-analyze:disabled {
+  background: var(--f-orange-soft) !important; color: var(--f-muted) !important; opacity: 1; cursor: not-allowed;
+}
+.writer-light .glow-input-container::before { display: none; }
+.writer-light .eb-input-engine .eb-input-row {
+  border: 1px solid var(--f-control-border); border-radius: 24px;
+  background: var(--f-sidebar); box-shadow: none;
+}
+.writer-light .eb-input-engine .eb-input-row:focus-within { outline: 2px solid var(--f-ink); outline-offset: 3px; }
+.writer-light .eb-input-engine .eb-input-topic { border: 0 !important; background: transparent !important; outline: none !important; }
+.writer-light .eb-input-engine .eb-input-topic:focus-visible { outline: none !important; }
+.writer-light .composer-textarea { background: transparent !important; }
+.writer-light .minimal-step-shell, .writer-light .step-choice-card, .writer-light .outline-card {
+  border-color: var(--f-border) !important; border-radius: 14px; box-shadow: none;
+}
+.writer-light .workflow-rail-button.is-active .workflow-rail-marker { border-color: var(--f-link); background: var(--f-orange-soft); }
+.writer-light .draft-insight-tab.is-active { background: var(--f-orange-soft); color: var(--f-ink); }
+.writer-light .minimal-settings {
+  --settings-sidebar: var(--f-sidebar); --settings-card-subtle: var(--f-sidebar);
+  --settings-control: var(--f-hover); --settings-text: var(--f-ink); --settings-muted: var(--f-muted);
+  --settings-faint: var(--f-muted); --settings-border: var(--f-border);
+}
+.writer-light .minimal-settings .settings-nav-item.is-active { background: var(--f-orange-soft) !important; }
+.writer-light .minimal-settings .settings-content :is(input, textarea, select) { border-color: var(--f-control-border) !important; }
+.writer-light .eb-workspace :is(.demo-column-blue, .gate-blue) { background: var(--f-blue-soft) !important; border-color: var(--f-border) !important; }
+.writer-light .eb-workspace :is(.demo-column-amber, .gate-amber) { background: var(--f-yellow-soft) !important; border-color: var(--f-border) !important; }
+.writer-light .eb-workspace :is(.demo-column-purple, .gate-purple) { background: var(--f-purple-soft) !important; border-color: var(--f-border) !important; }
+.writer-light .eb-workspace :is(.demo-column-emerald, .gate-emerald) { background: var(--f-green-soft) !important; border-color: var(--f-border) !important; }
+@media (max-width: 767px) {
+  .writer-light .eb-workspace > header { padding-inline: 16px; }
+  .writer-light .eb-mobile-nav > button { min-height: 44px; }
+  .writer-light .eb-mobile-tools button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .writer-light *, .writer-light *::before, .writer-light *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+.writer-light .minimal-settings button.bg-indigo-600,
+.writer-light .minimal-settings .settings-footer button.bg-indigo-600,
+.writer-light .minimal-settings .settings-footer button.bg-indigo-600:hover {
+  background: var(--f-orange) !important; color: var(--f-ink) !important;
+  border: 1px solid var(--f-control-border) !important;
+}
+.writer-light .eb-input-engine > .max-w-4xl { max-width: 768px; }
+.writer-light .eb-sidebar button.h-8, .writer-light .sidebar-nav { font-size: 14px; }
+.writer-light .eb-workspace :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: 12px; }
+
+.writer-light .eb-mobile-nav button.is-active { background: var(--f-orange-soft); color: var(--f-ink); }

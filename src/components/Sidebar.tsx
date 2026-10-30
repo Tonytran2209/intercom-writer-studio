@@ -94,6 +94,7 @@ export default function Sidebar({
             onClick={() => setOpen((value) => !value)}
             className="sidebar-icon-button md:hidden"
             aria-label={tr("Mở menu", "Open menu")}
+            aria-expanded={open}
           >
             <Menu className="app-icon" aria-hidden="true" />
           </button>

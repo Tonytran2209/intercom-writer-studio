@@ -3,6 +3,8 @@ import {createRoot} from 'react-dom/client';
 import {LanguageProvider} from '../../src/lib/i18n';
 import '../../src/index.css';
 import '../../src/codex-theme.css';
+import '../../src/settings-interactions.css';
+import '../../src/flearning-theme.css';
 // Match the real App ancestor while allowing explicit light/dark regression scenarios.
 export function mountFixture(children){
  const theme=new URLSearchParams(location.search).get('theme')||'light';
