@@ -1808,7 +1808,7 @@ function EvidenceImageInput({ model, disabled, onApply, children }: {
   const request = useRef<AbortController | null>(null)
   const version = useRef(0)
   useEffect(() => () => { version.current++; request.current?.abort() }, [])
-  useEffect(() => { version.current++; request.current?.abort(); setBusy(false) }, [model?.id, model?.provider, disabled])
+  useEffect(() => { version.current++; request.current?.abort(); setBusy(false); dragDepth.current = 0; setDragging(false) }, [model?.id, model?.provider, disabled])
   async function scan() {
     if (!file || !model || disabled || busy) return
     const current = ++version.current
@@ -1844,25 +1844,25 @@ function EvidenceImageInput({ model, disabled, onApply, children }: {
     <ImagePlus aria-hidden="true" className="h-3.5 w-3.5" />
   </button>
   return <div className={dragging ? "rounded-lg outline-2 outline-offset-2 outline-indigo-500" : undefined}
-    onDragEnter={children ? event => {
+    onDragEnter={event => {
       if (!event.dataTransfer.types.includes("Files")) return
       event.preventDefault(); dragDepth.current++
       if (!disabled) setDragging(true)
-    } : undefined}
-    onDragOver={children ? event => {
+    }}
+    onDragOver={event => {
       if (!event.dataTransfer.types.includes("Files")) return
       event.preventDefault(); event.dataTransfer.dropEffect = disabled ? "none" : "copy"
-    } : undefined}
-    onDragLeave={children ? event => {
+    }}
+    onDragLeave={event => {
       if (!event.dataTransfer.types.includes("Files")) return
       event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1)
       if (!dragDepth.current) setDragging(false)
-    } : undefined}
-    onDrop={children ? event => {
+    }}
+    onDrop={event => {
       if (!event.dataTransfer.types.includes("Files")) return
       event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragging(false)
       receiveFiles(event.dataTransfer.files)
-    } : undefined}>
+    }}>
     {children && input}
     {(!children || file || error) && <div className="my-2 space-y-2 rounded-lg border border-slate-200 p-2 text-xs">
     {!children && <label className="block">Ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB){input}</label>}
@@ -2641,14 +2641,20 @@ function TaskDetail({
                 <h3 className="text-xs font-bold text-slate-800">
                   Source & evidence
                 </h3>
-                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading} className="mt-3 space-y-3">
+                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading} className="mt-2 space-y-2">
                   <label className="block text-xs text-slate-600">Mối liên hệ với F
-                    <textarea value={briefFields.fConnection} onChange={event => setBriefFields(current => ({ ...current, fConnection: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-slate-200 p-2" />
+                    <textarea value={briefFields.fConnection} onChange={event => setBriefFields(current => ({ ...current, fConnection: event.target.value }))} className="mt-1 block min-h-12 w-full rounded-lg border border-slate-200 px-2 py-1.5" rows={2} />
                   </label>
-                  <label className="block text-xs text-slate-600">Dẫn chứng / nguồn xác nhận tại F
-                    <textarea value={briefFields.fEvidence} onChange={event => setBriefFields(current => ({ ...current, fEvidence: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-slate-200 p-2" />
-                  </label>
-                  <EvidenceImageInput key={task.id} model={model} disabled={approvalDisabled || briefSaving || loading} onApply={value => setBriefFields(current => ({ ...current, fEvidence: [current.fEvidence, value].filter(Boolean).join("\n\n") }))} />
+                  <EvidenceImageInput key={task.id} model={model} disabled={approvalDisabled || briefSaving || loading} onApply={value => setBriefFields(current => ({ ...current, fEvidence: [current.fEvidence, value].filter(Boolean).join("\n\n") }))}>
+                    {trigger => <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <label htmlFor="brief-f-evidence" className="text-xs text-slate-600">Dẫn chứng / nguồn xác nhận tại F</label>
+                        {trigger}
+                      </div>
+                      <textarea id="brief-f-evidence" value={briefFields.fEvidence} onChange={event => setBriefFields(current => ({ ...current, fEvidence: event.target.value }))} rows={2} className="block min-h-12 w-full resize-y rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
+                      <p className="text-[10px] text-slate-500">Chọn hoặc thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB.</p>
+                    </div>}
+                  </EvidenceImageInput>
                   <button disabled={!briefFields.fConnection.trim() || !briefFields.fEvidence.trim() || briefSaving || approvalDisabled} onClick={async () => {
                     if (briefSaving) return
                     setBriefSaving(true)
@@ -2656,6 +2662,8 @@ function TaskDetail({
                   }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{briefSaving ? "Đang kiểm tra và chạy lại…" : "Lưu và chạy lại brief"}</button>
                   <p className="text-xs text-slate-500">Kiểm tra đầy đủ trước khi lưu. Chỉ duyệt sau khi brief mới hoàn tất.</p>
                 </fieldset>}
+                <details key={task.id} open={task.gate === "brief" ? undefined : true} className="mt-2">
+                  <summary className="cursor-pointer rounded text-[10px] text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Source snapshots ({sources.length})</summary>
                 {sources.length ? (
                   sources.map((source: any) => (
                     <div
@@ -2675,6 +2683,7 @@ function TaskDetail({
                     No source snapshot has been saved yet.
                   </p>
                 )}
+                </details>
               </section>
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
                 <h3 className="text-xs font-bold text-slate-800">

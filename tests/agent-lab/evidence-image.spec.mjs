@@ -39,17 +39,30 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   await scope.evaluate((element,files)=>{
    const transfer=new DataTransfer();
    for(const file of files)transfer.items.add(new File([new Uint8Array(file.size??1)],file.name,{type:file.type}));
-   for(const type of ['dragenter','dragover','drop'])element.querySelector('#eb-input').dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:transfer}));
+   for(const type of ['dragenter','dragover','drop'])element.querySelector('#brief-f-evidence, #eb-input').dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:transfer}));
   },files);
  }
- if(target!=='popup'){
+ const dropTarget=scope.locator(target==='popup'?'#brief-f-evidence':'#eb-input');
+ if(target==='popup'){
+  await expect(scope.getByText('Source snapshots (0)',{exact:true})).toBeVisible();
+  await expect(scope.getByText('Source snapshots (0)',{exact:true}).locator('..')).not.toHaveAttribute('open');
+  await scope.getByText('Source snapshots (0)',{exact:true}).click();
+  await expect(dropTarget).toBeVisible();
+ }
+ {
   await expect(scope.getByText('Nêu rõ liên hệ với F/sự kiện của F và nguồn xác nhận trong cùng nội dung.',{exact:true})).toHaveCount(0);
   await expect(scope.getByText('Chọn icon ảnh hoặc kéo thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB.',{exact:true})).toHaveCount(0);
   await expect(scope.getByRole('status')).toHaveCount(0);
-  await scope.locator('#eb-input').dispatchEvent('dragenter',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  await dropTarget.dispatchEvent('dragenter',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
   await expect(scope.getByRole('status')).toHaveText('Thả một ảnh dẫn chứng tại đây');
-  await scope.locator('#eb-input').dispatchEvent('dragleave',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  // A child transition must not clear the wrapper highlight.
+  await scope.getByRole('button',{name:'Chọn ảnh dẫn chứng',exact:true}).dispatchEvent('dragenter',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  await scope.getByRole('button',{name:'Chọn ảnh dẫn chứng',exact:true}).dispatchEvent('dragleave',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
+  await expect(scope.getByRole('status')).toHaveText('Thả một ảnh dẫn chứng tại đây');
+  await dropTarget.dispatchEvent('dragleave',{dataTransfer:await page.evaluateHandle(()=>{const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'drag.png',{type:'image/png'}));return transfer;})});
   await expect(scope.getByRole('status')).toHaveCount(0);
+  const nativeTextDrop=await dropTarget.evaluate(element=>{const transfer=new DataTransfer();transfer.setData('text/plain','text fixture');return element.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer}));});
+  expect(nativeTextDrop).toBe(true);
   const trigger=scope.getByRole('button',{name:'Chọn ảnh dẫn chứng',exact:true});
   await expect(trigger).toHaveAttribute('title',/PNG/);
   await trigger.focus();
@@ -63,6 +76,11 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   await expect(scope.getByRole('alert').filter({hasText:'một ảnh'})).toContainText('một ảnh');
   expect(calls).toBe(0);
  }
+ const destination=target==='discovery'?scope.getByRole('textbox',{name:'Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)',exact:true}):target==='input'?scope.getByRole('textbox',{name:'Nội dung topic, mối liên hệ với F và nguồn xác nhận'}):scope.getByRole('textbox',{name:'Dẫn chứng / nguồn xác nhận tại F',exact:true});
+ await destination.fill('Existing source text');
+ await drop([{name:'dropped.webp',type:'image/webp'}]);
+ await expect(scope.getByText('Ảnh dẫn chứng: dropped.webp',{exact:true})).toBeVisible();
+ expect(calls).toBe(0);
  const upload=scope.getByLabel('Ảnh dẫn chứng',{exact:true});
  await upload.setInputFiles(image);
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
@@ -71,16 +89,15 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
  const draft=scope.getByRole('textbox',{name:'Dẫn chứng từ ảnh',exact:true});
  await expect(draft).toHaveValue('Visible source fixture');
+ await expect(destination).toHaveValue('Existing source text');
  await draft.fill('Human confirmed source');
  await scope.getByRole('button',{name:'Dùng dẫn chứng',exact:true}).click();
- const destination=target==='discovery'?scope.getByRole('textbox',{name:'Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)',exact:true}):target==='input'?scope.getByRole('textbox',{name:'Nội dung topic, mối liên hệ với F và nguồn xác nhận'}):scope.getByRole('textbox',{name:'Dẫn chứng / nguồn xác nhận tại F',exact:true});
- await expect(destination).toHaveValue(/Human confirmed source/);
+ await expect(destination).toHaveValue(target==='input'?'Existing source text\n\nDẫn chứng / nguồn từ ảnh:\nHuman confirmed source':'Existing source text\n\nHuman confirmed source');
  hold=true;
  await scope.getByRole('button',{name:'Quét dẫn chứng',exact:true}).click();
  await expect.poll(()=>calls).toBe(3);
- if(target==='popup')await upload.setInputFiles({...image,name:'replacement.png'});
- else await drop([{name:'replacement.png',type:'image/png'}]);
+ await drop([{name:'replacement.png',type:'image/png'}]);
  release();
  await expect(draft).toHaveCount(0);
- await expect(destination).toHaveValue(/Human confirmed source/);
+ await expect(destination).toHaveValue(target==='input'?'Existing source text\n\nDẫn chứng / nguồn từ ảnh:\nHuman confirmed source':'Existing source text\n\nHuman confirmed source');
 });

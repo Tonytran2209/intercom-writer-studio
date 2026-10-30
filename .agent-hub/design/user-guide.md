@@ -26,7 +26,7 @@ Hướng dẫn này mô tả EB V2 đang được `src/App.tsx` mở mặc đị
 4. Nếu xuất hiện **Cần bổ sung**, hoàn thiện các mục hiển thị, mở **Xem chi tiết** khi cần rồi gửi lại. Duyệt rủi ro hay bấm lại nhiều lần không thay thế thông tin còn thiếu.
 
 ## 3. Nhập ảnh để AI đọc Source & evidence
-- Trong InputEngine, chọn **icon ảnh cạnh upload tài liệu**, hoặc kéo thả ảnh vào vùng input. Trong popup Gate 1 → **Source & evidence**, dùng ô chọn ảnh dẫn chứng.
+- Trong InputEngine, chọn **icon ảnh cạnh upload tài liệu**, hoặc kéo thả ảnh vào vùng input. Trong popup Gate 1 → **Source & evidence**, bấm **icon ảnh cạnh trường dẫn chứng** hoặc kéo thả ảnh vào vùng dẫn chứng. Phần quét/kết quả chỉ mở khi có ảnh hoặc lỗi.
 - Chọn **một ảnh PNG/JPEG/WebP, tối đa 15 MiB mỗi lần**. Chọn ảnh không đồng nghĩa đã dùng nó làm dẫn chứng.
 - Bấm **Quét dẫn chứng**, đọc và sửa ô **Dẫn chứng từ ảnh**, sau đó bấm **Dùng dẫn chứng**.
 - Với input thường, text đã xác nhận được nối vào nội dung topic. Với phần chuẩn bị từ Discovery hoặc popup Gate 1, text được đưa vào trường dẫn chứng của ngữ cảnh đó.
@@ -35,6 +35,7 @@ Hướng dẫn này mô tả EB V2 đang được `src/App.tsx` mở mặc đị
 
 ## 4. Gate 1: xem, sửa nguồn và duyệt brief
 - Mở thẻ brief để xem kết quả, **Mối liên hệ với F** và **Dẫn chứng / nguồn xác nhận tại F** từ snapshot của task.
+- Hai ô nguồn hiển thị gọn và có thể kéo giãn; mở **Source snapshots** để đọc snapshot đã lưu, không làm mất nội dung đang sửa.
 - Sửa các trường rồi chọn **Lưu và chạy lại brief** khi cần. Validation diễn ra trước khi lưu/chạy; lỗi giữ lại giá trị để sửa.
 - Sau khi brief mới chạy thành công, đọc lại rồi chọn **Approve brief** từ thẻ hoặc popup. Bước này tạo Website article ở Gate 2.
 - Khi đang chạy lại hoặc lần chạy mới thất bại, brief cũ không đủ điều kiện duyệt thay cho lần mới. Sau lỗi mạng, refresh workspace để xem trạng thái đã lưu trước khi thử lại.
