@@ -1237,7 +1237,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
   const [collapsing, setCollapsing] = useState(false)
   const remaining = useRef(6000)
   const timerKey = useRef("")
-  const bannerRef = useRef<HTMLElement>(null)
+  const bannerRef = useRef<HTMLDivElement>(null)
   // Sort detail records so a different API ordering is not a content change.
   const snapshot = JSON.stringify(notices.map(notice => ({
     id: notice.id, text: notice.text, kind: notice.kind ?? (notice.error ? "error" : "warning"),
@@ -1283,7 +1283,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
     return () => window.clearTimeout(timer)
   }, [collapsing, key])
   if (!active) return null
-  return <aside ref={bannerRef} className={`workspace-notification${collapsing ? " is-collapsing" : ""}`}
+  return <div ref={bannerRef} className={`workspace-notification${collapsing ? " is-collapsing" : ""}`}
     aria-label="Thông báo mới" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
@@ -1294,7 +1294,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
       if (bannerRef.current?.contains(document.activeElement)) onCollapseFocus()
       setCollapsing(true)
     }}><X size={16} /></button>
-  </aside>
+  </div>
 }
 
 function workspaceStatusCounts(tasks: Task[], discovery: number) {

@@ -516,6 +516,20 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
   }
 });
 
+test('banner live status stays separate from task detail and image evidence statuses', async ({page}) => {
+  const data = {packages:[{id:'banner-popup',title:'Banner popup fixture',state:'brief'}],articles:[],runs:[],discovery:[{id:'lead',title:'Synthetic lead',status:'suggested'}],channels:[]};
+  await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
+  await page.route('**/api/eb-v2/activity/*',route=>route.fulfill({json:{inputs:[],runs:[],articles:[],channels:[],feedback:[],actions:[]}}));
+  await page.clock.install();
+  await page.goto('/?screen=eb');
+  const banner = page.locator('.workspace-notification');
+  await expect(banner.getByRole('status')).toBeVisible();
+  await page.getByRole('button',{name:'Open task: Banner popup fixture',exact:true}).click();
+  await expect(page.locator('aside')).toHaveCount(1);
+  await expect(page.locator('aside').getByRole('status')).toHaveCount(0);
+  await expect(banner.getByRole('status')).toBeVisible();
+});
+
 for (const theme of ['light', 'dark']) test(`banners collapse into bell history, pause and do not replay unchanged refresh (${theme})`, async ({page}) => {
   const data = {packages:[],articles:[],runs:[],discovery:[{id:'lead',title:'Synthetic lead',status:'suggested'}],channels:[]};
   await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
