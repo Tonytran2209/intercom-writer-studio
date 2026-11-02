@@ -370,6 +370,12 @@ test('operation errors enter notification details once and survive refresh', asy
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
   };
+  // Use an enabled synthetic model so approval reaches the intercepted API failure,
+  // rather than stopping at the real missing-model validation guard.
+  await page.evaluate(async () => {
+    const {DEFAULT_CONFIG, DEFAULT_MODELS} = await import('/src/lib/defaultData.ts');
+    DEFAULT_CONFIG.models = [{...DEFAULT_MODELS[0], id:'notification-test-model', enabled:true}];
+  });
   await page.getByRole('button',{name:'Approve brief',exact:true}).click();
   await assertEvent(/Synthetic approval/,1);
   const card = page.locator('article').filter({has:page.getByRole('button',{name:'Open task: Synthetic review',exact:true})});
