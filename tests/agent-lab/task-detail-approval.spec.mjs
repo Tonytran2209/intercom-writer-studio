@@ -33,10 +33,10 @@ function harness({gate='brief', models=true, status='ready', type, shell=false}=
   fetchEbV2Workspace:async()=>{state.calls.push(['workspace']);return {};},
  };
  const js=ts.transpileModule([declaration('selectedModel'),declaration('canApproveTask'),declaration('approveTask'),'return approveTask;'].join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
- const names=['tasks','syncing','config','approvalLock','isShellMode','db','workspaceTasks','setTasks','setApprovalError','setApprovalPending','setSyncing','setRuntimeError'];
+ const names=['tasks','syncing','config','approvalLock','isShellMode','db','workspaceTasks','setTasks','setApprovalError','setApprovalPending','setSyncing','setRuntimeError','reportOperationError'];
  const approve=new Function(...names,js)(state.tasks,false,config,lock,shell,db,data=>data.tasks??[],
   update=>{state.tasks=typeof update==='function'?update(state.tasks):update;},
-  value=>{state.error=value;},value=>{state.pending=value;},value=>{state.syncing=value;},value=>{state.runtime=value;});
+  value=>{state.error=value;},value=>{state.pending=value;},value=>{state.syncing=value;},value=>{state.runtime=value;},(_context,message)=>{state.runtime=message;});
  return {state,task,db,approve,lock};
 }
 for (const gate of ['brief','article']) {
