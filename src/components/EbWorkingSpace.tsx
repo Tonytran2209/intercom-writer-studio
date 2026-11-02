@@ -990,6 +990,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   }))
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
+      <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span className="font-semibold text-slate-800">Content Engine</span>
@@ -1221,6 +1222,79 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </>
     </main>
   )
+}
+
+// Presentation only: the bell remains the source of history and details.
+export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocus }: {
+  notices: Array<{ id: string; text: string; details: NotificationDetail[]; kind?: string; error?: boolean }>
+  confirmed: boolean
+  onCollapseFocus: () => void
+}) {
+  const seen = useRef(new Map<string, string>())
+  const [queue, setQueue] = useState<Array<{ id: string; text: string; kind?: string; fingerprint: string }>>([])
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [collapsing, setCollapsing] = useState(false)
+  const remaining = useRef(6000)
+  const timerKey = useRef("")
+  const bannerRef = useRef<HTMLElement>(null)
+  // Sort detail records so a different API ordering is not a content change.
+  const snapshot = JSON.stringify(notices.map(notice => ({
+    id: notice.id, text: notice.text, kind: notice.kind ?? (notice.error ? "error" : "warning"),
+    fingerprint: JSON.stringify([notice.text, notice.kind, notice.error,
+      notice.details.map(detail => JSON.stringify(detail)).sort()]),
+  })))
+  useEffect(() => {
+    const current = JSON.parse(snapshot) as typeof queue
+    const eligible = current.filter(notice => confirmed || notice.id.startsWith("event-"))
+    const changed = eligible.filter(notice => seen.current.get(notice.id) !== notice.fingerprint)
+    for (const notice of changed) seen.current.set(notice.id, notice.fingerprint)
+    setQueue(previous => {
+      const retained = previous.filter(notice =>
+        (!confirmed && !notice.id.startsWith("event-")) || current.some(item => item.id === notice.id))
+      const updated = retained.map(notice => changed.find(item => item.id === notice.id) ?? notice)
+      return [...updated, ...changed.filter(notice => !retained.some(item => item.id === notice.id))]
+    })
+  }, [snapshot, confirmed])
+  const active = queue[0]
+  const key = active ? `${active.id}:${active.fingerprint}` : ""
+  useEffect(() => {
+    if (timerKey.current !== key) {
+      timerKey.current = key
+      remaining.current = 6000
+      setCollapsing(false)
+    }
+    if (!key || hovered || focused) return
+    const started = Date.now()
+    const timer = window.setTimeout(() => setCollapsing(true), remaining.current)
+    return () => {
+      window.clearTimeout(timer)
+      remaining.current = Math.max(0, remaining.current - (Date.now() - started))
+    }
+  }, [key, hovered, focused])
+  useEffect(() => {
+    if (!collapsing) return
+    const timer = window.setTimeout(() => {
+      setQueue(previous => previous.slice(1))
+      setCollapsing(false)
+      setHovered(false)
+      setFocused(false)
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [collapsing, key])
+  if (!active) return null
+  return <aside ref={bannerRef} className={`workspace-notification${collapsing ? " is-collapsing" : ""}`}
+    aria-label="Thông báo mới" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    onFocusCapture={() => setFocused(true)} onBlurCapture={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
+    }}>
+    <span aria-hidden="true" className={`workspace-notification-status is-${active.kind}`}><Bell size={16} /></span>
+    <p role="status" aria-live="polite" aria-atomic="true"><span className="sr-only">{active.kind}: </span>{active.text}</p>
+    <button type="button" aria-label="Thu gọn về chuông" title="Thu gọn về chuông" onClick={() => {
+      if (bannerRef.current?.contains(document.activeElement)) onCollapseFocus()
+      setCollapsing(true)
+    }}><X size={16} /></button>
+  </aside>
 }
 
 function workspaceStatusCounts(tasks: Task[], discovery: number) {
