@@ -1,3 +1,4 @@
+import { test as offlineTest } from '@playwright/test';
 import { test, expect } from './browser-fixture.mjs';
 
 // Synthetic contract scenarios; these do not reproduce production data.
@@ -50,7 +51,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await expect(page.locator('.workspace-notification')).toHaveCount(0);
 });
 
-test('NOTIFICATIONS_OFFLINE session store and all-output review contract', async () => {
+offlineTest('NOTIFICATIONS_OFFLINE session store and all-output review contract', async () => {
   const { readFile } = await import('node:fs/promises');
   const { strict: assert } = await import('node:assert');
   const ts = (await import('typescript')).default;
@@ -79,7 +80,7 @@ test('NOTIFICATIONS_OFFLINE session store and all-output review contract', async
   assert.ok(!source.includes('setTimeout'));
 });
 
-test('NOTIFICATIONS_OFFLINE details use live tasks, all channels and saved Discovery context', async () => {
+offlineTest('NOTIFICATIONS_OFFLINE details use live tasks, all channels and saved Discovery context', async () => {
   const { readFile } = await import('node:fs/promises');
   const { strict: assert } = await import('node:assert');
   const ts = (await import('typescript')).default;
@@ -102,7 +103,7 @@ test('NOTIFICATIONS_OFFLINE details use live tasks, all channels and saved Disco
 });
 
 
-test('NOTIFICATIONS_OFFLINE system counts and loading-error-recovery rendering contract', async () => {
+offlineTest('NOTIFICATIONS_OFFLINE system counts and loading-error-recovery rendering contract', async () => {
   const { readFile } = await import('node:fs/promises');
   const { strict: assert } = await import('node:assert');
   const React = await import('react');
@@ -250,4 +251,154 @@ test('nonempty system counts ignore board filters and update through refresh and
   await assertCounts([3, 6, 9, 6, 3, 3, 12]);
   await expect(panel.getByText('V2 workspace is live.', { exact: true })).toBeVisible();
   await expect(panel.getByText(/counts are unconfirmed/)).toHaveCount(0);
+});
+
+// Full workspace module with mocked React hooks/API boundaries, no function extraction
+// and no browser fixture. These synthetic failures are not production reproductions.
+offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results and connection isolation', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { strict: assert } = await import('node:assert');
+  const ts = (await import('typescript')).default;
+  const jsx = await import('react/jsx-runtime');
+  const source = await readFile('src/components/EbWorkingSpace.tsx', 'utf8');
+  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const slots = [], refs = [], events = [];
+  let cursor = 0, refCursor = 0, tree, failRead = false;
+  const hooks = {
+    useState(initial) {
+      const index = cursor++;
+      if (!(index in slots)) slots[index] = initial;
+      return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }];
+    },
+    useRef(initial) { const index = refCursor++; return refs[index] ??= { current: initial }; },
+    useEffect() {},
+  };
+  const data = { packages: [{ id:'brief', title:'Synthetic brief', state:'brief' }, { id:'review', title:'Synthetic review', state:'review' }], articles:[], runs:[], discovery:[], channels: ['facebook','linkedin'].map((channel, i) => ({id:`c${i}`, package_id:'review', channel, status:'ready', content:{}})) };
+  let reviewCalls = 0;
+  const api = {
+    async fetchEbV2Workspace() { if (failRead) throw new Error('Synthetic connection'); return data; },
+    async runEbV2DiscoveryLive() { throw new Error('Synthetic Discovery'); },
+    async approveEbV2Brief() { throw new Error('Synthetic approval'); },
+    async reviewEbV2Channel(id) {
+      reviewCalls++;
+      if (id === 'c1') throw new Error('Synthetic review');
+      data.channels[0].status = 'done';
+      return data;
+    },
+  };
+  const module = { exports:{} };
+  const dependencies = {
+    'react':hooks, 'react/jsx-runtime':jsx, 'lucide-react':{}, '../lib/db':api,
+    '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},
+    './workspace/WorkspaceNotification':{
+      useWorkspaceNotices:() => events,
+      notifyWorkspace:(message, kind) => events.push({id:events.length + 1, message, kind}),
+    },
+  };
+  new Function('require', 'exports', compiled)(name => {
+    assert.ok(name in dependencies, `Unexpected dependency ${name}`);
+    return dependencies[name];
+  }, module.exports);
+  const config = {stepConfigs:{}, models:[{id:'mock', provider:'mock', enabled:true}]};
+  const render = () => { cursor = 0; refCursor = 0; tree = module.exports.default({config}); };
+  const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+  const find = predicate => { const node = nodes(tree).find(predicate); assert.ok(node, 'Expected workspace element'); return node.props; };
+  const component = name => find(node => node.type?.name === name);
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  const refresh = async () => {
+    find(node => /^(Refresh V2 workspace|Retry V2 connection)$/.test(node.props?.['aria-label'])).onClick();
+    await flush(); render();
+  };
+  render(); await refresh();
+  const group = () => component('GateGroup');
+  const brief = group().tasks[0];
+  group().onBrief(brief); await flush(); render();
+  assert.equal(events.length, 1);
+  assert.match(events[0].message, /Approve brief.*Synthetic brief.*Synthetic approval/);
+  assert.equal(events[0].kind, 'error');
+  assert.ok(nodes(tree).some(n => n.props?.['aria-label'] === 'Refresh V2 workspace'));
+  const review = nodes(tree).find(n => n.type?.name === 'GateGroup' && n.props.gate === 'review').props.tasks[0];
+  group().onDecision(review.id, 'done'); await flush(); render();
+  assert.equal(events.length, 2);
+  assert.equal(reviewCalls, 2);
+  assert.match(events[1].message, /Synthetic review.*Facebook, LinkedIn.*1\/2 review action\(s\) confirmed/);
+  assert.equal(data.channels[0].status, 'done');
+  group().onDecision(review.id, 'done'); await flush(); render();
+  assert.equal(reviewCalls, 3, 'Retry skips the confirmed output');
+  assert.equal(events.length, 3, 'One event for each failed attempt');
+  // Select Discovery through the mocked hook host; execute its real callback.
+  slots[1] = 'discovery'; render();
+  component('DiscoveryResearch').onDiscover(); await flush(); render();
+  assert.equal(events.length, 4);
+  assert.match(events[3].message, /Discovery.*Synthetic Discovery/);
+  await refresh();
+  assert.equal(events.length, 4, 'Successful reads retain history without adding events');
+  failRead = true; await refresh();
+  assert.equal(events.length, 4, 'Connection failure does not add an event');
+  assert.ok(nodes(tree).some(n => n.props?.['aria-label'] === 'Retry V2 connection'));
+  failRead = false; await refresh();
+  find(node => node.props?.['aria-label'] === 'Notifications').onClick(); render();
+  const panel = component('NotificationPanel');
+  assert.equal(panel.runtimeError, null);
+  assert.equal(panel.notices.filter(n => n.id.startsWith('event-')).length, 4);
+  assert.equal(panel.notices.filter(n => n.error).length, 4);
+});
+
+// Executed by browser-check CI on desktop/mobile; synthetic API failures only.
+test('operation errors enter notification details once and survive refresh', async ({ page }) => {
+  const data = {packages:[{id:'b', title:'Synthetic brief', state:'brief'}, {id:'r', title:'Synthetic review', state:'review'}], articles:[], runs:[], discovery:[], channels:['facebook','linkedin'].map((channel,i) => ({id:`c${i}`,package_id:'r',channel,status:'ready',content:{}}))};
+  let failRead = false;
+  await page.route('**/api/eb-v2/workspace', route => route.fulfill(failRead ? {status:500,json:{error:'Synthetic connection'}} : {json:data}));
+  await page.route('**/api/eb-v2/packages/b/approve-brief', route => route.fulfill({status:500,json:{error:'Synthetic approval'}}));
+  await page.route('**/api/eb-v2/discovery', route => route.fulfill({contentType:'application/x-ndjson',body:JSON.stringify({event:'error',error:'Synthetic Discovery'}) + '\n'}));
+  await page.route('**/api/eb-v2/channel-outputs/*/review', route => {
+    if (route.request().url().includes('/c1/')) return route.fulfill({status:500,json:{error:'Synthetic review'}});
+    data.channels[0].status = 'done';
+    return route.fulfill({json:data});
+  });
+  await page.goto('/?screen=eb');
+  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+  const bell = page.getByRole('button',{name:'Notifications',exact:true});
+  const panel = page.getByRole('dialog',{name:'Notification center'});
+  const assertEvent = async (pattern, count) => {
+    await bell.click();
+    const row = panel.getByRole('button').filter({hasText:pattern});
+    await expect(row).toHaveCount(1);
+    await expect(panel.getByRole('button').filter({hasText:/Refresh workspace to check saved state/})).toHaveCount(count);
+    await row.click();
+    await expect(panel.getByRole('region',{name:'Notification details'})).toContainText(pattern);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+  };
+  // Use an enabled synthetic model so approval reaches the intercepted API failure,
+  // rather than stopping at the real missing-model validation guard.
+  await page.evaluate(async () => {
+    const {DEFAULT_CONFIG, DEFAULT_MODELS} = await import('/src/lib/defaultData.ts');
+    DEFAULT_CONFIG.models = [{...DEFAULT_MODELS[0], id:'notification-test-model', enabled:true}];
+  });
+  await page.getByRole('button',{name:'Approve brief',exact:true}).click();
+  await assertEvent(/Synthetic approval/,1);
+  const card = page.locator('article').filter({has:page.getByRole('button',{name:'Open task: Synthetic review',exact:true})});
+  await card.getByRole('button',{name:'More item actions',exact:true}).click();
+  await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+  await assertEvent(/1\/2 review action\(s\) confirmed/,2);
+  await expect(card).toContainText('1 Done');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
+  await page.getByRole('button',{name:'Scan sources',exact:true}).click();
+  await assertEvent(/Synthetic Discovery/,3);
+  await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+  await bell.click();
+  await expect(panel.getByRole('button').filter({hasText:/Refresh workspace to check saved state/})).toHaveCount(3);
+  const badge = await bell.textContent();
+  await panel.getByRole('tab',{name:'Trạng thái hệ thống'}).click();
+  failRead = true;
+  await panel.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(panel.getByText('Synthetic connection',{exact:true})).toBeVisible();
+  failRead = false;
+  await panel.getByRole('button',{name:'Retry',exact:true}).click();
+  await expect(panel.getByText('V2 workspace is live.',{exact:true})).toBeVisible();
+  await expect(bell).toHaveText(badge);
+  await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
+  await expect(panel.getByRole('button').filter({hasText:/Refresh workspace to check saved state/})).toHaveCount(3);
 });

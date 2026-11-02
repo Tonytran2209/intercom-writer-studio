@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
-import { useWorkspaceNotices } from "./workspace/WorkspaceNotification"
+import { notifyWorkspace, useWorkspaceNotices } from "./workspace/WorkspaceNotification"
 import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
@@ -514,6 +514,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     } else
       void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId)
   }
+  const reportOperationError = (context: string, message: string) => {
+    notifyWorkspace(`${context}: ${message} Refresh workspace to check saved state before retrying the operation.`, "error")
+  }
   const runDiscovery = (sourceUrls: string[] = []) => {
     if (discoveryStatus.state === "running") return
     setDiscoveryStatus({
@@ -556,7 +559,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     if (!model) {
       const message =
         "Choose a Discovery or Brief AI model in Workflow AI first."
-      setRuntimeError(message)
+      reportOperationError(`Discovery`, message)
       setDiscoveryStatus({ state: "error", message })
       return
     }
@@ -585,7 +588,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             (saved) => !ideas.some((idea) => idea.id === saved.id),
           ),
         ]))
-        setRuntimeError(null)
         const emergingCount = ideas.filter(isEmergingDiscovery).length
         const sourceLeadCount = ideas.filter((item) => discoveryTag(item) === "Source lead").length
         const verifiedCount = ideas.length - emergingCount - sourceLeadCount
@@ -605,7 +607,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       .catch((error) => {
         const message =
           error instanceof Error ? error.message : "Unable to run Discovery."
-        setRuntimeError(message)
+        reportOperationError(`Discovery`, message)
         setDiscoveryStatus({
           state: "error",
           message: `Scan could not finish: ${message}`,
@@ -625,13 +627,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         ? "Choose a Gate 2 AI model in Workflow AI first."
         : "Choose an Adapt channel model in Workflow AI first."
       setApprovalError({ id: task.id, message })
-      setRuntimeError(message)
+      reportOperationError(`Approve ${gate} · ${task.title} (${task.id})`, message)
       return
     }
     approvalLock.current = true
     setApprovalPending(true)
     setSyncing(true)
-    setRuntimeError(null)
     try {
       if (isShellMode) {
         setTasks((items) => gate === "brief"
@@ -655,7 +656,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Unable to approve. Try again."
       setApprovalError({ id: task.id, message })
-      setRuntimeError(message)
+      reportOperationError(`Approve ${gate} · ${task.title} (${task.id})`, message)
     } finally {
       approvalLock.current = false
       setApprovalPending(false)
@@ -675,12 +676,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     const targets = channels.filter((channel) => id !== task.id || !task.channels || channel.decision !== decision)
     if (!targets.length) return
     if (decision === "done" && targets.some((channel) => channel.channel === "Threads") && !approvedVariants) {
-      setRuntimeError("Choose Variant A, Variant B, or both for Threads.")
+      reportOperationError(`Review ${decision} · ${task.title} (${task.id}) · ${targets.map(channel => channel.channel).join(", ")}`, "Choose Variant A, Variant B, or both for Threads.")
       return
     }
     reviewLock.current = true
     setSyncing(true)
-    setRuntimeError(null)
     void (async () => {
       let saved = 0
       try {
@@ -701,7 +701,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         if (!isShellMode) {
           try { setTasks(workspaceTasks(await db.fetchEbV2Workspace())) } catch { /* Keep confirmed successes. */ }
         }
-        setRuntimeError(`${saved}/${targets.length} review action(s) confirmed; remaining outputs may need review. Retry the same action to finish. ${error instanceof Error ? error.message : "Unable to save review action."}`)
+        reportOperationError(`Review ${decision} · ${task.title} (${task.id}) · ${targets.map(channel => channel.channel).join(", ")}`, `${saved}/${targets.length} review action(s) confirmed; remaining outputs may need review. Retry the same action to finish. ${error instanceof Error ? error.message : "Unable to save review action."}`)
       } finally {
         reviewLock.current = false
         setSyncing(false)
@@ -752,7 +752,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         : undefined,
     )
     if (!model) {
-      setRuntimeError(
+      reportOperationError(`Regenerate · ${task.title} (${task.id}) · ${task.channel ?? task.gate}`,
         `Choose an AI model for ${
           task.gate === "brief"
             ? "Brief"
@@ -798,7 +798,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               : item,
           ),
         )
-        setRuntimeError(null)
         return true
       })
       .catch((error) => {
@@ -808,7 +807,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           ),
         )
         const message = error instanceof Error ? error.message : "Unable to regenerate item."
-        setRuntimeError(message)
+        reportOperationError(`Regenerate · ${task.title} (${task.id}) · ${task.channel ?? task.gate}`, message)
         setApprovalError({ id: task.id, message })
         return false
       })
@@ -838,10 +837,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       .then((data) => {
         setTasks(workspaceTasks(data))
         setSelectedId(null)
-        setRuntimeError(null)
       })
       .catch((error) =>
-        setRuntimeError(
+        reportOperationError(`Move to ${targetLabel} · ${task.title} (${task.id})`,
           error instanceof Error ? error.message : "Unable to move item.",
         ),
       )
@@ -869,10 +867,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       .then((data) => {
         setTasks(workspaceTasks(data))
         setSelectedId(null)
-        setRuntimeError(null)
       })
       .catch((error) =>
-        setRuntimeError(
+        reportOperationError(`Delete · ${task.title} (${task.id}) · ${task.channel ?? task.gate}`,
           error instanceof Error ? error.message : "Unable to delete item.",
         ),
       )
@@ -888,7 +885,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         void refresh()
       })
       .catch((error) =>
-        setRuntimeError(
+        reportOperationError(`Delete Discovery · ${item.title} (${item.id})`,
           error instanceof Error
             ? error.message
             : "Unable to delete Discovery suggestion.",
@@ -911,7 +908,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         void refresh()
       })
       .catch((error) =>
-        setRuntimeError(
+        reportOperationError(`Clear Discovery`,
           error instanceof Error
             ? error.message
             : "Unable to clear Discovery suggestions.",
