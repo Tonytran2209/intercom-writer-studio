@@ -51,7 +51,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await page.keyboard.press('Enter');
   await expect(panel.getByText('First event', { exact: true })).toHaveCount(1);
   await expect(panel.getByText('Second event', { exact: true })).toHaveCount(1);
-  const pending = panel.getByRole('button', { name: /1 channel output\(s\) await review/ });
+  const pending = panel.getByRole('button', { name: /^1 channel output\(s\) await review/ });
   await pending.focus();
   await page.keyboard.press('Space');
   const details = panel.getByRole('region', { name: 'Notification details' });
@@ -666,9 +666,11 @@ test('delete individual notifications and clear all preserve source data', async
   await panel.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(panel.getByText('V2 workspace is live.',{exact:true})).toBeVisible();
   await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
+  await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
   await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
   await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
   await page.reload();
   await bell.click();
+  await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
   await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
 });
