@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
-import { notifyWorkspace, useWorkspaceNotices } from "./workspace/WorkspaceNotification"
+import { notifyWorkspace, useWorkspaceNotices, notificationFingerprint, isNotificationDismissed, dismissWorkspaceNotifications, useDismissedWorkspaceNotifications } from "./workspace/WorkspaceNotification"
 import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
@@ -325,6 +325,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [notificationOpen, setNotificationOpen] = useState(false)
   const notificationTriggerRef = useRef<HTMLButtonElement>(null)
   const sessionNotices = useWorkspaceNotices()
+  useDismissedWorkspaceNotifications()
   const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -987,7 +988,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   ].filter(item => item.active).map(notice => ({ ...notice,
     details: notificationDetails(notice.id, tasks, discoveryIdeas),
     kind: notice.id.startsWith("event-") ? sessionNotices.find(event => `event-${event.id}` === notice.id)?.kind : undefined,
-  }))
+  })).filter(notice => !isNotificationDismissed(notice.id, notificationFingerprint(notice)))
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
       <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
@@ -1209,6 +1210,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {notificationOpen && (
           <NotificationPanel
             notices={notices}
+            onDismiss={dismissWorkspaceNotifications}
             runtimeError={runtimeError}
             counts={workspaceStatusCounts(tasks, discoveryIdeas.length)}
             onRetry={() => void refresh()}
@@ -1230,6 +1232,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
   confirmed: boolean
   onCollapseFocus: () => void
 }) {
+  const dismissed = useDismissedWorkspaceNotifications()
   const seen = useRef(new Map<string, string>())
   const [queue, setQueue] = useState<Array<{ id: string; text: string; kind?: string; fingerprint: string }>>([])
   const [hovered, setHovered] = useState(false)
@@ -1241,8 +1244,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
   // Sort detail records so a different API ordering is not a content change.
   const snapshot = JSON.stringify(notices.map(notice => ({
     id: notice.id, text: notice.text, kind: notice.kind ?? (notice.error ? "error" : "warning"),
-    fingerprint: JSON.stringify([notice.text, notice.kind, notice.error,
-      notice.details.map(detail => JSON.stringify(detail)).sort()]),
+    fingerprint: notificationFingerprint(notice),
   })))
   useEffect(() => {
     const current = JSON.parse(snapshot) as typeof queue
@@ -1251,11 +1253,12 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
     for (const notice of changed) seen.current.set(notice.id, notice.fingerprint)
     setQueue(previous => {
       const retained = previous.filter(notice =>
-        (!confirmed && !notice.id.startsWith("event-")) || current.some(item => item.id === notice.id))
+        !isNotificationDismissed(notice.id, notice.fingerprint) &&
+        ((!confirmed && !notice.id.startsWith("event-")) || current.some(item => item.id === notice.id)))
       const updated = retained.map(notice => changed.find(item => item.id === notice.id) ?? notice)
       return [...updated, ...changed.filter(notice => !retained.some(item => item.id === notice.id))]
     })
-  }, [snapshot, confirmed])
+  }, [snapshot, confirmed, dismissed])
   const active = queue[0]
   const key = active ? `${active.id}:${active.fingerprint}` : ""
   useEffect(() => {
@@ -1313,6 +1316,7 @@ function workspaceStatusCounts(tasks: Task[], discovery: number) {
 function NotificationPanel({
   runtimeError, counts,
   notices,
+  onDismiss,
   onRetry,
   syncing,
   onClose,
@@ -1322,6 +1326,7 @@ function NotificationPanel({
   onRetry: () => void
   syncing: boolean
   notices: Array<{ id: string; text: string; active: boolean; error?: boolean; details: NotificationDetail[]; kind?: string }>
+  onDismiss: (items: typeof notices) => void
   onClose: () => void
 }) {
   const [tab, setTab] = useState<"notices" | "system">("notices")
@@ -1403,6 +1408,14 @@ function NotificationPanel({
             className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
           >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
         </div>
+        {tab === "notices" && <div className="shrink-0 border-b border-slate-200 p-2">
+          <button disabled={!notices.length} onClick={() => {
+            onDismiss(notices)
+            setSelectedNoticeId(null)
+            tabRefs.current[0]?.focus()
+          }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">Xoá tất cả</button>
+          <p className="px-3 text-[10px] text-slate-500">Chỉ ẩn thông báo trong phiên này.</p>
+        </div>}
         <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
           {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
             <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1441,6 +1454,12 @@ function NotificationPanel({
                   {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
                   <span className="mt-2 block text-[10px] font-semibold">View details →</span>
                 </button>
+                <button aria-label={`Xoá thông báo: ${notice.text}`} onClick={() => {
+                  const index = notices.findIndex(item => item.id === notice.id)
+                  const next = notices[index + 1] ?? notices[index - 1]
+                  onDismiss([notice])
+                  requestAnimationFrame(() => (rowRefs.current.get(next?.id ?? "") ?? tabRefs.current[0])?.focus())
+                }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
               </article>
             ))
           ) : <p className="p-4 text-center text-xs text-slate-400">No new notifications.</p>}

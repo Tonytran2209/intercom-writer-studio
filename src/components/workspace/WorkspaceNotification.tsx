@@ -5,6 +5,27 @@ export type WorkspaceNotice = { id: number; message: string; kind: WorkspaceNoti
 // Module-owned session history survives workspace remounts and StrictMode effects.
 let notices: WorkspaceNotice[] = [];
 let nextId = 0;
+type NotificationContent = {
+  id: string; text: string; kind?: string; error?: boolean;
+  details: Array<{ id: string; title: string; context: string; body?: string }>;
+};
+let dismissed: ReadonlySet<string> = new Set();
+export function notificationFingerprint(notice: Omit<NotificationContent, 'id'>) {
+  return JSON.stringify([notice.text, notice.kind, notice.error,
+    notice.details.map(detail => JSON.stringify([detail.id, detail.title, detail.context, detail.body])).sort()]);
+}
+export function isNotificationDismissed(id: string, fingerprint: string) {
+  return dismissed.has(JSON.stringify([id, fingerprint]));
+}
+export function dismissWorkspaceNotifications(items: NotificationContent[]) {
+  if (!items.length) return;
+  dismissed = new Set([...dismissed, ...items.map(item => JSON.stringify([item.id, notificationFingerprint(item)]))]);
+  listeners.forEach(listener => listener());
+}
+const dismissedSnapshot = () => dismissed;
+export function useDismissedWorkspaceNotifications() {
+  return useSyncExternalStore(subscribe, dismissedSnapshot, dismissedSnapshot);
+}
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
   listeners.add(listener);

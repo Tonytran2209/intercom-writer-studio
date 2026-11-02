@@ -1,6 +1,19 @@
 import { test as offlineTest } from '@playwright/test';
 import { test, expect, setTheme } from './browser-fixture.mjs';
 
+// Compile the complete store module with only React subscription and browser event mocks.
+async function loadNoticeStore() {
+  const {readFile} = await import('node:fs/promises');
+  const ts = (await import('typescript')).default;
+  const source = await readFile('src/components/workspace/WorkspaceNotification.tsx', 'utf8');
+  const compiled = ts.transpileModule(source, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+  const module = {exports:{}};
+  new Function('require','exports','window','CustomEvent',compiled)(
+    () => ({useSyncExternalStore:(_subscribe,snapshot)=>snapshot()}), module.exports,
+    {dispatchEvent(){}}, class {});
+  return module.exports;
+}
+
 // Synthetic contract scenarios; these do not reproduce production data.
 test('notification history, status dot, mixed review counts and keyboard', async ({ page }) => {
   const data = { packages: [{ id: 'p', title: 'Notification fixture', state: 'review' }], articles: [], runs: [], discovery: [], channels: ['done', 'rejected', 'recheck'].map((status, i) => ({ id: `c${i}`, package_id: 'p', channel: ['threads', 'facebook', 'linkedin'][i], status, content: {} })) };
@@ -38,7 +51,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await page.keyboard.press('Enter');
   await expect(panel.getByText('First event', { exact: true })).toHaveCount(1);
   await expect(panel.getByText('Second event', { exact: true })).toHaveCount(1);
-  const pending = panel.getByRole('button', { name: /1 channel output\(s\) await review/ });
+  const pending = panel.getByRole('button', { name: /^1 channel output\(s\) await review/ });
   await pending.focus();
   await page.keyboard.press('Space');
   const details = panel.getByRole('region', { name: 'Notification details' });
@@ -291,6 +304,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
     'react':hooks, 'react/jsx-runtime':jsx, 'lucide-react':{}, '../lib/db':api,
     '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},
     './workspace/WorkspaceNotification':{
+      ...await loadNoticeStore(),
       useWorkspaceNotices:() => events,
       notifyWorkspace:(message, kind) => events.push({id:events.length + 1, message, kind}),
     },
@@ -342,6 +356,18 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   assert.equal(panel.runtimeError, null);
   assert.equal(panel.notices.filter(n => n.id.startsWith('event-')).length, 4);
   assert.equal(panel.notices.filter(n => n.error).length, 4);
+  const originalEvents = [...events];
+  panel.onDismiss([panel.notices[0]]); render();
+  assert.equal(component('NotificationPanel').notices.some(n=>n.id===panel.notices[0].id),false);
+  await refresh();
+  assert.equal(component('NotificationPanel').notices.some(n=>n.id===panel.notices[0].id),false,'Refresh preserves dismissal');
+  component('NotificationPanel').onDismiss(component('NotificationPanel').notices); render();
+  assert.equal(component('NotificationPanel').notices.length,0);
+  assert.equal(component('WorkspaceNotificationBanner').notices.length,0,'Banner and panel use the same filtered list');
+  assert.deepEqual(events,originalEvents,'Clear all preserves event sources');
+  dependencies['./workspace/WorkspaceNotification'].notifyWorkspace('After clear', 'success');
+  render();
+  assert.equal(component('NotificationPanel').notices.length,1,'New event survives earlier clear all');
 });
 
 // Executed by browser-check CI on desktop/mobile; synthetic API failures only.
@@ -431,7 +457,8 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
       }
     },
   };
-  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'./workspace/WorkspaceNotification':{}};
+  const noticeStore = await loadNoticeStore();
+  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'./workspace/WorkspaceNotification':noticeStore};
   const module = {exports:{}};
   new Function('require','exports',compiled)(name => {
     assert.ok(name in dependencies, `Unexpected module ${name}`);
@@ -507,6 +534,14 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     tree.props.children[2].props.onClick(); render(); tick(180);
     assert.equal(tree,null,'Manual collapse removes presentation only');
     assert.equal(focusReturns,1,'Keyboard collapse returns focus to bell');
+    const hidden = [notice('brief','Hide active'), notice('article','Hide queued')];
+    update(hidden);
+    props.confirmed = false; update([]);
+    assert.equal(activeText(),'Hide active','Read failure retains pending groups');
+    noticeStore.dismissWorkspaceNotifications(hidden);
+    render();
+    assert.equal(tree,null,'Explicit deletion removes active and queued groups during read failure');
+    props.confirmed = true;
     update([notice('adapt','Unmount with an active timer')]);
     assert.ok(timers.size > 0);
   } finally {
@@ -575,4 +610,67 @@ for (const theme of ['light', 'dark']) test(`banners collapse into bell history,
   await bell.click();
   const panel = page.getByRole('dialog',{name:'Notification center'});
   for (const kind of ['success','error','warning']) await expect(panel.getByText(`Synthetic ${kind}`,{exact:true})).toBeVisible();
+});
+
+offlineTest('NOTIFICATIONS_OFFLINE dismissal fingerprints, remount and source preservation', async () => {
+  const {strict:assert} = await import('node:assert');
+  const store = await loadNoticeStore();
+  const {notificationFingerprint: fingerprint, isNotificationDismissed: hidden, dismissWorkspaceNotifications: dismiss} = store;
+  store.notifyWorkspace('Original event', 'error');
+  const history = store.useWorkspaceNotices();
+  const details = [{id:'a',title:'A',context:'Gate 1'}, {id:'b',title:'B',context:'Gate 1'}];
+  const group = {id:'brief',text:'2 briefs',details};
+  const event = {id:'event-1',text:'Original event',kind:'error',error:true,details:[]};
+  dismiss([group, event]);
+  assert.equal(hidden(group.id, fingerprint({...group, details:[...details].reverse()})),true);
+  assert.equal(hidden(group.id, fingerprint({...group, details:[{...details[0],title:'New title'}, details[1]]})),false);
+  assert.equal(hidden('event-2', fingerprint(event)),false,'New same-text event is eligible');
+  assert.equal(store.useWorkspaceNotices(),history,'Dismissal preserves source history across subscriptions');
+  assert.equal(store.useDismissedWorkspaceNotifications().size,2,'Module snapshot survives remount');
+  assert.deepEqual(details.map(item=>item.title),['A','B'],'Source data unchanged');
+  const reloaded = await loadNoticeStore();
+  assert.equal(reloaded.isNotificationDismissed(group.id,reloaded.notificationFingerprint(group)),false,'Reload resets dismissal');
+});
+
+// Browser-check CI runs this synthetic interaction scenario on desktop and mobile.
+test('delete individual notifications and clear all preserve source data', async ({page}) => {
+  const data = {packages:[], articles:[], runs:[], channels:[],
+    discovery:[{id:'delete-lead',title:'Synthetic saved lead',status:'suggested'}]};
+  await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
+  await page.goto('/?screen=eb');
+  const bell = page.getByRole('button',{name:'Notifications',exact:true});
+  await expect(bell).toContainText('1');
+  await page.evaluate(async () => {
+    const {notifyWorkspace} = await import('/src/components/workspace/WorkspaceNotification.tsx');
+    notifyWorkspace('Delete this event','warning');
+  });
+  await bell.click();
+  const panel = page.getByRole('dialog',{name:'Notification center'});
+  const remove = panel.getByRole('button',{name:'Xoá thông báo: Delete this event',exact:true});
+  await remove.focus(); await page.keyboard.press('Enter');
+  await expect(remove).toHaveCount(0);
+  await expect(panel.getByRole('button').filter({hasText:'View details'})).toBeFocused();
+  await expect(bell).toContainText('1');
+  await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
+  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  await expect(panel.getByRole('tab',{name:'Thông báo',exact:true})).toBeFocused();
+  await expect(bell).not.toContainText('1');
+  await expect(page.locator('.workspace-notification')).toHaveCount(0);
+  await panel.getByRole('tab',{name:'Trạng thái hệ thống'}).click();
+  await panel.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(panel.getByText('V2 workspace is live.',{exact:true})).toBeVisible();
+  await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
+  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  data.discovery[0].title = 'Changed synthetic lead';
+  await panel.getByRole('tab',{name:'Trạng thái hệ thống'}).click();
+  await panel.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(panel.getByText('V2 workspace is live.',{exact:true})).toBeVisible();
+  await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
+  await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
+  await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
+  await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
+  await page.reload();
+  await bell.click();
+  await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
+  await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
 });
