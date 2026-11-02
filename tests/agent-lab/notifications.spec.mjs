@@ -1,5 +1,5 @@
 import { test as offlineTest } from '@playwright/test';
-import { test, expect } from './browser-fixture.mjs';
+import { test, expect, setTheme } from './browser-fixture.mjs';
 
 // Synthetic contract scenarios; these do not reproduce production data.
 test('notification history, status dot, mixed review counts and keyboard', async ({ page }) => {
@@ -48,7 +48,7 @@ test('notification history, status dot, mixed review counts and keyboard', async
   await page.keyboard.press('Enter');
   await expect(pending).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('.workspace-notification')).toHaveCount(0);
+  await expect(panel.getByRole('region', { name: 'Notification details' })).toBeVisible();
 });
 
 offlineTest('NOTIFICATIONS_OFFLINE session store and all-output review contract', async () => {
@@ -401,4 +401,178 @@ test('operation errors enter notification details once and survive refresh', asy
   await expect(bell).toHaveText(badge);
   await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
   await expect(panel.getByRole('button').filter({hasText:/Refresh workspace to check saved state/})).toHaveCount(3);
+});
+
+offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cleanup', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { strict: assert } = await import('node:assert');
+  const ts = (await import('typescript')).default;
+  const jsx = await import('react/jsx-runtime');
+  // Load the complete module with explicit dependency mocks; exercise its real component.
+  const source = await readFile('src/components/EbWorkingSpace.tsx', 'utf8');
+  const compiled = ts.transpileModule(source, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+  const states = [], refs = [], effects = [];
+  let stateCursor, refCursor, effectCursor, dirty, tree, now = 0, nextTimer = 0;
+  const timers = new Map();
+  const hooks = {
+    useState(initial) {
+      const i = stateCursor++;
+      if (!(i in states)) states[i] = initial;
+      return [states[i], value => {
+        const next = typeof value === 'function' ? value(states[i]) : value;
+        if (!Object.is(next, states[i])) { states[i] = next; dirty = true; }
+      }];
+    },
+    useRef(initial) { const i = refCursor++; return refs[i] ??= {current:initial}; },
+    useEffect(run, deps) {
+      const i = effectCursor++, old = effects[i];
+      if (!old || deps.some((dep, index) => !Object.is(dep, old.deps[index]))) {
+        effects[i] = {run, deps, cleanup:old?.cleanup, pending:true};
+      }
+    },
+  };
+  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'./workspace/WorkspaceNotification':{}};
+  const module = {exports:{}};
+  new Function('require','exports',compiled)(name => {
+    assert.ok(name in dependencies, `Unexpected module ${name}`);
+    return dependencies[name];
+  },module.exports);
+  const previousWindow = globalThis.window, previousDocument = globalThis.document, previousNow = Date.now;
+  globalThis.window = {
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id,{at:now+delay,callback}); return id; },
+    clearTimeout(id) { timers.delete(id); },
+  };
+  Date.now = () => now;
+  let focusReturns = 0;
+  globalThis.document = {activeElement:{}};
+  let props = {notices:[],confirmed:true,onCollapseFocus(){ focusReturns++; }};
+  const render = () => {
+    let iterations = 0;
+    do {
+      assert.ok(++iterations < 20, 'Effects settle');
+      dirty = false; stateCursor = refCursor = effectCursor = 0;
+      tree = module.exports.WorkspaceNotificationBanner(props);
+      for (const effect of effects) if (effect.pending) {
+        effect.pending = false; effect.cleanup?.(); effect.cleanup = effect.run();
+      }
+    } while (dirty);
+  };
+  const tick = duration => {
+    const end = now + duration;
+    while (true) {
+      const next = [...timers].sort((a,b)=>a[1].at-b[1].at)[0];
+      if (!next || next[1].at > end) break;
+      now = next[1].at; timers.delete(next[0]); next[1].callback(); render();
+    }
+    now = end;
+  };
+  const notice = (id, text = id, details = []) => ({id,text,details});
+  const activeText = () => tree?.props.children[1].props.children[1];
+  const update = notices => { props = {...props,notices}; render(); };
+  try {
+    const groups = ['brief','article','adapt','review','done','rejected','discovery'].map(id => notice(id));
+    update(groups);
+    // StrictMode repeats effect setup without resetting refs or queue.
+    for (const effect of effects) { effect.cleanup?.(); effect.cleanup = effect.run(); }
+    render();
+    for (const group of groups) {
+      assert.equal(activeText(),group.text);
+      tick(5999); assert.equal(activeText(),group.text);
+      tick(181);
+    }
+    assert.equal(tree,null);
+    update(groups.map(group=>({...group}))); assert.equal(tree,null,'Unchanged polling does not replay');
+    const details = [{id:'a',title:'A',context:'Gate 1'},{id:'b',title:'B',context:'Gate 1'}];
+    update([notice('brief','brief',details)]); assert.equal(activeText(),'brief');
+    tick(2000); tree.props.onMouseEnter(); render(); tick(9000);
+    assert.equal(activeText(),'brief','Hover pauses');
+    tree.props.onMouseLeave(); render(); tick(3999); assert.equal(activeText(),'brief'); tick(181);
+    update([notice('brief','brief',[...details].reverse())]); assert.equal(tree,null,'API ordering is not new content');
+    update([notice('brief','brief',[{...details[0],title:'Changed title'},details[1]])]);
+    assert.equal(activeText(),'brief','Same count with changed detail is presented');
+    tree.props.onFocusCapture(); render(); tick(8000); assert.equal(activeText(),'brief','Focus pauses');
+    tree.props.onBlurCapture({currentTarget:{contains:()=>false},relatedTarget:null}); render();
+    tick(6180); assert.equal(tree,null);
+    const events = ['success','error','warning'].map((kind,i)=>({...notice(`event-${i}`,kind),kind}));
+    update(events);
+    assert.equal(activeText(),'success');
+    // Removal drops obsolete groups, while consecutive session events remain ordered.
+    update(events.slice(1)); assert.equal(activeText(),'error'); tick(6180); assert.equal(activeText(),'warning'); tick(6180);
+    props.confirmed = false; update([]); props.confirmed = true; update(events); assert.equal(tree,null,'Recovery preserves seen fingerprints');
+    update([notice('discovery','old'),notice('article','queued old')]);
+    update([notice('discovery','old'),notice('article','queued new')]);
+    tick(6180); assert.equal(activeText(),'queued new','Queued items use current content');
+    assert.ok(timers.size > 0);
+    tree.props.ref.current = {contains:()=>true};
+    tree.props.children[2].props.onClick(); render(); tick(180);
+    assert.equal(tree,null,'Manual collapse removes presentation only');
+    assert.equal(focusReturns,1,'Keyboard collapse returns focus to bell');
+    update([notice('adapt','Unmount with an active timer')]);
+    assert.ok(timers.size > 0);
+  } finally {
+    for (const effect of effects) effect.cleanup?.();
+    assert.equal(timers.size,0,'Unmount clears all timers');
+    Date.now = previousNow; globalThis.window = previousWindow; globalThis.document = previousDocument;
+  }
+});
+
+test('banner live status stays separate from task detail and image evidence statuses', async ({page}) => {
+  const data = {packages:[{id:'banner-popup',title:'Banner popup fixture',state:'brief'}],articles:[],runs:[],discovery:[{id:'lead',title:'Synthetic lead',status:'suggested'}],channels:[]};
+  await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
+  await page.route('**/api/eb-v2/activity/*',route=>route.fulfill({json:{inputs:[],runs:[],articles:[],channels:[],feedback:[],actions:[]}}));
+  await page.clock.install();
+  await page.goto('/?screen=eb');
+  const banner = page.locator('.workspace-notification');
+  await expect(banner.getByRole('status')).toBeVisible();
+  await page.getByRole('button',{name:'Open task: Banner popup fixture',exact:true}).click();
+  await expect(page.locator('aside')).toHaveCount(1);
+  await expect(page.locator('aside').getByRole('status')).toHaveCount(0);
+  await expect(banner.getByRole('status')).toBeVisible();
+});
+
+for (const theme of ['light', 'dark']) test(`banners collapse into bell history, pause and do not replay unchanged refresh (${theme})`, async ({page}) => {
+  const data = {packages:[],articles:[],runs:[],discovery:[{id:'lead',title:'Synthetic lead',status:'suggested'}],channels:[]};
+  await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
+  await page.clock.install();
+  await page.emulateMedia({reducedMotion:theme === 'light' ? 'reduce' : 'no-preference'});
+  await page.goto('/?screen=eb');
+  await setTheme(page,theme);
+  const banner = page.locator('.workspace-notification');
+  await expect(banner).toContainText('1 Discovery suggestion(s) saved');
+  const bounds = await banner.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds.y).toBeLessThan(viewport.height/2);
+  await banner.hover();
+  await page.clock.fastForward(8000);
+  await expect(banner).toBeVisible();
+  await page.mouse.move(0,0);
+  const collapse = banner.getByRole('button',{name:'Thu gọn về chuông'});
+  await collapse.focus();
+  await page.clock.fastForward(8000);
+  await expect(banner).toBeVisible();
+  const bell = page.getByRole('button',{name:'Notifications',exact:true});
+  await collapse.click();
+  await page.clock.runFor(200);
+  await expect(banner).toHaveCount(0);
+  await expect(bell).toBeFocused();
+  await expect(bell).toHaveText('1');
+  await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+  await expect(banner).toHaveCount(0);
+  await page.mouse.move(0,0);
+  await page.evaluate(async()=>{
+    const {notifyWorkspace} = await import('/src/components/workspace/WorkspaceNotification.tsx');
+    for (const kind of ['success','error','warning']) notifyWorkspace(`Synthetic ${kind}`,kind);
+  });
+  for (const kind of ['success','error','warning']) {
+    await expect(banner).toContainText(`Synthetic ${kind}`);
+    await page.clock.runFor(6200);
+  }
+  await expect(banner).toHaveCount(0);
+  await expect(bell).toHaveText('4');
+  await bell.click();
+  const panel = page.getByRole('dialog',{name:'Notification center'});
+  for (const kind of ['success','error','warning']) await expect(panel.getByText(`Synthetic ${kind}`,{exact:true})).toBeVisible();
 });
