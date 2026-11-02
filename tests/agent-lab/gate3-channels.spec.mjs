@@ -194,7 +194,7 @@ async function offlineGate3Contracts() {
    return tasks;
   },async fetchEbV2Workspace(){return tasks},
  };
- const make=()=>new Function('tasks','reviewLock','syncing','setSyncing','setRuntimeError','setTasks','isShellMode','db','workspaceTasks',`${compile(handler)};return decide`)(tasks,lock,false,()=>{},value=>{error=value},value=>{tasks=typeof value==='function'?value(tasks):value},false,db,data=>data);
+ const make=()=>new Function('tasks','reviewLock','syncing','setSyncing','setRuntimeError','setTasks','isShellMode','db','workspaceTasks','reportOperationError',`${compile(handler)};return decide`)(tasks,lock,false,()=>{},value=>{error=value},value=>{tasks=typeof value==='function'?value(tasks):value},false,db,data=>data,(_context,message)=>{error=message});
  const settled=async()=>{for(let i=0;lock.current&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,0));assert.equal(lock.current,false)};
  make()('package-one','done');assert.equal(calls.length,0);assert.match(error,/Choose Variant/);
  release={};const decide=make();decide('package-one','done','both');decide('one-linkedin','reject');
