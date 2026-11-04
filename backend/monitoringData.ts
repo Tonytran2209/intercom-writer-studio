@@ -89,6 +89,21 @@ export async function readMonitoringData(
         ).rows
       else inventory[table] = null
     }
+    // EB V2 is the active Intercom workspace; legacy Writer tables are separate.
+    if(await exists('eb_v2_articles')) {
+      const rows=(await client.query(`SELECT status,count(*)::int AS count FROM (SELECT DISTINCT ON(package_id) package_id,status FROM public.eb_v2_articles ORDER BY package_id,revision DESC) latest GROUP BY status`)).rows;
+      const legacy=articles;
+      articles={total:(legacy?.total||0)+rows.reduce((n:number,r:any)=>n+r.count,0),byStatus:[...(legacy?.byStatus||[]).map((r:any)=>({...r,status:'Legacy · '+r.status})),...rows.map((r:any)=>({...r,status:'EB V2 · '+r.status}))],scope:'latest EB V2 article per package plus deduplicated legacy inventory; channel outputs counted separately'};
+    }
+    if(await exists('eb_v2_packages')) inventory.eb_v2_packages=(await client.query('SELECT state AS status,count(*)::int AS count FROM public.eb_v2_packages GROUP BY state')).rows;
+    for(const table of ['eb_v2_gate_runs','eb_v2_feedback_threads','eb_v2_library_documents','eb_v2_discovery_items'] as const) {
+      inventory[table]=await exists(table)?(await client.query(`SELECT status,count(*)::int AS count FROM public.${table} GROUP BY status`)).rows:null;
+    }
+    if(await exists('eb_v2_channel_outputs')) inventory.eb_v2_channel_outputs=(await client.query(`SELECT channel||' · '||status AS status,count(*)::int AS count FROM (SELECT DISTINCT ON(package_id,channel) package_id,channel,status FROM public.eb_v2_channel_outputs ORDER BY package_id,channel,revision DESC) latest GROUP BY channel,status`)).rows;
+    if(await exists('eb_v2_gate_runs')) {
+      const rows=(await client.query(`SELECT model_provider AS provider,model_id AS model,gate||':'||stage AS step,count(*)::int AS records,0::int AS cache_hits,count(*) FILTER(WHERE status='completed')::int AS calls,COALESCE(sum(input_tokens),0)::float8 AS input_tokens,COALESCE(sum(cached_input_tokens),0)::float8 AS cached_input_tokens,COALESCE(sum(output_tokens),0)::float8 AS output_tokens,sum(cost_usd)::float8 AS known_cost_usd,count(*) FILTER(WHERE cost_usd IS NOT NULL)::int AS priced_calls FROM public.eb_v2_gate_runs WHERE created_at >= $1 AND model_provider IS NOT NULL GROUP BY model_provider,model_id,gate,stage`,[since])).rows;
+      ledger={source:'writer_ai_usage + eb_v2_gate_runs',scope:'saved workflow records; EB V2 stores final attempt usage, not every provider retry; never add to dispatcher',models:[...(ledger?.models||[]).map((r:any)=>({...r,source:'legacy'})),...rows.map((r:any)=>({...r,source:'eb-v2'}))]};
+    }
     await client.query("COMMIT")
     return {
       buckets: buckets.slice(0, 10000),

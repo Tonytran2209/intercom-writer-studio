@@ -33,6 +33,7 @@
     "tsx": "^4.19.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
     "@types/multer": "^2.2.0",

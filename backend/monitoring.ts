@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { performance } from "node:perf_hooks"
 import type { Request, Response, NextFunction } from "express"
-import { kvGet, kvSet } from "./supabase.ts"
+import { kvGet, kvSet, tableAvailable, tableSelect } from "./supabase.ts"
 import { readMonitoringData } from "./monitoringData.ts"
 
 const limits = [
@@ -505,4 +505,10 @@ export function createMonitoring(
     },
   }
 }
-export const monitoring = createMonitoring("intercom")
+export const monitoring = createMonitoring("intercom", {getConfig:async()=>{
+  if(await tableAvailable('eb_v2_app_settings')) {
+    const row=(await tableSelect<any>('eb_v2_app_settings',q=>q.select('settings').limit(1)))[0];
+    if(row?.settings?.models) return row.settings;
+  }
+  return kvGet('writer:config');
+}})
