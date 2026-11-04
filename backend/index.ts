@@ -1,3 +1,4 @@
+import {monitoring} from './monitoring.ts';
 import "dotenv/config"
 import express from "express"
 import cors from "cors"
@@ -46,6 +47,8 @@ const DIST = process.env.DIST_PATH
 console.log(`[static] serving frontend from: ${DIST}`)
 
 const app = express()
+app.use(monitoring.middleware)
+app.get('/internal/monitoring', (req,res) => monitoring.handler(req,res))
 const PORT = process.env.PORT || 3000
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }))

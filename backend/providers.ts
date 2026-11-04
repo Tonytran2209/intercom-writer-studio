@@ -1,3 +1,4 @@
+import {monitoring} from './monitoring.ts';
 /**
  * AI provider adapters — each returns { content, model, usage }
  * All providers share the same input signature.
@@ -347,6 +348,10 @@ async function callGroq(req: GenerateRequest): Promise<GenerateResponse> {
 // ── Dispatcher ───────────────────────────────────────────────────────────────
 
 export async function generate(req: GenerateRequest): Promise<GenerateResponse> {
+  return monitoring.trackAI(req, () => generateProvider(req));
+}
+
+async function generateProvider(req: GenerateRequest): Promise<GenerateResponse> {
   if (req.images?.length && !['openai', 'anthropic', 'google'].includes(req.provider))
     throw new Error('Model/provider không hỗ trợ quét ảnh. Chọn model Gate 1 có hỗ trợ ảnh.');
 
