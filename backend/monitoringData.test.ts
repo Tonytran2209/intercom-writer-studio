@@ -21,6 +21,10 @@ test('EB V2 counts latest revisions and keeps final-attempt ledger coverage and 
  assert.equal(result.inventory!.eb_v2_channel_outputs.reduce((n:number,r:any)=>n+r.count,0),2);
  assert.ok(!result.inventory!.eb_v2_channel_outputs.some((r:any)=>r.status.includes('rejected')));
  const row=result.ledger.models[0];assert.equal(row.records,2);assert.equal(row.calls,1);assert.equal(row.input_tokens,100);assert.equal(row.known_cost_usd,null);assert.equal(row.priced_calls,0);assert.equal(row.source,'eb-v2');
+ const [hour]=result.ledger.timeline;
+ assert.equal(hour.calls,1);
+ assert.equal(hour.totalTokens,110);
+ assert.equal(hour.knownCostUsd,null);
  assert.equal(result.inventory!.eb_v2_feedback_threads,null);
  assert.equal(result.ledger.scope.includes('not every provider retry'),true);
  }finally{if(previous===undefined)delete process.env.DATABASE_PROVIDER;else process.env.DATABASE_PROVIDER=previous;await db.close();}

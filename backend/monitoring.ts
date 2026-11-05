@@ -354,6 +354,10 @@ export function createMonitoring(
         calls: number
         errors: number
         aiCalls: number
+        usageSamples: number
+        pricedCalls: number
+        totalTokens: number
+        knownCostUsd: number
       }>()
       for (const b of byKey.values()) {
         if (!b || !b.http || !b.ai || !b.routes) continue
@@ -380,10 +384,20 @@ export function createMonitoring(
           calls: 0,
           errors: 0,
           aiCalls: 0,
+          usageSamples: 0,
+          pricedCalls: 0,
+          totalTokens: 0,
+          knownCostUsd: 0,
         }
         point.calls += b.http.calls
         point.errors += b.http.failed
-        point.aiCalls += Object.values(b.ai).reduce((n, r) => n + r.calls, 0)
+        for (const model of Object.values(b.ai)) {
+          point.aiCalls += model.calls
+          point.usageSamples += model.usageSamples || 0
+          point.pricedCalls += model.pricedCalls || 0
+          point.totalTokens += (model.inputTokens || 0) + (model.outputTokens || 0)
+          point.knownCostUsd += model.knownCostUsd || 0
+        }
         timeline.set(b.hour, point)
       }
       const ai = aiCounter()
