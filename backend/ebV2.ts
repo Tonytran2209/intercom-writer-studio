@@ -1,3 +1,4 @@
+import {monitoring} from './monitoring.ts';
 import { randomUUID } from "node:crypto"
 import { BriefInputError, hasUnresolvedValue, requireBriefInput, validateBriefInput } from "./briefValidation.ts"
 import type express from "express"
@@ -201,7 +202,10 @@ function adaptTask(channel: string, article: string) {
       : `LINKEDIN DELIVERY CONTRACT\nWrite in English only. Return one credibility-led, publish-ready LinkedIn post without process notes.`
   return `TARGET CHANNEL: ${channel}\nReturn content for ${channel} only. Channel Rules context may describe multiple platforms; apply only the rules for ${channel}. Do not return a bundle of posts for multiple channels or add posts, variants, translations, headings, or sections intended for another channel. References to other platforms within the requested post are allowed.\n\nAdapt this approved fab.careers article for ${channel}. Follow the current Channel Rules from app Settings and the Channel Rules library. Those configured rules take precedence over the fallback delivery contract below, editorial learnings, the current output, and editor feedback. Apply feedback only within those rules. Before returning, check the complete output against the applicable language, length, variant count, structure, and tone requirements.\n\n${channel === "threads" ? "MANDATORY THREADS REQUIREMENTS (override conflicting configured language, variant count, or length rules):" : "FALLBACK (only where configured Channel Rules do not specify otherwise):"}\n${channelContract}\n\nAPPROVED ARTICLE:\n${article}`
 }
-async function runGate(
+async function runGate(...args:Parameters<typeof runGateImpl>) {
+  return monitoring.task({kind:'gate',label:args[1]+':'+args[2],entityId:args[0]},()=>runGateImpl(...args));
+}
+async function runGateImpl(
   packageId: string,
   gate: "brief" | "article" | "adapt" | "review",
   stage: string,

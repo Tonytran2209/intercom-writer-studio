@@ -1,3 +1,4 @@
+import {createTaskUsage} from './taskUsage.ts';
 import crypto from "node:crypto"
 import { performance } from "node:perf_hooks"
 import type { Request, Response, NextFunction } from "express"
@@ -172,6 +173,7 @@ export function createMonitoring(
         })
     return configPromise
   }
+  const tasks=createTaskUsage({save:options.save??kvSet,pricing:getConfig,cost:configuredCost});
   function bucket() {
     const hour = new Date().toISOString().slice(0, 13) + ":00:00.000Z"
     let value = buckets.get(hour)
@@ -216,6 +218,7 @@ export function createMonitoring(
     return flushPromise
   }
   const timer = setInterval(() => {
+    void tasks.flush();
     void flush()
   }, 5000)
   timer.unref()
@@ -238,7 +241,7 @@ export function createMonitoring(
     const start = performance.now()
     aiInFlight++
     try {
-      const result = await operation()
+      const result = await tasks.track(req, operation)
       record(row, performance.now() - start, 200)
       const usage = result.usage
       const valid =
@@ -292,10 +295,11 @@ export function createMonitoring(
   }
   return {
     trackAI,
-    flush,
+    task:tasks.run,
+    flush:async()=>{await tasks.flush();await flush();},
     stop() {
       clearInterval(timer)
-      return flush()
+      return Promise.all([tasks.flush(),flush()])
     },
     middleware(req: Request, res: Response, next: NextFunction) {
       if (!req.path.startsWith("/api/")) return next()
@@ -326,10 +330,11 @@ export function createMonitoring(
       }
       res.once("finish", () => finish(false))
       res.once("close", () => finish(!res.writableFinished))
-      next()
+      tasks.middleware(req,res,next)
     },
     async snapshot(days: number) {
       await Promise.allSettled([...pricingTasks])
+      await tasks.flush()
       await flush()
       const since = new Date(
         Date.parse(new Date().toISOString().slice(0, 10)) -
@@ -409,6 +414,9 @@ export function createMonitoring(
       const memory = process.memoryUsage()
       return {
         protocol: "app-monitoring-v1",
+        taskUsage: tasks.report((source as any).taskRows||[],since),
+        historicalTasks:(source as any).historicalTasks||[],
+        taskReadComplete:(source as any).taskReadComplete??false,
         appId,
         generatedAt: new Date().toISOString(),
         window: { days, since, timeZone: "UTC" },

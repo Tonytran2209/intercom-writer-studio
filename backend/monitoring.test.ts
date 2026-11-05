@@ -17,6 +17,7 @@ const source =
     plans: null,
     ledger: null,
     inventory: {},
+    taskRows:[],historicalTasks:[],taskReadComplete:true,
     complete: true,
   })
 test("configured pricing separates cached input and missing prices", () => {

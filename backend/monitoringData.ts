@@ -32,6 +32,9 @@ export async function readMonitoringData(
         [since],
       )
     ).rows
+    const taskRows=(await client.query("SELECT key,value FROM public.kv_store WHERE key LIKE 'lab-task:v1:%' AND value->>'startedAt'>=$1 ORDER BY value->>'startedAt' DESC LIMIT 1001",[since])).rows;
+    let historicalTasks:any[]=[];
+    if(await exists('article_stage_runs')) historicalTasks=(await client.query(`SELECT id::text AS id,article_id AS "entityId",stage AS label,status,created_at AS "startedAt",input_tokens AS "inputTokens",output_tokens AS "outputTokens",cost_usd::float8 AS "knownCostUsd",model FROM public.article_stage_runs WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 1001`,[since])).rows.map(r=>({...r,kind:'historical-stage',coverage:'Saved final-result usage; may omit retries and cache attribution'}));
     let articles: any = null,
       plans: any = null,
       ledger: any = null
@@ -104,9 +107,14 @@ export async function readMonitoringData(
       const rows=(await client.query(`SELECT model_provider AS provider,model_id AS model,gate||':'||stage AS step,count(*)::int AS records,0::int AS cache_hits,count(*) FILTER(WHERE status='completed')::int AS calls,COALESCE(sum(input_tokens),0)::float8 AS input_tokens,COALESCE(sum(cached_input_tokens),0)::float8 AS cached_input_tokens,COALESCE(sum(output_tokens),0)::float8 AS output_tokens,sum(cost_usd)::float8 AS known_cost_usd,count(*) FILTER(WHERE cost_usd IS NOT NULL)::int AS priced_calls FROM public.eb_v2_gate_runs WHERE created_at >= $1 AND model_provider IS NOT NULL GROUP BY model_provider,model_id,gate,stage`,[since])).rows;
       ledger={source:'writer_ai_usage + eb_v2_gate_runs',scope:'saved workflow records; EB V2 stores final attempt usage, not every provider retry; never add to dispatcher',models:[...(ledger?.models||[]).map((r:any)=>({...r,source:'legacy'})),...rows.map((r:any)=>({...r,source:'eb-v2'}))]};
     }
+    if(await exists('eb_v2_gate_runs')) historicalTasks.push(...(await client.query(`SELECT id::text AS id,package_id::text AS "entityId",gate||':'||stage AS label,status,created_at AS "startedAt",input_tokens AS "inputTokens",cached_input_tokens AS "cachedInputTokens",output_tokens AS "outputTokens",cost_usd::float8 AS "knownCostUsd",model_id AS model FROM public.eb_v2_gate_runs WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 1001`,[since])).rows.map(r=>({...r,kind:'historical-gate',coverage:'Saved final attempt; does not include every retry'})));
+    historicalTasks.sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));
     await client.query("COMMIT")
     return {
       buckets: buckets.slice(0, 10000),
+      taskRows:taskRows.slice(0,1000),
+      historicalTasks:historicalTasks.slice(0,1000),
+      taskReadComplete:taskRows.length<=1000&&historicalTasks.length<=1000,
       database: {
         status: "ready",
         responseMs: performance.now() - start,
