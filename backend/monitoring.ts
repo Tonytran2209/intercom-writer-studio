@@ -353,6 +353,7 @@ export function createMonitoring(
         hour: string
         calls: number
         errors: number
+        httpTotalMs: number
         aiCalls: number
         usageSamples: number
         pricedCalls: number
@@ -383,6 +384,7 @@ export function createMonitoring(
           hour: b.hour,
           calls: 0,
           errors: 0,
+          httpTotalMs: 0,
           aiCalls: 0,
           usageSamples: 0,
           pricedCalls: 0,
@@ -391,6 +393,7 @@ export function createMonitoring(
         }
         point.calls += b.http.calls
         point.errors += b.http.failed
+        point.httpTotalMs += b.http.totalMs
         for (const model of Object.values(b.ai)) {
           point.aiCalls += model.calls
           point.usageSamples += model.usageSamples || 0
