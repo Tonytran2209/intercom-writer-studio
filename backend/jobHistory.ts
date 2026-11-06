@@ -15,6 +15,7 @@ type JobRecord = {
 
 export function summarizeJobHistory(rows: JobRecord[], limit: number) {
   const durations = new Map<string, { job: string; workload: string; values: number[] }>()
+  let latest: { job: string; workload: string; durationMs: number; end: number } | null = null
   let executed = 0, failed = 0, technicalErrors = 0, unclassifiedFailures = 0, validCompletions = 0, unverifiedCompletions = 0
   for (const row of rows.slice(0, limit)) {
     if (row.status !== "completed" && row.status !== "failed") continue
@@ -30,14 +31,19 @@ export function summarizeJobHistory(rows: JobRecord[], limit: number) {
     }
 
     if (!row.startedAt || !row.endedAt) continue
-    const duration = new Date(row.endedAt).getTime() - new Date(row.startedAt).getTime()
+    const end = new Date(row.endedAt).getTime()
+    const duration = end - new Date(row.startedAt).getTime()
     if (!Number.isFinite(duration) || duration < 0) continue
     const key = JSON.stringify([row.job, row.workload])
     const group = durations.get(key) ?? { job: row.job, workload: row.workload, values: [] }
     group.values.push(duration)
+    if (!latest || end > latest.end) latest = { job: row.job, workload: row.workload, durationMs: duration, end }
     durations.set(key, group)
   }
   return {
+    latestJob: latest ? {
+      job: latest.job, workload: latest.workload, durationMs: latest.durationMs,
+    } : null,
     executed, failed, technicalErrors, unclassifiedFailures, validCompletions, unverifiedCompletions,
     complete: rows.length <= limit,
     completion: [...durations.values()].map(({ job, workload, values }) => ({
