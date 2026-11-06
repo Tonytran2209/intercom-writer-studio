@@ -496,6 +496,7 @@ export function createMonitoring(
       const memory = process.memoryUsage()
       return {
         protocol: "app-monitoring-v1",
+        jobHistory: "jobHistory" in source ? source.jobHistory : null,
         performanceKpis: {
           clickLatency: measure(browser.clickLatency),
           responseTime: measure(browser.responseTime),

@@ -1,3 +1,4 @@
+import { summarizeJobHistory } from "./jobHistory.ts"
 import { performance } from "node:perf_hooks"
 import { databasePool } from "./postgres.ts"
 // Fixed aggregate SQL only. No article content, user identity or credentials leave this module.
@@ -115,6 +116,15 @@ export async function readMonitoringData(
     }
     if(await exists('eb_v2_gate_runs')) historicalTasks.push(...(await client.query(`SELECT id::text AS id,package_id::text AS "entityId",gate||':'||stage AS label,status,created_at AS "startedAt",input_tokens AS "inputTokens",cached_input_tokens AS "cachedInputTokens",output_tokens AS "outputTokens",cost_usd::float8 AS "knownCostUsd",model_id AS model FROM public.eb_v2_gate_runs WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 1001`,[since])).rows.map(r=>({...r,kind:'historical-gate',coverage:'Saved final attempt; does not include every retry'})));
     historicalTasks.sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));
+    const jobLimit = 10000
+    const jobHistory = await exists("eb_v2_gate_runs") ? summarizeJobHistory((await client.query(
+      `SELECT 'EB V2 ' || gate AS job, '1 package' AS workload, status,
+         (status = 'completed' AND NULLIF(btrim(output_snapshot->>'content'), '') IS NOT NULL) AS valid,
+         started_at AS "startedAt", completed_at AS "endedAt", error_message AS error
+       FROM public.eb_v2_gate_runs
+       WHERE status IN ('completed', 'failed') AND completed_at >= $1
+       ORDER BY completed_at DESC, id LIMIT $2`, [since, jobLimit + 1],
+    )).rows, jobLimit) : null
     await client.query("COMMIT")
     if (ledger && usageQueries.length) {
       ledger.timeline = (await client.query(`
@@ -129,6 +139,7 @@ export async function readMonitoringData(
     }
     return {
       buckets: buckets.slice(0, 10000),
+      jobHistory,
       taskRows:taskRows.slice(0,1000),
       historicalTasks:historicalTasks.slice(0,1000),
       taskReadComplete:taskRows.length<=1000&&historicalTasks.length<=1000,
