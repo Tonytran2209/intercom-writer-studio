@@ -69,6 +69,8 @@ app.use("/api", async (req: AuthenticatedRequest, res, next) => {
   next()
 })
 
+app.post("/api/monitoring/ui-sample", monitoring.browserSample)
+
 registerEbV2Routes(app)
 registerAgentLibraryRoutes(app)
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { sendOutlinePerformanceSample } from "../../lib/performanceTelemetry";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, Eye, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
 import type {
   Article,
@@ -181,6 +182,18 @@ export default function Step3Outline({
   const [newSectionHeading, setNewSectionHeading] = useState("");
   const [newSectionLevel, setNewSectionLevel] = useState<"h2" | "h3">("h2");
   const generationInFlight = useRef(false);
+  const generationTiming = useRef<{ start: number; clickSent: boolean; saved: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const timing = generationTiming.current;
+    if (!timing) return;
+    if (generating && !timing.clickSent) {
+      timing.clickSent = true;
+      sendOutlinePerformanceSample("clickLatency", timing.start);
+    } else if (!generating) {
+      generationTiming.current = null;
+      if (timing.saved) sendOutlinePerformanceSample("responseTime", timing.start);
+    }
+  }, [generating]);
   const outline = article.outline || [];
   const prerequisite = gateArticleStep(article, 3);
 
@@ -251,7 +264,9 @@ export default function Step3Outline({
     ...contextBrief.secondaryKeywords,
   ].filter(Boolean).join(" ");
 
-  const handleGenerate = async (manual = false) => {
+  const handleGenerate = async (manual: boolean, eventTime: number) => {
+    const now = performance.now();
+    const startedAt = eventTime > 0 && eventTime <= now ? eventTime : now;
     if (generationInFlight.current) return;
     if (!prerequisite.allowed) {
       setError(tr(prerequisite.reasonVi, prerequisite.reason));
@@ -270,6 +285,7 @@ export default function Step3Outline({
       return;
     }
     generationInFlight.current = true;
+    generationTiming.current = { start: startedAt, clickSent: false, saved: false };
     setGenerating(true);
     setError(null);
     setWarning(null);
@@ -415,6 +431,7 @@ export default function Step3Outline({
         currentStep: 3,
       });
       if (!saved) throw new Error('Outline Bước 2 chưa được lưu vào Supabase.');
+      if (generationTiming.current) generationTiming.current.saved = true;
       if (partialResult) {
         setWarning(`Đã lưu ${sections.length}/${minimumSections} section tối thiểu vượt qua kiểm chứng. Bạn có thể chỉnh sửa thủ công hoặc nhấn “Tạo lại” để thử bổ sung.`);
       } else {
@@ -639,7 +656,7 @@ export default function Step3Outline({
           <button
             onClick={needsOutlineApproval
               ? () => void onUpdate({ editorialApproval: { status: 'approved', approvedAt: new Date().toISOString(), outlineFingerprint: article.outlineSourceFingerprint ?? undefined } })
-              : canContinueToDraft ? onNext : () => void handleGenerate(Boolean(outline.length))}
+              : canContinueToDraft ? onNext : (event) => void handleGenerate(Boolean(outline.length), event.timeStamp)}
             disabled={stepActionDisabled}
             className="workflow-endpoint-button"
           >
