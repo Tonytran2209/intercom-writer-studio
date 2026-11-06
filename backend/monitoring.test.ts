@@ -7,6 +7,7 @@ const source =
   async () => ({
     buckets: rows,
     jobHistory: null,
+    jobHistoryAllTime: null,
     database: {
       status: "ready",
       responseMs: 1,
