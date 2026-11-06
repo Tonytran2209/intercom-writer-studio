@@ -13,6 +13,10 @@ test('EB V2 counts latest revisions and keeps final-attempt ledger coverage and 
  INSERT INTO eb_v2_articles VALUES ('one',1,'superseded'),('one',2,'approved'),('two',1,'draft');
  INSERT INTO eb_v2_packages VALUES ('completed'),('review');
  INSERT INTO eb_v2_channel_outputs VALUES ('one','facebook',1,'rejected'),('one','facebook',2,'done'),('one','threads',1,'queued');
+ ALTER TABLE eb_v2_articles ADD COLUMN body_markdown text;
+ UPDATE eb_v2_articles SET body_markdown='private test' WHERE revision=2;
+ ALTER TABLE eb_v2_channel_outputs ADD COLUMN content jsonb;
+ UPDATE eb_v2_channel_outputs SET content='{"text":"private channel output"}' WHERE status='done';
  ALTER TABLE eb_v2_gate_runs ADD COLUMN output_snapshot jsonb, ADD COLUMN started_at timestamptz, ADD COLUMN completed_at timestamptz, ADD COLUMN error_message text;
  INSERT INTO eb_v2_gate_runs(model_provider,model_id,gate,stage,status,input_tokens,cached_input_tokens,output_tokens,cost_usd,created_at) VALUES ('test','model','article','draft','completed',100,20,10,null,now()),('test','model','article','draft','failed',0,0,0,null,now());
  UPDATE eb_v2_gate_runs SET started_at='2025-01-01T00:00:00Z', completed_at='2025-01-01T00:00:02Z';
@@ -23,6 +27,10 @@ test('EB V2 counts latest revisions and keeps final-attempt ledger coverage and 
  assert.equal(result.articles.total,2);
  assert.equal(result.jobHistory?.validCompletions,1);
  assert.equal(result.jobHistoryAllTime?.executed,2);
+ assert.equal(result.contentWorkload?.articles,1);
+ assert.equal(result.contentWorkload?.averageWords,2);
+ assert.deepEqual(result.contentWorkload?.formats.map((row:any)=>[row.format,row.outputs,row.averageWords]),[["facebook",1,3]]);
+ assert.ok(!JSON.stringify(result.contentWorkload).includes("private"));
  assert.equal(result.jobHistory?.technicalErrors,1);
  assert.equal(result.jobHistory?.completion[0].p95Ms,2000);
  assert.ok(!JSON.stringify(result.jobHistory).includes("private"));
