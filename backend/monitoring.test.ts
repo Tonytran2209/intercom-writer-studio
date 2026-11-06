@@ -147,3 +147,49 @@ test("monitor route fails closed and HTTP instrumentation records errors without
     await monitoring.stop()
   }
 })
+
+test("KPI samples persist, preserve 200 ms boundary and withhold ambiguous technical error rates", async () => {
+  const rows = new Map<string, { key: string; value: any }>()
+  const options = {
+    readData: async () => source([...rows.values()])(),
+    save: async (key: string, value: any) => { rows.set(key, { key, value }) },
+  }
+  const monitor = createMonitoring("test", options)
+  const app = express()
+  app.use(express.json())
+  app.post("/sample", monitor.browserSample)
+  const server = app.listen(0, "127.0.0.1")
+  try {
+    await new Promise<void>((resolve) => server.once("listening", resolve))
+    const url = "http://127.0.0.1:" + (server.address() as { port: number }).port + "/sample"
+    const sample = (metric: string, ms: number, site = "same-origin") => fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "sec-fetch-site": site },
+      body: JSON.stringify({ metric, ms }),
+    })
+    assert.equal((await sample("clickLatency", 195)).status, 204)
+    assert.equal((await sample("responseTime", 2200)).status, 204)
+    assert.equal((await sample("responseTime", 100, "cross-site")).status, 403)
+    assert.equal((await sample("invalid", 100)).status, 400)
+    monitor.recordJob("Test gate", "1 item", performance.now() - 100, "valid")
+    monitor.recordJob("Test gate", "1 item", performance.now() - 100, "technical")
+    const first = (await monitor.snapshot(7)).performanceKpis
+    assert.deepEqual(first.clickLatency, { p95Ms: 200, samples: 1 })
+    assert.deepEqual(first.responseTime, { p95Ms: 2500, samples: 1 })
+    assert.deepEqual(first.jobs, { executed: 2, technicalErrors: 1, validCompletions: 1 })
+    assert.equal(first.jobCompletion[0].samples, 2)
+    const restarted = createMonitoring("test", options)
+    try {
+      assert.deepEqual((await restarted.snapshot(7)).performanceKpis, first)
+      restarted.recordJob("Test gate", "1 item", performance.now(), "unknown")
+      assert.deepEqual((await restarted.snapshot(7)).performanceKpis.jobs, {
+        executed: 3, technicalErrors: null, validCompletions: 1,
+      })
+    } finally {
+      await restarted.stop()
+    }
+  } finally {
+    server.close()
+    await monitor.stop()
+  }
+})

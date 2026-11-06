@@ -26,6 +26,20 @@ type AiCounter = Counter & {
   pricedCalls: number
   knownCostUsd: number
 }
+type JobOutcome = "valid" | "technical" | "invalid" | "unknown"
+type JobCounter = { job: string; workload: string; duration: Counter; valid: number; technical: number; unknown: number }
+type BrowserMetric = "clickLatency" | "responseTime"
+const kpiLimits = limits.map((limit) => limit === 250 ? 200 : limit)
+
+export function jobFailure(error: unknown): JobOutcome {
+  if (!error || typeof error !== "object") return "unknown"
+  const { code, name, status, statusCode } = error as { code?: string; name?: string; status?: number; statusCode?: number }
+  if ((status ?? statusCode ?? 0) >= 500 || name === "TimeoutError" ||
+      ["ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ENOTFOUND", "57P01", "57014"].includes(code ?? ""))
+    return "technical"
+  return "unknown"
+}
+
 type Bucket = {
   key: string
   hour: string
@@ -34,6 +48,8 @@ type Bucket = {
   http: Counter
   routes: Record<string, Counter>
   ai: Record<string, AiCounter>
+  browser?: Partial<Record<BrowserMetric, Counter>>
+  jobs?: Record<string, JobCounter>
 }
 const counter = (): Counter => ({
   calls: 0,
@@ -53,15 +69,15 @@ const aiCounter = (): AiCounter => ({
   pricedCalls: 0,
   knownCostUsd: 0,
 })
-function record(row: Counter, ms: number, status: number, aborted = false) {
+function record(row: Counter, ms: number, status: number, aborted = false, bounds = limits) {
   row.calls++
   row.failed += Number(status >= 500)
   row.clientErrors += Number(status >= 400 && status < 500)
   row.aborted += Number(aborted)
   row.totalMs += ms
   row.maxMs = Math.max(row.maxMs, ms)
-  let i = limits.findIndex((limit) => ms <= limit)
-  if (i < 0) i = limits.length
+  let i = bounds.findIndex((limit) => ms <= limit)
+  if (i < 0) i = bounds.length
   row.histogram[i]++
 }
 function add(target: Counter, source: Counter) {
@@ -78,14 +94,14 @@ function add(target: Counter, source: Counter) {
     (v, i) => v + (source.histogram[i] || 0),
   )
 }
-function summarize(row: Counter) {
+function summarize(row: Counter, bounds = limits) {
   const quantile = (fraction: number) => {
     if (!row.calls) return null
     let n = 0
     const target = Math.ceil(row.calls * fraction)
     for (let i = 0; i < row.histogram.length; i++) {
       n += row.histogram[i]
-      if (n >= target) return limits[i] ?? row.maxMs
+      if (n >= target) return bounds[i] ?? row.maxMs
     }
     return null
   }
@@ -195,6 +211,18 @@ export function createMonitoring(
     b.version++
     dirty.add(b.hour)
   }
+  function recordJob(job: string, workload: string, start: number, outcome: JobOutcome) {
+    const b = bucket()
+    const jobs = b.jobs ??= {}
+    const key = job + ":" + workload
+    const row = jobs[key] ??= { job, workload, duration: counter(), valid: 0, technical: 0, unknown: 0 }
+    record(row.duration, performance.now() - start, 200, false, kpiLimits)
+    row.valid += Number(outcome === "valid")
+    row.technical += Number(outcome === "technical")
+    row.unknown += Number(outcome === "unknown")
+    changed(b)
+  }
+
   async function flush() {
     if (flushPromise) return flushPromise
     flushPromise = (async () => {
@@ -296,6 +324,21 @@ export function createMonitoring(
   return {
     trackAI,
     task:tasks.run,
+    recordJob,
+    browserSample(req: Request, res: Response) {
+      // Only accept the app's own browser requests and a bounded scalar payload.
+      if (req.get("sec-fetch-site") !== "same-origin") return res.sendStatus(403)
+      const { metric, ms } = req.body ?? {}
+      if ((metric !== "clickLatency" && metric !== "responseTime") ||
+          typeof ms !== "number" || !Number.isFinite(ms) || ms < 0 || ms > 600000) return res.sendStatus(400)
+      const b = bucket()
+      const browser = b.browser ??= {}
+      const row = browser[metric as BrowserMetric] ??= counter()
+      if (row.calls >= 10000) return res.sendStatus(429)
+      record(row, ms, 200, false, kpiLimits)
+      changed(b)
+      return res.sendStatus(204)
+    },
     flush:async()=>{await tasks.flush();await flush();},
     stop() {
       clearInterval(timer)
@@ -348,6 +391,8 @@ export function createMonitoring(
       const http = counter(),
         routes: Record<string, Counter> = {},
         models: Record<string, AiCounter> = {}
+      const browser = { clickLatency: counter(), responseTime: counter() }
+      const jobs = new Map<string, JobCounter>()
       let first: string | null = null
       const timeline = new Map<string, {
         hour: string
@@ -363,6 +408,18 @@ export function createMonitoring(
       for (const b of byKey.values()) {
         if (!b || !b.http || !b.ai || !b.routes) continue
         if (!first || b.hour < first) first = b.hour
+        for (const metric of ["clickLatency", "responseTime"] as const) {
+          const sample = b.browser?.[metric]
+          if (sample) add(browser[metric], sample)
+        }
+        for (const [key, row] of Object.entries(b.jobs ?? {})) {
+          const total = jobs.get(key) ?? { job: row.job, workload: row.workload, duration: counter(), valid: 0, technical: 0, unknown: 0 }
+          add(total.duration, row.duration)
+          total.valid += row.valid
+          total.technical += row.technical
+          total.unknown += row.unknown
+          jobs.set(key, total)
+        }
         add(http, b.http)
         for (const [key, value] of Object.entries(b.routes)) {
           add(routes[key] ?? (routes[key] = counter()), value)
@@ -428,9 +485,27 @@ export function createMonitoring(
             : null
       cpuAt = cpu
       cpuTime = now
+      const jobRows = [...jobs.values()]
+      const outcomes = jobRows.reduce((total, row) => ({
+        executed: total.executed + row.duration.calls,
+        technicalErrors: total.technicalErrors + row.technical,
+        validCompletions: total.validCompletions + row.valid,
+        unknownOutcomes: total.unknownOutcomes + row.unknown,
+      }), { executed: 0, technicalErrors: 0, validCompletions: 0, unknownOutcomes: 0 })
+      const measure = (row: Counter) => ({ p95Ms: summarize(row, kpiLimits).p95Ms, samples: row.calls })
       const memory = process.memoryUsage()
       return {
         protocol: "app-monitoring-v1",
+        performanceKpis: {
+          clickLatency: measure(browser.clickLatency),
+          responseTime: measure(browser.responseTime),
+          jobCompletion: jobRows.map(({ job, workload, duration }) => ({ job, workload, ...measure(duration) })),
+          jobs: {
+            executed: outcomes.executed,
+            validCompletions: outcomes.validCompletions,
+            technicalErrors: outcomes.unknownOutcomes ? null : outcomes.technicalErrors,
+          },
+        },
         taskUsage: tasks.report((source as any).taskRows||[],since),
         historicalTasks:(source as any).historicalTasks||[],
         taskReadComplete:(source as any).taskReadComplete??false,
