@@ -285,6 +285,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
     },
     useRef(initial) { const index = refCursor++; return refs[index] ??= { current: initial }; },
     useEffect() {},
+    useLayoutEffect() {},
   };
   const data = { packages: [{ id:'brief', title:'Synthetic brief', state:'brief' }, { id:'review', title:'Synthetic review', state:'review' }], articles:[], runs:[], discovery:[], channels: ['facebook','linkedin'].map((channel, i) => ({id:`c${i}`, package_id:'review', channel, status:'ready', content:{}})) };
   let reviewCalls = 0;
