@@ -152,7 +152,7 @@ export async function saveConfig(config: AppConfig): Promise<void> {
 }
 
 // ── EB Workspace V2 (isolated from legacy Writer Studio records) ────────────
-export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[] }
+export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[]; runs?: { package_id: string; gate: string; status: string; output_snapshot?: { content?: unknown } }[] }
 // V2 is hosted with the current frontend. Never inherit writer:railwayUrl,
 // which may still point to an older legacy Railway service in localStorage.
 function ebV2Origin() { return typeof window === "undefined" ? undefined : window.location.origin }

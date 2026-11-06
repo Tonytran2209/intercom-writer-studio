@@ -1,3 +1,4 @@
+import { sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowLeft,
   ArrowUp,
@@ -22,7 +23,7 @@ import {
   Upload,
   X,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
@@ -365,10 +366,39 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     window.addEventListener("writer:eb-open-item", openItem)
     return () => window.removeEventListener("writer:eb-open-item", openItem)
   }, [])
+  const analyzeClick = useRef<number | null>(null)
+  const pendingBriefs = useRef(new Map<string, number>())
+  const readyBriefs = useRef(new Map<string, number>())
+  useLayoutEffect(() => {
+    if (syncing && analyzeClick.current !== null) {
+      sendPerformanceSample("clickLatency", analyzeClick.current)
+      analyzeClick.current = null
+    }
+    for (const [id, start] of readyBriefs.current) {
+      if (tasks.some((task) => task.id === id && task.gate === "brief" && task.status === "ready")) {
+        readyBriefs.current.delete(id)
+        sendPerformanceSample("responseTime", start)
+      }
+    }
+  }, [syncing, tasks])
+
+  function trackBrief(id: string | undefined, start: number) {
+    if (id && !isShellMode) pendingBriefs.current.set(id, start)
+  }
+
   const refresh = async () => {
     setSyncing(true)
     try {
       const data = await db.fetchEbV2Workspace()
+      for (const [id, start] of pendingBriefs.current) {
+        const run = data.runs?.find((item) => item.package_id === id && item.gate === "brief")
+        if (run?.status === "completed" && typeof run.output_snapshot?.content === "string" && run.output_snapshot.content.trim()) {
+          pendingBriefs.current.delete(id)
+          readyBriefs.current.set(id, start)
+        } else if (run?.status === "failed" || performance.now() - start > 600000) {
+          pendingBriefs.current.delete(id)
+        }
+      }
       setTasks(workspaceTasks(data))
       setDiscoveryIdeas(
         uniqueDiscoveryIdeas((Array.isArray(data.discovery) ? data.discovery : [])
@@ -436,7 +466,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   }, [tasks, discoveryIdeas])
   useEffect(() => {
     if (
-      !tasks.some((task) =>
+      !pendingBriefs.current.size && !tasks.some((task) =>
         ["checking", "drafting", "adapting"].includes(task.status),
       )
     )
@@ -449,16 +479,18 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const createBrief = async (
     title: string,
     source: "input" | "discovery",
-    discoveryId?: string,
+    discoveryId: string | undefined,
+    startedAt: number,
   ) => {
     const model = selectedModel(config, 1)
     if (!model) {
       setInputError("Choose a Brief AI model in Workflow AI first.")
       return
     }
+    if (!isShellMode) analyzeClick.current = startedAt
     setSyncing(true)
     try {
-      await db.createEbV2Package({
+      const result = await db.createEbV2Package({
         title: preparation?.title ?? title,
         inputText: title,
         fConnection: fConnection.trim(),
@@ -467,6 +499,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         discoveryId,
         model: { provider: model.provider, id: model.id },
       })
+      trackBrief(result.package?.id, startedAt)
       setPreparation(null); setFConnection(""); setFEvidence("")
       await refresh()
       setInput(""); setInputDiscoveryId(undefined)
@@ -479,7 +512,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       setSyncing(false)
     }
   }
-  const analyze = () => {
+  const analyze = (event: { timeStamp: number }) => {
+    const now = performance.now()
+    const startedAt = event.timeStamp > 0 && event.timeStamp <= now ? event.timeStamp : now
     if (syncing || (!input.trim() && !file)) return
     setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
@@ -497,10 +532,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         setInputError("Choose a Brief AI model in Workflow AI first.")
         return
       }
+      analyzeClick.current = startedAt
       setSyncing(true)
       void db
         .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection: fConnection.trim(), fEvidence: fEvidence.trim() })
-        .then(async () => {
+        .then(async (result) => {
+          trackBrief(result.package?.id, startedAt)
           await refresh()
           setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setInputError(null)
         })
@@ -513,7 +550,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )
         .finally(() => setSyncing(false))
     } else
-      void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId)
+      void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId, startedAt)
   }
   const reportOperationError = (context: string, message: string) => {
     notifyWorkspace(`${context}: ${message} Refresh workspace to check saved state before retrying the operation.`, "error")
@@ -1998,7 +2035,7 @@ function InputEngine({
   fileName: string
   setFileName: (value: string) => void
   setFile: (file: File | null) => void
-  analyze: () => void
+  analyze: (event: { timeStamp: number }) => void
 }) {
   return (
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
