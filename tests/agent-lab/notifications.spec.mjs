@@ -285,6 +285,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
     },
     useRef(initial) { const index = refCursor++; return refs[index] ??= { current: initial }; },
     useEffect() {},
+    useLayoutEffect() {},
   };
   const data = { packages: [{ id:'brief', title:'Synthetic brief', state:'brief' }, { id:'review', title:'Synthetic review', state:'review' }], articles:[], runs:[], discovery:[], channels: ['facebook','linkedin'].map((channel, i) => ({id:`c${i}`, package_id:'review', channel, status:'ready', content:{}})) };
   let reviewCalls = 0;
@@ -302,7 +303,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   const module = { exports:{} };
   const dependencies = {
     'react':hooks, 'react/jsx-runtime':jsx, 'lucide-react':{}, '../lib/db':api,
-    '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},
+    '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},
     './workspace/WorkspaceNotification':{
       ...await loadNoticeStore(),
       useWorkspaceNotices:() => events,
@@ -458,7 +459,7 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     },
   };
   const noticeStore = await loadNoticeStore();
-  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'./workspace/WorkspaceNotification':noticeStore};
+  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
   const module = {exports:{}};
   new Function('require','exports',compiled)(name => {
     assert.ok(name in dependencies, `Unexpected module ${name}`);

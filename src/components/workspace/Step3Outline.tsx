@@ -1,4 +1,4 @@
-import { sendOutlinePerformanceSample } from "../../lib/performanceTelemetry";
+import { sendPerformanceSample } from "../../lib/performanceTelemetry";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, Eye, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
 import type {
@@ -188,10 +188,10 @@ export default function Step3Outline({
     if (!timing) return;
     if (generating && !timing.clickSent) {
       timing.clickSent = true;
-      sendOutlinePerformanceSample("clickLatency", timing.start);
+      sendPerformanceSample("clickLatency", timing.start);
     } else if (!generating) {
       generationTiming.current = null;
-      if (timing.saved) sendOutlinePerformanceSample("responseTime", timing.start);
+      if (timing.saved) sendPerformanceSample("responseTime", timing.start);
     }
   }, [generating]);
   const outline = article.outline || [];
