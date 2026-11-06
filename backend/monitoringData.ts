@@ -10,6 +10,7 @@ export async function readMonitoringData(
     return {
       buckets: [],
       inventory: undefined,
+      contentWorkload: null,
       jobHistory: null,
       jobHistoryAllTime: null,
       database: { status: "unsupported" },
@@ -128,6 +129,37 @@ export async function readMonitoringData(
        WHERE status IN ('completed', 'failed') AND completed_at IS NOT NULL
        ORDER BY completed_at DESC, id LIMIT $1`, [jobLimit + 1],
     )).rows, since, jobLimit) : { jobHistory: null, jobHistoryAllTime: null }
+    const contentWorkload = await exists("eb_v2_articles")
+      ? {
+          kind: "eb-v2",
+          ...(await client.query(`
+            WITH latest AS (
+              SELECT DISTINCT ON (package_id) body_markdown, status
+              FROM public.eb_v2_articles ORDER BY package_id, revision DESC
+            ), measured AS (
+              SELECT cardinality(regexp_split_to_array(regexp_replace(body_markdown, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '[[:space:]]+')) AS words
+              FROM latest WHERE status IN ('draft', 'approved') AND body_markdown ~ '[^[:space:]]'
+            )
+            SELECT count(*)::int AS articles, count(words)::int AS "lengthSamples",
+              avg(words)::float8 AS "averageWords", min(words) AS "minWords", max(words) AS "maxWords"
+            FROM measured
+          `)).rows[0],
+          formats: await exists("eb_v2_channel_outputs") ? (await client.query(`
+            WITH latest AS (
+              SELECT DISTINCT ON (package_id, channel) channel, content, status
+              FROM public.eb_v2_channel_outputs
+              WHERE content->'archived' IS DISTINCT FROM 'true'::jsonb
+              ORDER BY package_id, channel, revision DESC
+            ), measured AS (
+              SELECT channel, cardinality(regexp_split_to_array(regexp_replace(content->>'text', '^[[:space:]]+|[[:space:]]+$', '', 'g'), '[[:space:]]+')) AS words
+              FROM latest WHERE status IN ('ready_for_review', 'done', 'recheck') AND content->>'text' ~ '[^[:space:]]'
+            )
+            SELECT channel AS format, count(*)::int AS outputs, avg(words)::float8 AS "averageWords",
+              min(words) AS "minWords", max(words) AS "maxWords"
+            FROM measured GROUP BY channel ORDER BY channel
+          `)).rows : [],
+        }
+      : null
     await client.query("COMMIT")
     if (ledger && usageQueries.length) {
       ledger.timeline = (await client.query(`
@@ -143,6 +175,7 @@ export async function readMonitoringData(
     return {
       buckets: buckets.slice(0, 10000),
       ...history,
+      contentWorkload,
       taskRows:taskRows.slice(0,1000),
       historicalTasks:historicalTasks.slice(0,1000),
       taskReadComplete:taskRows.length<=1000&&historicalTasks.length<=1000,

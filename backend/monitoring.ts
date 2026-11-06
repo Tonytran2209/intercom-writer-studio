@@ -496,6 +496,7 @@ export function createMonitoring(
       const memory = process.memoryUsage()
       return {
         protocol: "app-monitoring-v1",
+        contentWorkload: source.contentWorkload,
         jobHistory: "jobHistory" in source ? source.jobHistory : null,
         jobHistoryAllTime: "jobHistoryAllTime" in source ? source.jobHistoryAllTime : null,
         performanceKpis: {
