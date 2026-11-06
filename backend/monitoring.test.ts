@@ -6,6 +6,7 @@ const source =
   (rows: any[] = []) =>
   async () => ({
     buckets: rows,
+    jobHistory: null,
     database: {
       status: "ready",
       responseMs: 1,
