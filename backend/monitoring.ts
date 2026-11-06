@@ -497,6 +497,7 @@ export function createMonitoring(
       return {
         protocol: "app-monitoring-v1",
         jobHistory: "jobHistory" in source ? source.jobHistory : null,
+        jobHistoryAllTime: "jobHistoryAllTime" in source ? source.jobHistoryAllTime : null,
         performanceKpis: {
           clickLatency: measure(browser.clickLatency),
           responseTime: measure(browser.responseTime),

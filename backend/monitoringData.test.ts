@@ -22,6 +22,7 @@ test('EB V2 counts latest revisions and keeps final-attempt ledger coverage and 
  const result=await readMonitoringData('2020-01-01T00:00:00.000Z',{connect:async()=>client,totalCount:1,idleCount:0,waitingCount:0} as any);
  assert.equal(result.articles.total,2);
  assert.equal(result.jobHistory?.validCompletions,1);
+ assert.equal(result.jobHistoryAllTime?.executed,2);
  assert.equal(result.jobHistory?.technicalErrors,1);
  assert.equal(result.jobHistory?.completion[0].p95Ms,2000);
  assert.ok(!JSON.stringify(result.jobHistory).includes("private"));

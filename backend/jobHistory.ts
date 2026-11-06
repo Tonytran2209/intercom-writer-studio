@@ -9,6 +9,7 @@ type JobRecord = {
   valid: boolean
   startedAt: string | Date | null
   endedAt: string | Date | null
+  recordedAt?: string | Date | null
   error: string | null
 }
 
@@ -43,5 +44,14 @@ export function summarizeJobHistory(rows: JobRecord[], limit: number) {
       job, workload, samples: values.length,
       p95Ms: values.sort((a, b) => a - b)[Math.ceil(0.95 * values.length) - 1],
     })),
+  }
+}
+
+export function jobHistoryWindows(rows: JobRecord[], since: string, limit: number) {
+  const start = Date.parse(since)
+  const recent = rows.filter(({ recordedAt }) => recordedAt && new Date(recordedAt).getTime() >= start)
+  return {
+    jobHistory: summarizeJobHistory(recent, limit),
+    jobHistoryAllTime: summarizeJobHistory(rows, limit),
   }
 }
