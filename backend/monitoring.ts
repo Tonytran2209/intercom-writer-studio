@@ -345,7 +345,7 @@ export function createMonitoring(
       return Promise.all([tasks.flush(),flush()])
     },
     middleware(req: Request, res: Response, next: NextFunction) {
-      if (!req.path.startsWith("/api/")) return next()
+      if (!req.path.startsWith("/api/") || req.path === "/api/monitoring/ui-sample") return next()
       inFlight++
       const start = performance.now()
       let done = false
