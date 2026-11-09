@@ -7,11 +7,11 @@ test('EB V2 counts latest revisions and keeps final-attempt ledger coverage and 
  try{
  await db.exec(`CREATE TABLE kv_store(key text primary key,value jsonb);
  CREATE TABLE eb_v2_articles(package_id text,revision int,status text);
- CREATE TABLE eb_v2_packages(state text);
+ CREATE TABLE eb_v2_packages(id text, title text, state text);
  CREATE TABLE eb_v2_channel_outputs(package_id text,channel text,revision int,status text);
  CREATE TABLE eb_v2_gate_runs(id text DEFAULT 'test-run',package_id text DEFAULT 'test-package',model_provider text,model_id text,gate text,stage text,status text,input_tokens int,cached_input_tokens int,output_tokens int,cost_usd numeric,created_at timestamptz);
  INSERT INTO eb_v2_articles VALUES ('one',1,'superseded'),('one',2,'approved'),('two',1,'draft');
- INSERT INTO eb_v2_packages VALUES ('completed'),('review');
+ INSERT INTO eb_v2_packages(id,title,state) VALUES ('test-package','Ra mắt văn phòng mới','completed'),('other','Khác','review');
  INSERT INTO eb_v2_channel_outputs VALUES ('one','facebook',1,'rejected'),('one','facebook',2,'done'),('one','threads',1,'queued');
  ALTER TABLE eb_v2_articles ADD COLUMN body_markdown text;
  UPDATE eb_v2_articles SET body_markdown='private test' WHERE revision=2;

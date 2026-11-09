@@ -53,3 +53,22 @@ test("job runs list the last 61 days of terminal runs for AI Agent Lab", () => {
   assert.equal(jobRuns(rows, now, 1).complete, false)
   assert.equal(jobHistoryWindows(rows, "2026-11-01T00:00:00Z", 2, now).jobRuns.complete, false, "a truncated read is incomplete")
 })
+
+test("job runs carry run linkage, document names and parent runs for AI Agent Lab", () => {
+  const now = Date.parse("2026-11-09T00:00:00Z")
+  const rows = [{
+    job: "Step", workload: "1 item", status: "completed" as const, valid: true, error: null,
+    startedAt: "2026-11-08T00:00:00Z", endedAt: "2026-11-08T00:00:05Z", recordedAt: "2026-11-08T00:00:05Z",
+    runId: "s1", parentRunId: "group:1", parent: "Group", title: "  Tài liệu ToR UNIDO  ",
+  }]
+  const parents = [
+    { job: "Group", runId: "group:1", workload: "3 bài · Plan Q4", status: "running" as const, startedAt: "2026-11-08T00:00:00Z", endedAt: null },
+    { job: "Group", runId: "group:old", workload: "1 bài", status: "success" as const, startedAt: "2026-08-01T00:00:00Z", endedAt: "2026-08-01T00:10:00Z" },
+  ]
+  const result = jobRuns(rows, now, 5000, parents)
+  assert.deepEqual(result.runs, [
+    { job: "Step", workload: "1 item · Tài liệu ToR UNIDO", status: "success", startedAt: "2026-11-08T00:00:00.000Z", endedAt: "2026-11-08T00:00:05.000Z",
+      runId: "s1", parentRunId: "group:1", parent: "Group" },
+    { job: "Group", runId: "group:1", workload: "3 bài · Plan Q4", status: "running", startedAt: "2026-11-08T00:00:00Z", endedAt: null },
+  ])
+})
