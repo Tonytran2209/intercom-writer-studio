@@ -4,6 +4,7 @@ import { performance } from "node:perf_hooks"
 import type { Request, Response, NextFunction } from "express"
 import { kvGet, kvSet, tableAvailable, tableSelect } from "./supabase.ts"
 import { readMonitoringData } from "./monitoringData.ts"
+import { labProfile } from "./packageSteps.ts"
 
 const limits = [
   10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000, 180000,
@@ -496,6 +497,7 @@ export function createMonitoring(
       const memory = process.memoryUsage()
       return {
         protocol: "app-monitoring-v1",
+        profile: labProfile,
         contentWorkload: source.contentWorkload,
         jobRuns: "jobRuns" in source ? source.jobRuns : null,
         jobHistory: "jobHistory" in source ? source.jobHistory : null,
