@@ -15,6 +15,7 @@ test("gate runs map to pipeline sub-jobs by stage", () => {
   assert.equal(gateStepName("review", "repetition_check"), "Kiểm tra trùng lặp")
   assert.deepEqual(labProfile.mainJob, { job: PACKAGE_JOB, steps: pipelineSteps })
   assert.ok(pipelineSteps.every((step) => labProfile.jobTargets[step] > 0))
+  assert.equal(labProfile.errorRateTarget, 1, "success target ≥ 99%")
 })
 
 test("a package run counts processing time once and leaves out approvals and feedback", () => {

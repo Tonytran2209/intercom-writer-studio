@@ -41,6 +41,9 @@ const isFeedback = (job: string) => job === FEEDBACK_ARTICLE || job === FEEDBACK
 export const labProfile = {
   version: "profile-v1",
   mainJob: { job: PACKAGE_JOB, steps: pipelineSteps },
+  // Failure-rate target in percent (success ≥ 99%): 12/12 packages and 205/206 gate runs succeeded
+  // in 61 days. Lab uses it until there are enough packages for its own baseline.
+  errorRateTarget: 1,
   jobTargets: <Record<string, number>>{
     [PACKAGE_JOB]: 2,
     "Trích xuất brief": 10 / 60,
