@@ -44,6 +44,11 @@ export const labProfile = {
   // Failure-rate target in percent (success ≥ 99%): 12/12 packages and 205/206 gate runs succeeded
   // in 61 days. Lab uses it until there are enough packages for its own baseline.
   errorRateTarget: 1,
+  // What the browser KPIs measure (src/components/EbWorkingSpace.tsx, legacy Step3Outline.tsx).
+  kpiDescriptions: {
+    responseTime: "Bấm 'Phân tích' input EB V2 → brief sẵn sàng (hoặc 'Tạo outline' ở luồng cũ)",
+    clickLatency: "Bấm 'Phân tích' / 'Tạo outline' → giao diện hiện trạng thái đang xử lý",
+  },
   jobTargets: <Record<string, number>>{
     [PACKAGE_JOB]: 2,
     "Trích xuất brief": 10 / 60,
