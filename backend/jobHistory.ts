@@ -53,10 +53,38 @@ export function summarizeJobHistory(rows: JobRecord[], limit: number) {
   }
 }
 
-export function jobHistoryWindows(rows: JobRecord[], since: string, limit: number) {
+const iso = (value: string | Date | null | undefined) => {
+  if (!value) return null
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? new Date(time).toISOString() : null
+}
+
+// app-monitoring-v1 `jobRuns`: terminal runs of the last 61 days, newest first, for AI Agent Lab to
+// compute its own periods, comparisons and per-job error rates. Counts and timestamps only.
+export function jobRuns(rows: JobRecord[], now: number, max = 5000) {
+  const since = now - 61 * 86400000
+  const runs: { job: string; workload: string; status: "success" | "failed"; startedAt: string | null; endedAt: string }[] = []
+  let truncated = false
+  for (const row of rows) {
+    if (row.status !== "completed" && row.status !== "failed") continue
+    const endedAt = iso(row.endedAt) ?? iso(row.recordedAt)
+    if (!endedAt || Date.parse(endedAt) < since) continue
+    if (runs.length >= max) { truncated = true; break }
+    const startedAt = iso(row.startedAt)
+    runs.push({
+      job: row.job, workload: row.workload, status: row.status === "completed" ? "success" : "failed",
+      startedAt: startedAt && Date.parse(startedAt) <= Date.parse(endedAt) ? startedAt : null, endedAt,
+    })
+  }
+  return { since: new Date(since).toISOString(), complete: !truncated, runs }
+}
+
+export function jobHistoryWindows(rows: JobRecord[], since: string, limit: number, now = Date.now()) {
   const start = Date.parse(since)
   const recent = rows.filter(({ recordedAt }) => recordedAt && new Date(recordedAt).getTime() >= start)
+  const runs = jobRuns(rows, now)
   return {
+    jobRuns: { ...runs, complete: rows.length <= limit && runs.complete },
     jobHistory: summarizeJobHistory(recent, limit),
     jobHistoryAllTime: summarizeJobHistory(rows, limit),
   }
