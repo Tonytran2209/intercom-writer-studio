@@ -46,7 +46,7 @@ New dispatcher/HTTP counters begin at installation. Hourly per-instance snapshot
 
 AI cost uses configured model prices at call completion, is an estimate in USD, and remains null without a valid price. Token coverage and priced-call counts are explicit. Historical `writer_ai_usage` is a separate workflow ledger: cache hits are separated from provider calls and its totals must not be added to dispatcher totals. No schema migration, auth/provider change or existing workflow response change is required.
 
-`jobRuns` (AI Agent Lab run history) reports EB V2 by package. Names are in `backend/packageSteps.ts`, and the report profile declares them with their targets.
+`jobRuns` (AI Agent Lab run history) reports EB V2 by package. Names are in `backend/packageSteps.ts`, and the report profile declares them with their targets and a failure-rate target of 1% (success ≥ 99%).
 - **Gate runs.** Each `eb_v2_gate_runs` row is a sub-job named by its stage: Trích xuất brief, Article Spec, Lập outline, Viết bài, Chuyển thể Facebook / LinkedIn / Threads and Kiểm tra trùng lặp. Revisions are separate sub-jobs: Sửa bài theo feedback and Sửa post theo feedback.
 - **Linkage.** Each gate run has `parentRunId: package:<id>` and `parent: "EB V2 package"`. Its workload is `1 package · <title>`.
 - **Package runs.** A package in `review` or `completed` is also an `EB V2 package` run. Its time is the union of its pipeline gate runs, so parallel channels count once; human approvals and feedback revisions are not counted. It failed if the latest run of any pipeline step failed.
