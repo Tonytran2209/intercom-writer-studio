@@ -121,13 +121,19 @@ export async function readMonitoringData(
     if(await exists('eb_v2_gate_runs')) historicalTasks.push(...(await client.query(`SELECT id::text AS id,package_id::text AS "entityId",gate||':'||stage AS label,status,created_at AS "startedAt",input_tokens AS "inputTokens",cached_input_tokens AS "cachedInputTokens",output_tokens AS "outputTokens",cost_usd::float8 AS "knownCostUsd",model_id AS model FROM public.eb_v2_gate_runs WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 1001`,[since])).rows.map(r=>({...r,kind:'historical-gate',coverage:'Saved final attempt; does not include every retry'})));
     historicalTasks.sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));
     const jobLimit = 10000
+    // Gates of one package share a parentRunId so AI Agent Lab groups them in its run history. The
+    // package itself is not a timed run: human approval happens between gates.
+    const packageTitles = await exists("eb_v2_packages")
     const history = await exists("eb_v2_gate_runs") ? jobHistoryWindows((await client.query(
-      `SELECT 'EB V2 ' || gate AS job, '1 package' AS workload, status,
-         (status = 'completed' AND NULLIF(btrim(output_snapshot->>'content'), '') IS NOT NULL) AS valid,
-         started_at AS "startedAt", completed_at AS "endedAt", completed_at AS "recordedAt", error_message AS error
-       FROM public.eb_v2_gate_runs
-       WHERE status IN ('completed', 'failed') AND completed_at IS NOT NULL
-       ORDER BY completed_at DESC, id LIMIT $1`, [jobLimit + 1],
+      `SELECT 'EB V2 ' || g.gate AS job, '1 package' AS workload, g.status,
+         (g.status = 'completed' AND NULLIF(btrim(g.output_snapshot->>'content'), '') IS NOT NULL) AS valid,
+         g.started_at AS "startedAt", g.completed_at AS "endedAt", g.completed_at AS "recordedAt", g.error_message AS error,
+         g.id::text AS "runId", 'package:' || g.package_id::text AS "parentRunId",
+         ${packageTitles ? "p.title" : "NULL"} AS title
+       FROM public.eb_v2_gate_runs g
+       ${packageTitles ? "LEFT JOIN public.eb_v2_packages p ON p.id = g.package_id" : ""}
+       WHERE g.status IN ('completed', 'failed') AND g.completed_at IS NOT NULL
+       ORDER BY g.completed_at DESC, g.id LIMIT $1`, [jobLimit + 1],
     )).rows, since, jobLimit) : { jobHistory: null, jobHistoryAllTime: null }
     const contentWorkload = await exists("eb_v2_articles")
       ? {

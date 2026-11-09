@@ -11,6 +11,21 @@ type JobRecord = {
   endedAt: string | Date | null
   recordedAt?: string | Date | null
   error: string | null
+  // Optional run linkage for AI Agent Lab's run history (jobRuns).
+  runId?: string | null
+  parentRunId?: string | null
+  parent?: string | null
+  title?: string | null
+}
+
+// A run that only exists as a parent of other runs (e.g. a whole batch), sent alongside them.
+export type ParentRun = {
+  job: string
+  runId: string
+  workload: string
+  status: "success" | "failed" | "running"
+  startedAt: string | null
+  endedAt: string | null
 }
 
 export function summarizeJobHistory(rows: JobRecord[], limit: number) {
@@ -61,9 +76,14 @@ const iso = (value: string | Date | null | undefined) => {
 
 // app-monitoring-v1 `jobRuns`: terminal runs of the last 61 days, newest first, for AI Agent Lab to
 // compute its own periods, comparisons and per-job error rates. Counts and timestamps only.
-export function jobRuns(rows: JobRecord[], now: number, max = 5000) {
+// app-monitoring-v1 `jobRuns`: runs of the last 61 days, newest first, for AI Agent Lab to compute
+// its own periods, comparisons, per-job success rates and run history. The workload names the
+// document or item the run worked on; no content leaves the app.
+export function jobRuns(rows: JobRecord[], now: number, max = 5000, parents: ParentRun[] = []) {
   const since = now - 61 * 86400000
-  const runs: { job: string; workload: string; status: "success" | "failed"; startedAt: string | null; endedAt: string }[] = []
+  type Run = { job: string; workload: string; status: "success" | "failed" | "running"; startedAt: string | null; endedAt: string | null
+    runId?: string; parentRunId?: string; parent?: string }
+  const runs: Run[] = []
   let truncated = false
   for (const row of rows) {
     if (row.status !== "completed" && row.status !== "failed") continue
@@ -71,18 +91,30 @@ export function jobRuns(rows: JobRecord[], now: number, max = 5000) {
     if (!endedAt || Date.parse(endedAt) < since) continue
     if (runs.length >= max) { truncated = true; break }
     const startedAt = iso(row.startedAt)
+    const title = row.title?.trim()
     runs.push({
-      job: row.job, workload: row.workload, status: row.status === "completed" ? "success" : "failed",
+      job: row.job, workload: title ? (row.workload + " · " + title).slice(0, 200) : row.workload,
+      status: row.status === "completed" ? "success" : "failed",
       startedAt: startedAt && Date.parse(startedAt) <= Date.parse(endedAt) ? startedAt : null, endedAt,
+      ...(row.runId ? { runId: String(row.runId) } : {}),
+      ...(row.parentRunId ? { parentRunId: String(row.parentRunId) } : {}),
+      ...(row.parent ? { parent: row.parent } : {}),
     })
   }
+  for (const parent of parents) {
+    const at = parent.endedAt ?? parent.startedAt
+    if (!at || Date.parse(at) < since) continue
+    if (runs.length >= max) { truncated = true; break }
+    runs.push({ ...parent, workload: parent.workload.slice(0, 200) })
+  }
+  runs.sort((a, b) => Date.parse(b.endedAt ?? b.startedAt ?? "") - Date.parse(a.endedAt ?? a.startedAt ?? ""))
   return { since: new Date(since).toISOString(), complete: !truncated, runs }
 }
 
-export function jobHistoryWindows(rows: JobRecord[], since: string, limit: number, now = Date.now()) {
+export function jobHistoryWindows(rows: JobRecord[], since: string, limit: number, now = Date.now(), parents: ParentRun[] = []) {
   const start = Date.parse(since)
   const recent = rows.filter(({ recordedAt }) => recordedAt && new Date(recordedAt).getTime() >= start)
-  const runs = jobRuns(rows, now)
+  const runs = jobRuns(rows, now, 5000, parents)
   return {
     jobRuns: { ...runs, complete: rows.length <= limit && runs.complete },
     jobHistory: summarizeJobHistory(recent, limit),
