@@ -497,6 +497,7 @@ export function createMonitoring(
       return {
         protocol: "app-monitoring-v1",
         contentWorkload: source.contentWorkload,
+        jobRuns: "jobRuns" in source ? source.jobRuns : null,
         jobHistory: "jobHistory" in source ? source.jobHistory : null,
         jobHistoryAllTime: "jobHistoryAllTime" in source ? source.jobHistoryAllTime : null,
         performanceKpis: {

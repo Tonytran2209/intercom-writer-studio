@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { summarizeJobHistory } from "./jobHistory.ts"
+import { summarizeJobHistory, jobRuns, jobHistoryWindows } from "./jobHistory.ts"
 
 test("historical counts require terminal records and duration uses only saved timestamp pairs", () => {
   const base = { job: "Gate", workload: "1 item", startedAt: "2026-11-01T00:00:00Z", endedAt: "2026-11-01T00:00:01Z", error: null }
@@ -31,4 +31,25 @@ test("latest completion uses the newest end event and skips incomplete runs", ()
     job: "Gate", workload: "1 item", durationMs: 300000,
   })
   assert.equal(summarizeJobHistory([], 10).latestJob, null)
+})
+
+test("job runs list the last 61 days of terminal runs for AI Agent Lab", () => {
+  const now = Date.parse("2026-11-09T00:00:00Z")
+  const row = { job: "Gate", workload: "1 item", valid: true, error: null }
+  const rows = [
+    { ...row, status: "completed" as const, startedAt: "2026-11-08T00:00:00Z", endedAt: "2026-11-08T00:05:00Z", recordedAt: "2026-11-08T00:05:00Z" },
+    { ...row, status: "failed" as const, startedAt: null, endedAt: null, recordedAt: "2026-11-07T00:00:00Z", error: "HTTP 503" },
+    { ...row, status: "completed" as const, startedAt: "2026-11-07T00:10:00Z", endedAt: "2026-11-07T00:00:00Z", recordedAt: "2026-11-07T00:00:00Z" },
+    { ...row, status: "completed" as const, startedAt: "2026-08-01T00:00:00Z", endedAt: "2026-08-01T00:05:00Z", recordedAt: "2026-08-01T00:05:00Z" },
+  ]
+  const result = jobRuns(rows, now)
+  assert.equal(result.since, "2026-09-09T00:00:00.000Z")
+  assert.equal(result.complete, true)
+  assert.deepEqual(result.runs, [
+    { job: "Gate", workload: "1 item", status: "success", startedAt: "2026-11-08T00:00:00.000Z", endedAt: "2026-11-08T00:05:00.000Z" },
+    { job: "Gate", workload: "1 item", status: "failed", startedAt: null, endedAt: "2026-11-07T00:00:00.000Z" },
+    { job: "Gate", workload: "1 item", status: "success", startedAt: null, endedAt: "2026-11-07T00:00:00.000Z" },
+  ])
+  assert.equal(jobRuns(rows, now, 1).complete, false)
+  assert.equal(jobHistoryWindows(rows, "2026-11-01T00:00:00Z", 2, now).jobRuns.complete, false, "a truncated read is incomplete")
 })
