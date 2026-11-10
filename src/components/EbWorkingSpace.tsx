@@ -1469,14 +1469,6 @@ function NotificationPanel({
             className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
           >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
         </div>
-        {tab === "notices" && <div className="shrink-0 border-b border-slate-200 p-2">
-          <button disabled={!notices.length} onClick={async () => {
-            if (!await onDismiss(notices)) return
-            setSelectedNoticeId(null)
-            tabRefs.current[0]?.focus()
-          }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">Xoá tất cả</button>
-          <p className="px-3 text-[10px] text-slate-500">Xoá thông báo workspace cho mọi người. Thông báo thao tác chỉ ẩn trong phiên này.</p>
-        </div>}
         <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
           {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
             <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1489,7 +1481,7 @@ function NotificationPanel({
               {counts.map(item => <div key={item.label} className="rounded-xl border border-slate-200 p-3"><dt>{item.label}</dt><dd className="mt-1 text-lg font-semibold">{syncing || runtimeError ? "—" : item.count}</dd></div>)}
             </dl>
             <button onClick={onRetry} disabled={syncing} aria-label={runtimeError ? "Retry" : "Refresh"} className="min-h-10 rounded-lg border border-slate-200 px-4 font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">{syncing ? "Synchronising…" : runtimeError ? "Retry" : "Refresh"}</button>
-          </section> : selectedNoticeId ? (
+          </section> : notices.length && selectedNoticeId ? (
             <section className="space-y-3 text-xs text-slate-700" aria-label="Notification details">
               <button ref={backRef} onClick={returnToList} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold focus-visible:outline focus-visible:outline-2">← Back to notifications</button>
               {selectedNotice ? <>
@@ -1523,8 +1515,15 @@ function NotificationPanel({
                 }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
               </article>
             ))
-          ) : <p className="p-4 text-center text-xs text-slate-400">No new notifications.</p>}
+          ) : <p className="p-4 text-center text-xs text-slate-500">Không có thông báo mới</p>}
         </div>
+        {tab === "notices" && notices.length > 0 && <footer className="shrink-0 border-t border-slate-200 p-2">
+          <button onClick={async () => {
+            if (!await onDismiss(notices)) return
+            setSelectedNoticeId(null)
+            tabRefs.current[0]?.focus()
+          }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá tất cả</button>
+        </footer>}
       </aside>
     </div>
   )

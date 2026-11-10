@@ -665,8 +665,9 @@ test('delete individual notifications and clear all preserve source data', async
   await expect(remove).toHaveCount(0);
   await expect(panel.getByRole('button').filter({hasText:'View details'})).toBeFocused();
   await expect(bell).toContainText('1');
-  await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
-  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  await panel.locator('footer').getByRole('button',{name:'Xoá tất cả',exact:true}).click();
+  await expect(panel.getByText('Không có thông báo mới',{exact:true})).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Xoá tất cả',exact:true})).toHaveCount(0);
   await expect(panel.getByRole('tab',{name:'Thông báo',exact:true})).toBeFocused();
   await expect(bell).not.toContainText('1');
   await expect(page.locator('.workspace-notification')).toHaveCount(0);
@@ -674,7 +675,7 @@ test('delete individual notifications and clear all preserve source data', async
   await panel.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(panel.getByText('V2 workspace is live.',{exact:true})).toBeVisible();
   await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
-  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  await expect(panel.getByText('Không có thông báo mới',{exact:true})).toBeVisible();
   data.discovery[0].title = 'Changed synthetic lead';
   await panel.getByRole('tab',{name:'Trạng thái hệ thống'}).click();
   await panel.getByRole('button',{name:'Refresh',exact:true}).click();
@@ -682,8 +683,8 @@ test('delete individual notifications and clear all preserve source data', async
   await panel.getByRole('tab',{name:'Thông báo',exact:true}).click();
   await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
   await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
-  await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
-  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  await panel.locator('footer').getByRole('button',{name:'Xoá tất cả',exact:true}).click();
+  await expect(panel.getByText('Không có thông báo mới',{exact:true})).toBeVisible();
   const freshContext = await browser.newContext({serviceWorkers:'block'});
   try {
     const freshPage = await freshContext.newPage();
@@ -693,7 +694,7 @@ test('delete individual notifications and clear all preserve source data', async
     await expect(freshPage.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
     await expect(freshPage.locator('.workspace-notification')).toHaveCount(0);
     await freshPage.getByRole('button',{name:'Notifications',exact:true}).click();
-    await expect(freshPage.getByText('No new notifications.',{exact:true})).toBeVisible();
+    await expect(freshPage.getByText('Không có thông báo mới',{exact:true})).toBeVisible();
   } finally {
     await freshContext.close();
   }
