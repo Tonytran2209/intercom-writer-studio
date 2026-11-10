@@ -2,7 +2,7 @@ import { test as offlineTest } from '@playwright/test';
 import { test, expect, setTheme } from './browser-fixture.mjs';
 
 // Compile the complete store module with only React subscription and browser event mocks.
-async function loadNoticeStore() {
+async function loadNoticeStore(storage = new Map()) {
   const {readFile} = await import('node:fs/promises');
   const ts = (await import('typescript')).default;
   const source = await readFile('src/components/workspace/WorkspaceNotification.tsx', 'utf8');
@@ -10,7 +10,7 @@ async function loadNoticeStore() {
   const module = {exports:{}};
   new Function('require','exports','window','CustomEvent',compiled)(
     () => ({useSyncExternalStore:(_subscribe,snapshot)=>snapshot()}), module.exports,
-    {dispatchEvent(){}}, class {});
+    {dispatchEvent(){},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)}}, class {});
   return module.exports;
 }
 
@@ -615,7 +615,8 @@ for (const theme of ['light', 'dark']) test(`banners collapse into bell history,
 
 offlineTest('NOTIFICATIONS_OFFLINE dismissal fingerprints, remount and source preservation', async () => {
   const {strict:assert} = await import('node:assert');
-  const store = await loadNoticeStore();
+  const storage = new Map();
+  const store = await loadNoticeStore(storage);
   const {notificationFingerprint: fingerprint, isNotificationDismissed: hidden, dismissWorkspaceNotifications: dismiss} = store;
   store.notifyWorkspace('Original event', 'error');
   const history = store.useWorkspaceNotices();
@@ -629,8 +630,10 @@ offlineTest('NOTIFICATIONS_OFFLINE dismissal fingerprints, remount and source pr
   assert.equal(store.useWorkspaceNotices(),history,'Dismissal preserves source history across subscriptions');
   assert.equal(store.useDismissedWorkspaceNotifications().size,2,'Module snapshot survives remount');
   assert.deepEqual(details.map(item=>item.title),['A','B'],'Source data unchanged');
-  const reloaded = await loadNoticeStore();
-  assert.equal(reloaded.isNotificationDismissed(group.id,reloaded.notificationFingerprint(group)),false,'Reload resets dismissal');
+  const reloaded = await loadNoticeStore(storage);
+  assert.equal(reloaded.isNotificationDismissed(group.id,fingerprint(group)),true,'Reload preserves group dismissal');
+  reloaded.notifyWorkspace('Original event', 'error');
+  assert.equal(reloaded.isNotificationDismissed(event.id,fingerprint(event)),false,'New session can reuse an event ID and message');
 });
 
 // Browser-check CI runs this synthetic interaction scenario on desktop and mobile.
@@ -671,7 +674,8 @@ test('delete individual notifications and clear all preserve source data', async
   await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
   await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
   await page.reload();
+  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+  await expect(page.locator('.workspace-notification')).toHaveCount(0);
   await bell.click();
-  await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
-  await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
+  await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
 });
