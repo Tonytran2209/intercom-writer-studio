@@ -1,5 +1,5 @@
 import { jobFailure, monitoring } from './monitoring.ts';
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { BriefInputError, hasUnresolvedValue, requireBriefInput, validateBriefInput } from "./briefValidation.ts"
 import type express from "express"
 import multer from "multer"
@@ -9,6 +9,7 @@ import { acceptOnRequest } from "./acceptedStream.ts"
 import {
   saveEbV2Review,
   moveEbV2Package,
+  kvSet,
   tableAvailable,
   tableDeleteWhere,
   tableInsert,
@@ -22,6 +23,20 @@ import { refinementPlan, refinementChecks } from "./refinement.ts"
 import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
 
 const liveRefinements = new Map<string, { text: string; phase: string }>()
+const dismissalPrefix = "eb-v2:notification-dismissal:"
+const notificationGroups = new Set(["brief", "article", "adapt", "review", "done", "rejected", "discovery"])
+
+async function workspaceDismissals() {
+  const dismissals: string[] = []
+  let cursor = dismissalPrefix
+  while (true) {
+    const rows = await tableSelect<{ key: string; value: string }>("kv_store", query =>
+      query.like("key", `${dismissalPrefix}%`).gt("key", cursor).order("key").limit(100))
+    dismissals.push(...rows.map(row => row.value))
+    if (rows.length < 100) return dismissals
+    cursor = rows[rows.length - 1].key
+  }
+}
 
 type AuthRequest = express.Request & {
   auth?: { userId: string; email: string; role: "user" | "admin" }
@@ -666,7 +681,8 @@ export function registerEbV2Routes(app: express.Express) {
   })
   app.get("/api/eb-v2/workspace", async (_req, res) => {
     try {
-      res.json(await workspace())
+      const [data, dismissedNotifications] = await Promise.all([workspace(), workspaceDismissals()])
+      res.json({ ...data, dismissedNotifications })
     } catch (error) {
       res
         .status(500)
@@ -676,6 +692,24 @@ export function registerEbV2Routes(app: express.Express) {
               ? error.message
               : "Unable to load EB workspace.",
         })
+    }
+  })
+  app.post("/api/eb-v2/notification-dismissals", async (req, res) => {
+    const entries = req.body?.entries
+    if (!Array.isArray(entries) || !entries.length || entries.length > notificationGroups.size ||
+      !entries.every(entry => Array.isArray(entry) && entry.length === 2 &&
+        notificationGroups.has(entry[0]) && typeof entry[1] === "string" && entry[1].length > 0)) {
+      return res.status(400).json({ error: "Invalid workspace notification dismissals." })
+    }
+    try {
+      // One row per version keeps concurrent and repeated dismissals additive.
+      await Promise.all(entries.map(entry => {
+        const value = JSON.stringify(entry)
+        return kvSet(dismissalPrefix + createHash("sha256").update(value).digest("hex"), value)
+      }))
+      res.status(200).json({ saved: true })
+    } catch {
+      res.status(500).json({ error: "Không thể lưu thông báo đã xoá. Vui lòng thử lại." })
     }
   })
   app.get("/api/eb-v2/discovery/:id/details", async (req, res) => {

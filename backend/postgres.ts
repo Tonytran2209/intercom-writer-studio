@@ -36,6 +36,7 @@ export class PostgresQuery implements PromiseLike<any> {
   delete() { this.action = "delete"; return this }
   eq(column: string, value: unknown) { this.filters.push({ column, op: "=", value }); return this }
   neq(column: string, value: unknown) { this.filters.push({ column, op: "<>", value }); return this }
+  gt(column: string, value: unknown) { this.filters.push({ column, op: ">", value }); return this }
   like(column: string, value: unknown) { this.filters.push({ column, op: "LIKE", value }); return this }
   in(column: string, value: unknown[]) { this.filters.push({ column, op: "IN", value }); return this }
   order(column: string, options: { ascending?: boolean } = {}) { this.orders.push(`${identifier(column)} ${options.ascending === false ? "DESC" : "ASC"}`); return this }

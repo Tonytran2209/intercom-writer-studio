@@ -2,7 +2,7 @@ import { test as offlineTest } from '@playwright/test';
 import { test, expect, setTheme } from './browser-fixture.mjs';
 
 // Compile the complete store module with only React subscription and browser event mocks.
-async function loadNoticeStore(storage = new Map()) {
+async function loadNoticeStore() {
   const {readFile} = await import('node:fs/promises');
   const ts = (await import('typescript')).default;
   const source = await readFile('src/components/workspace/WorkspaceNotification.tsx', 'utf8');
@@ -10,7 +10,7 @@ async function loadNoticeStore(storage = new Map()) {
   const module = {exports:{}};
   new Function('require','exports','window','CustomEvent',compiled)(
     () => ({useSyncExternalStore:(_subscribe,snapshot)=>snapshot()}), module.exports,
-    {dispatchEvent(){},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)}}, class {});
+    {dispatchEvent(){}}, class {});
   return module.exports;
 }
 
@@ -291,6 +291,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   let reviewCalls = 0;
   const api = {
     async fetchEbV2Workspace() { if (failRead) throw new Error('Synthetic connection'); return data; },
+    async saveEbV2NotificationDismissals(entries) { data.dismissedNotifications = entries.map(entry=>JSON.stringify(entry)); },
     async runEbV2DiscoveryLive() { throw new Error('Synthetic Discovery'); },
     async approveEbV2Brief() { throw new Error('Synthetic approval'); },
     async reviewEbV2Channel(id) {
@@ -358,11 +359,11 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   assert.equal(panel.notices.filter(n => n.id.startsWith('event-')).length, 4);
   assert.equal(panel.notices.filter(n => n.error).length, 4);
   const originalEvents = [...events];
-  panel.onDismiss([panel.notices[0]]); render();
+  await panel.onDismiss([panel.notices[0]]); render();
   assert.equal(component('NotificationPanel').notices.some(n=>n.id===panel.notices[0].id),false);
   await refresh();
   assert.equal(component('NotificationPanel').notices.some(n=>n.id===panel.notices[0].id),false,'Refresh preserves dismissal');
-  component('NotificationPanel').onDismiss(component('NotificationPanel').notices); render();
+  await component('NotificationPanel').onDismiss(component('NotificationPanel').notices); render();
   assert.equal(component('NotificationPanel').notices.length,0);
   assert.equal(component('WorkspaceNotificationBanner').notices.length,0,'Banner and panel use the same filtered list');
   assert.deepEqual(events,originalEvents,'Clear all preserves event sources');
@@ -615,8 +616,7 @@ for (const theme of ['light', 'dark']) test(`banners collapse into bell history,
 
 offlineTest('NOTIFICATIONS_OFFLINE dismissal fingerprints, remount and source preservation', async () => {
   const {strict:assert} = await import('node:assert');
-  const storage = new Map();
-  const store = await loadNoticeStore(storage);
+  const store = await loadNoticeStore();
   const {notificationFingerprint: fingerprint, isNotificationDismissed: hidden, dismissWorkspaceNotifications: dismiss} = store;
   store.notifyWorkspace('Original event', 'error');
   const history = store.useWorkspaceNotices();
@@ -630,17 +630,27 @@ offlineTest('NOTIFICATIONS_OFFLINE dismissal fingerprints, remount and source pr
   assert.equal(store.useWorkspaceNotices(),history,'Dismissal preserves source history across subscriptions');
   assert.equal(store.useDismissedWorkspaceNotifications().size,2,'Module snapshot survives remount');
   assert.deepEqual(details.map(item=>item.title),['A','B'],'Source data unchanged');
-  const reloaded = await loadNoticeStore(storage);
-  assert.equal(reloaded.isNotificationDismissed(group.id,fingerprint(group)),true,'Reload preserves group dismissal');
+  const reloaded = await loadNoticeStore();
+  reloaded.mergeWorkspaceDismissals([JSON.stringify([group.id,fingerprint(group)])]);
+  assert.equal(reloaded.isNotificationDismissed(group.id,fingerprint(group)),true,'Fresh session restores shared group dismissal');
   reloaded.notifyWorkspace('Original event', 'error');
   assert.equal(reloaded.isNotificationDismissed(event.id,fingerprint(event)),false,'New session can reuse an event ID and message');
 });
 
 // Browser-check CI runs this synthetic interaction scenario on desktop and mobile.
-test('delete individual notifications and clear all preserve source data', async ({page}) => {
+test('delete individual notifications and clear all preserve source data', async ({page,browser}) => {
   const data = {packages:[], articles:[], runs:[], channels:[],
     discovery:[{id:'delete-lead',title:'Synthetic saved lead',status:'suggested'}]};
-  await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:data}));
+  const dismissals = new Set();
+  const loadWorkspace = route=>route.fulfill({json:{...data,dismissedNotifications:[...dismissals]}});
+  await page.route('**/api/eb-v2/workspace',loadWorkspace);
+  await page.route('**/api/eb-v2/notification-dismissals',route=>{
+    expect(route.request().method()).toBe('POST');
+    const {entries} = route.request().postDataJSON();
+    expect(entries.map(([id])=>id)).toEqual(['discovery']);
+    for (const entry of entries) dismissals.add(JSON.stringify(entry));
+    return route.fulfill({json:{saved:true}});
+  });
   await page.goto('/?screen=eb');
   const bell = page.getByRole('button',{name:'Notifications',exact:true});
   await expect(bell).toContainText('1');
@@ -673,9 +683,18 @@ test('delete individual notifications and clear all preserve source data', async
   await panel.getByRole('button',{name:/^1 Discovery suggestion\(s\) saved/}).click();
   await expect(panel.getByText('Changed synthetic lead',{exact:true})).toBeVisible();
   await panel.getByRole('button',{name:'Xoá tất cả',exact:true}).click();
-  await page.reload();
-  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
-  await expect(page.locator('.workspace-notification')).toHaveCount(0);
-  await bell.click();
   await expect(panel.getByText('No new notifications.',{exact:true})).toBeVisible();
+  const freshContext = await browser.newContext({serviceWorkers:'block'});
+  try {
+    const freshPage = await freshContext.newPage();
+    await freshPage.route('**/api/eb-v2/workspace',loadWorkspace);
+    await freshPage.route('https://fonts.googleapis.com/**',route=>route.abort());
+    await freshPage.goto(page.url());
+    await expect(freshPage.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+    await expect(freshPage.locator('.workspace-notification')).toHaveCount(0);
+    await freshPage.getByRole('button',{name:'Notifications',exact:true}).click();
+    await expect(freshPage.getByText('No new notifications.',{exact:true})).toBeVisible();
+  } finally {
+    await freshContext.close();
+  }
 });

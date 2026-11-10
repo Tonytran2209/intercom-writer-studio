@@ -27,7 +27,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { AppConfig } from "../types"
 import * as db from "../lib/db"
-import { notifyWorkspace, useWorkspaceNotices, notificationFingerprint, isNotificationDismissed, dismissWorkspaceNotifications, useDismissedWorkspaceNotifications } from "./workspace/WorkspaceNotification"
+import { notifyWorkspace, useWorkspaceNotices, notificationFingerprint, isNotificationDismissed, dismissWorkspaceNotifications, mergeWorkspaceDismissals, useDismissedWorkspaceNotifications } from "./workspace/WorkspaceNotification"
 import { gateResult } from "../lib/ebGateContent"
 import { isShellMode } from "../lib/appMode"
 
@@ -400,6 +400,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     setSyncing(true)
     try {
       const data = await db.fetchEbV2Workspace()
+      mergeWorkspaceDismissals(data.dismissedNotifications ?? [])
       for (const [id, timing] of pendingBriefs.current) {
         const run = data.runs?.find((item) => item.package_id === id && item.gate === "brief")
         if (run?.status === "completed" && typeof run.output_snapshot?.content === "string" && run.output_snapshot.content.trim()) {
@@ -1036,6 +1037,18 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     details: notificationDetails(notice.id, tasks, discoveryIdeas),
     kind: notice.id.startsWith("event-") ? sessionNotices.find(event => `event-${event.id}` === notice.id)?.kind : undefined,
   })).filter(notice => !isNotificationDismissed(notice.id, notificationFingerprint(notice)))
+  async function dismissNotices(items: Parameters<typeof dismissWorkspaceNotifications>[0]) {
+    const entries = items.filter(item => !item.id.startsWith("event-"))
+      .map((item): [string, string] => [item.id, notificationFingerprint(item)])
+    try {
+      if (entries.length) await db.saveEbV2NotificationDismissals(entries)
+      dismissWorkspaceNotifications(items)
+      return true
+    } catch {
+      notifyWorkspace("Không thể lưu thông báo đã xoá. Vui lòng thử lại.", "error")
+      return false
+    }
+  }
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
       <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
@@ -1258,7 +1271,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         {notificationOpen && (
           <NotificationPanel
             notices={notices}
-            onDismiss={dismissWorkspaceNotifications}
+            onDismiss={dismissNotices}
             runtimeError={runtimeError}
             counts={workspaceStatusCounts(tasks, discoveryIdeas.length)}
             onRetry={() => void refresh()}
@@ -1374,7 +1387,7 @@ function NotificationPanel({
   onRetry: () => void
   syncing: boolean
   notices: Array<{ id: string; text: string; active: boolean; error?: boolean; details: NotificationDetail[]; kind?: string }>
-  onDismiss: (items: typeof notices) => void
+  onDismiss: (items: typeof notices) => Promise<boolean>
   onClose: () => void
 }) {
   const [tab, setTab] = useState<"notices" | "system">("notices")
@@ -1457,12 +1470,12 @@ function NotificationPanel({
           >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
         </div>
         {tab === "notices" && <div className="shrink-0 border-b border-slate-200 p-2">
-          <button disabled={!notices.length} onClick={() => {
-            onDismiss(notices)
+          <button disabled={!notices.length} onClick={async () => {
+            if (!await onDismiss(notices)) return
             setSelectedNoticeId(null)
             tabRefs.current[0]?.focus()
           }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">Xoá tất cả</button>
-          <p className="px-3 text-[10px] text-slate-500">Chỉ ẩn thông báo trong phiên này.</p>
+          <p className="px-3 text-[10px] text-slate-500">Xoá thông báo workspace cho mọi người. Thông báo thao tác chỉ ẩn trong phiên này.</p>
         </div>}
         <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
           {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
@@ -1502,10 +1515,10 @@ function NotificationPanel({
                   {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
                   <span className="mt-2 block text-[10px] font-semibold">View details →</span>
                 </button>
-                <button aria-label={`Xoá thông báo: ${notice.text}`} onClick={() => {
+                <button aria-label={`Xoá thông báo: ${notice.text}`} onClick={async () => {
                   const index = notices.findIndex(item => item.id === notice.id)
                   const next = notices[index + 1] ?? notices[index - 1]
-                  onDismiss([notice])
+                  if (!await onDismiss([notice])) return
                   requestAnimationFrame(() => (rowRefs.current.get(next?.id ?? "") ?? tabRefs.current[0])?.focus())
                 }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
               </article>

@@ -156,13 +156,16 @@ export async function saveConfig(config: AppConfig): Promise<void> {
 }
 
 // ── EB Workspace V2 (isolated from legacy Writer Studio records) ────────────
-export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[]; runs?: { package_id: string; gate: string; status: string; output_snapshot?: { content?: unknown } }[] }
+export interface EbV2Workspace { packages: any[]; articles: any[]; channels: any[]; discovery: any[]; dismissedNotifications?: string[]; runs?: { package_id: string; gate: string; status: string; output_snapshot?: { content?: unknown } }[] }
 // V2 is hosted with the current frontend. Never inherit writer:railwayUrl,
 // which may still point to an older legacy Railway service in localStorage.
 function ebV2Origin() { return typeof window === "undefined" ? undefined : window.location.origin }
 export async function fetchEbV2Settings(): Promise<AppConfig | null> { const result = await railwayRequest<{ settings: AppConfig | null }>("/api/eb-v2/settings", undefined, ebV2Origin()); return result.settings }
 export async function saveEbV2Settings(settings: AppConfig): Promise<void> { await railwayRequest("/api/eb-v2/settings", jsonRequest("POST", { settings }), ebV2Origin()) }
 export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return railwayRequest<EbV2Workspace>("/api/eb-v2/workspace", undefined, ebV2Origin()) }
+export async function saveEbV2NotificationDismissals(entries: Array<[string, string]>): Promise<void> {
+  await railwayRequest("/api/eb-v2/notification-dismissals", jsonRequest("POST", { entries }), ebV2Origin())
+}
 export async function createEbV2Package(input: { title?: string; inputText: string; fConnection?: string; fEvidence?: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted) }
 export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string; fConnection?: string; fEvidence?: string }, onAccepted?: () => void) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); if (context.fConnection) body.append("fConnection", context.fConnection); if (context.fEvidence) body.append("fEvidence", context.fEvidence); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted) }
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
