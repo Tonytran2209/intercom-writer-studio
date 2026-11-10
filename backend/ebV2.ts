@@ -5,6 +5,7 @@ import type express from "express"
 import multer from "multer"
 import { jsonrepair } from "jsonrepair"
 import { generate } from "./providers.ts"
+import { acceptOnRequest } from "./acceptedStream.ts"
 import {
   saveEbV2Review,
   moveEbV2Package,
@@ -1039,6 +1040,8 @@ export function registerEbV2Routes(app: express.Express) {
         .json({
           error: "Choose a configured Brief AI model before analysing input.",
         })
+    // ui-kpi-v2: opted-in clients get "accepted" before the AI input validation and brief.
+    acceptOnRequest(req, res)()
     try {
       const validation = await preflightBrief(inputText, req.body, model)
       const validatedInput = `${inputText}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`
@@ -1103,6 +1106,7 @@ export function registerEbV2Routes(app: express.Express) {
         return res
           .status(400)
           .json({ error: "Choose a Brief AI model before analysing a file." })
+      acceptOnRequest(req, res)()
       try {
         const inputText = await extractDocumentText(
           file.buffer,

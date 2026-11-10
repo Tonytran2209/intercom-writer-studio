@@ -275,7 +275,7 @@ export function createTaskUsage(options: {
         const row = rows.get(c.id)
         if (row) {
           row.status = res.writableFinished
-            ? res.statusCode < 400
+            ? (res.locals.reportedStatus ?? res.statusCode) < 400
               ? "completed"
               : "failed"
             : "interrupted"

@@ -1,5 +1,6 @@
 import type { Article, AppConfig, DocumentFile, WebsiteContentRecord } from "../types"
 import { isShellMode } from "./appMode"
+import { acceptedFetch } from "./acceptedResponse"
 
 export type UserRole = "user" | "admin"
 export interface AuthSession {
@@ -24,6 +25,7 @@ async function railwayRequest<T>(
   path: string,
   init?: RequestInit,
   railwayUrl?: string,
+  onAccepted?: () => void,
 ): Promise<T> {
   if (isShellMode)
     throw new Error("Shell mode is active. No Railway or Supabase request was made.")
@@ -36,7 +38,9 @@ async function railwayRequest<T>(
     let response: Response
     try {
       const headers = new Headers(init?.headers)
-      response = await fetch(url, { ...init, headers })
+      response = onAccepted
+        ? await acceptedFetch(url, { ...init, headers }, onAccepted)
+        : await fetch(url, { ...init, headers })
     } catch (error) {
       lastError = error
       if (attempt === maxAttempts) throw error
@@ -159,8 +163,8 @@ function ebV2Origin() { return typeof window === "undefined" ? undefined : windo
 export async function fetchEbV2Settings(): Promise<AppConfig | null> { const result = await railwayRequest<{ settings: AppConfig | null }>("/api/eb-v2/settings", undefined, ebV2Origin()); return result.settings }
 export async function saveEbV2Settings(settings: AppConfig): Promise<void> { await railwayRequest("/api/eb-v2/settings", jsonRequest("POST", { settings }), ebV2Origin()) }
 export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return railwayRequest<EbV2Workspace>("/api/eb-v2/workspace", undefined, ebV2Origin()) }
-export async function createEbV2Package(input: { title?: string; inputText: string; fConnection?: string; fEvidence?: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin()) }
-export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string; fConnection?: string; fEvidence?: string }) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); if (context.fConnection) body.append("fConnection", context.fConnection); if (context.fEvidence) body.append("fEvidence", context.fEvidence); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin()) }
+export async function createEbV2Package(input: { title?: string; inputText: string; fConnection?: string; fEvidence?: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted) }
+export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string; fConnection?: string; fEvidence?: string }, onAccepted?: () => void) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); if (context.fConnection) body.append("fConnection", context.fConnection); if (context.fEvidence) body.append("fEvidence", context.fEvidence); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted) }
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
 export type DiscoveryStreamEvent = { event: "progress"; message?: string } | { event: "item"; item: any } | { event: "complete"; items: any[] } | { event: "error"; error: string }
 export async function runEbV2DiscoveryLive(model: { provider: string; id: string }, sourceUrls: string[] = [], onEvent: (event: DiscoveryStreamEvent) => void) {

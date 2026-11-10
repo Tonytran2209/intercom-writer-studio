@@ -38,6 +38,7 @@ import { jsonrepair } from "jsonrepair"
 import { scanWebsiteUrl, selectWebsiteCandidates } from "./websiteInventory.ts"
 import { registerEbV2Routes } from "./ebV2.ts"
 import { registerAgentLibraryRoutes } from "./agentLibrary.ts"
+import { acceptOnRequest } from "./acceptedStream.ts"
 
 // DIST_PATH env var set by Railway start command; fallback to sibling dist/ of cwd
 const DIST = process.env.DIST_PATH
@@ -3795,6 +3796,7 @@ app.post("/api/generate", async (req, res) => {
     })
   }
 
+  const acceptRequest = acceptOnRequest(req, res)
   try {
     const article = await kvGet<any>(`${ARTICLE_PREFIX}${String(articleId)}`)
     if (!article)
@@ -3810,6 +3812,8 @@ app.post("/api/generate", async (req, res) => {
     const prerequisiteError = articleStepPrerequisite(article, stepNumber)
     if (prerequisiteError)
       return workflowPrerequisiteResponse(res, prerequisiteError)
+    // ui-kpi-v2: opted-in clients learn the request was accepted before context loading and AI.
+    acceptRequest()
     const startedAt = Date.now()
     const contextsStartedAt = Date.now()
     const normalizedContextQuery = String(contextQuery ?? "")

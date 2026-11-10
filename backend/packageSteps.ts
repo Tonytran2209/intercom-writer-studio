@@ -44,10 +44,11 @@ export const labProfile = {
   // Failure-rate target in percent (success ≥ 99%): 12/12 packages and 205/206 gate runs succeeded
   // in 61 days. Lab uses it until there are enough packages for its own baseline.
   errorRateTarget: 1,
-  // What the browser KPIs measure (src/components/EbWorkingSpace.tsx, legacy Step3Outline.tsx).
+  // What the browser KPIs measure under ui-kpi-v2 (src/components/EbWorkingSpace.tsx,
+  // legacy Step3Outline.tsx, src/lib/performanceTelemetry.ts).
   kpiDescriptions: {
-    responseTime: "Bấm 'Phân tích' input EB V2 → brief sẵn sàng (hoặc 'Tạo outline' ở luồng cũ)",
-    clickLatency: "Bấm 'Phân tích' / 'Tạo outline' → giao diện hiện trạng thái đang xử lý",
+    responseTime: "Từ lúc bấm 'Phân tích' (input EB V2) hoặc 'Tạo outline' (luồng cũ) → khung hình thứ hai sau khi giao diện đã hiển thị 'Đã tiếp nhận', tức là server đã gửi tín hiệu accepted đầu tiên ngay trước khi gọi AI; không chờ AI tạo xong brief/outline",
+    clickLatency: "Từ lúc bấm 'Phân tích' / 'Tạo outline' → khung hình thứ hai sau khi giao diện đã vẽ xong trạng thái đang xử lý",
   },
   jobTargets: <Record<string, number>>{
     [PACKAGE_JOB]: 2,
