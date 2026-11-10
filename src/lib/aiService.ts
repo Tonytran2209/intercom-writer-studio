@@ -1,5 +1,6 @@
 import type { AICallUsage, AIModel, SeoResearchResult } from '../types';
 import { isShellMode } from './appMode';
+import { acceptedFetch } from './acceptedResponse';
 
 export interface AIRequest {
   model: AIModel;
@@ -17,6 +18,8 @@ export interface AIRequest {
   contextQuery?: string;
   skipDocumentContext?: boolean;
   articleId: string;
+  /** ui-kpi-v2: called once the server has accepted the request, before the AI work. */
+  onAccepted?: () => void;
 }
 
 export interface AIResponse {
@@ -119,7 +122,7 @@ function getDemoKey(prompt: string): string {
 }
 
 export async function callAI(req: AIRequest): Promise<AIResponse> {
-  const { model, prompt, systemPrompt, maxTokens, temperature, stepNumber, splitByWave, bypassCache, requestPurpose, jsonMode, jsonSchema, contextQuery, skipDocumentContext, articleId } = req;
+  const { model, prompt, systemPrompt, maxTokens, temperature, stepNumber, splitByWave, bypassCache, requestPurpose, jsonMode, jsonSchema, contextQuery, skipDocumentContext, articleId, onAccepted } = req;
 
   if (isShellMode) {
     const content = DEMO_RESPONSES[getDemoKey(prompt)];
@@ -131,7 +134,9 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
 
   if (railwayUrl) {
     try {
-      const res = await fetch(`${railwayUrl.replace(/\/$/, '')}/api/generate`, {
+      // ui-kpi-v2: with onAccepted the server acknowledges before its AI work (acceptedResponse.ts).
+      const send = (url: string, init: RequestInit) => onAccepted ? acceptedFetch(url, init, onAccepted) : fetch(url, init);
+      const res = await send(`${railwayUrl.replace(/\/$/, '')}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

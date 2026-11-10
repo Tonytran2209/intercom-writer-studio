@@ -1,4 +1,4 @@
-import { sendPerformanceSample } from "../lib/performanceTelemetry"
+import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowLeft,
   ArrowUp,
@@ -367,35 +367,45 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     return () => window.removeEventListener("writer:eb-open-item", openItem)
   }, [])
   const analyzeClick = useRef<number | null>(null)
-  const pendingBriefs = useRef(new Map<string, number>())
-  const readyBriefs = useRef(new Map<string, number>())
+  // ui-kpi-v2 responseTime: measured when "accepted" (server ack before the AI work) is painted.
+  const [analysisAccepted, setAnalysisAccepted] = useState(false)
+  const analysisTiming = useRef<AnalysisTiming | null>(null)
+  const pendingBriefs = useRef(new Map<string, AnalysisTiming>())
   useLayoutEffect(() => {
     if (syncing && analyzeClick.current !== null) {
       sendPerformanceSample("clickLatency", analyzeClick.current)
       analyzeClick.current = null
     }
-    for (const [id, start] of readyBriefs.current) {
-      if (tasks.some((task) => task.id === id && task.gate === "brief" && task.status === "ready")) {
-        readyBriefs.current.delete(id)
-        sendPerformanceSample("responseTime", start)
-      }
-    }
-  }, [syncing, tasks])
+    const timing = analysisTiming.current
+    if (analysisAccepted && timing && !timing.accepted) timing.accepted = measureAfterPaint(timing.start)
+  }, [syncing, analysisAccepted])
 
-  function trackBrief(id: string | undefined, start: number) {
-    if (id && !isShellMode) pendingBriefs.current.set(id, start)
+  function startAnalysis(startedAt: number) {
+    analyzeClick.current = startedAt
+    const timing: AnalysisTiming = { start: startedAt, accepted: null }
+    analysisTiming.current = timing
+    setAnalysisAccepted(false)
+    return timing
+  }
+  function finishAnalysis() {
+    analysisTiming.current = null
+    setAnalysisAccepted(false)
+  }
+  // Samples are still sent only for briefs that complete (failed or >10 min stay excluded).
+  function trackBrief(id: string | undefined, timing: AnalysisTiming) {
+    if (id && !isShellMode) pendingBriefs.current.set(id, timing)
   }
 
   const refresh = async () => {
     setSyncing(true)
     try {
       const data = await db.fetchEbV2Workspace()
-      for (const [id, start] of pendingBriefs.current) {
+      for (const [id, timing] of pendingBriefs.current) {
         const run = data.runs?.find((item) => item.package_id === id && item.gate === "brief")
         if (run?.status === "completed" && typeof run.output_snapshot?.content === "string" && run.output_snapshot.content.trim()) {
           pendingBriefs.current.delete(id)
-          readyBriefs.current.set(id, start)
-        } else if (run?.status === "failed" || performance.now() - start > 600000) {
+          void timing.accepted?.then((ms) => postPerformanceSample("responseTime", ms))
+        } else if (run?.status === "failed" || performance.now() - timing.start > 600000) {
           pendingBriefs.current.delete(id)
         }
       }
@@ -487,7 +497,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       setInputError("Choose a Brief AI model in Workflow AI first.")
       return
     }
-    if (!isShellMode) analyzeClick.current = startedAt
+    const timing = isShellMode ? null : startAnalysis(startedAt)
     setSyncing(true)
     try {
       const result = await db.createEbV2Package({
@@ -498,8 +508,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         sourceType: source,
         discoveryId,
         model: { provider: model.provider, id: model.id },
-      })
-      trackBrief(result.package?.id, startedAt)
+      }, timing ? () => setAnalysisAccepted(true) : undefined)
+      if (timing) trackBrief(result.package?.id, timing)
       setPreparation(null); setFConnection(""); setFEvidence("")
       await refresh()
       setInput(""); setInputDiscoveryId(undefined)
@@ -509,12 +519,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         error instanceof Error ? error.message : "Unable to analyse input.",
       )
     } finally {
+      if (timing) finishAnalysis()
       setSyncing(false)
     }
   }
   const analyze = (event: { timeStamp: number }) => {
-    const now = performance.now()
-    const startedAt = event.timeStamp > 0 && event.timeStamp <= now ? event.timeStamp : now
+    const startedAt = interactionStart(event)
     if (syncing || (!input.trim() && !file)) return
     setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
@@ -532,12 +542,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         setInputError("Choose a Brief AI model in Workflow AI first.")
         return
       }
-      analyzeClick.current = startedAt
+      const timing = startAnalysis(startedAt)
       setSyncing(true)
       void db
-        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection: fConnection.trim(), fEvidence: fEvidence.trim() })
+        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection: fConnection.trim(), fEvidence: fEvidence.trim() }, () => setAnalysisAccepted(true))
         .then(async (result) => {
-          trackBrief(result.package?.id, startedAt)
+          trackBrief(result.package?.id, timing)
           await refresh()
           setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setInputError(null)
         })
@@ -548,7 +558,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               : "Unable to analyse uploaded file.",
           ),
         )
-        .finally(() => setSyncing(false))
+        .finally(() => { finishAnalysis(); setSyncing(false) })
     } else
       void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId, startedAt)
   }
@@ -1179,6 +1189,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               setFile={setFile}
               analyze={analyze}
               syncing={syncing}
+              accepted={analysisAccepted}
               preparation={preparation}
               fConnection={fConnection}
               setFConnection={setFConnection}
@@ -2011,6 +2022,8 @@ function EvidenceImageInput({ model, disabled, onApply, children }: {
   </div>
 }
 
+type AnalysisTiming = { start: number; accepted: Promise<number | null> | null }
+
 function InputEngine({
   model,
   input,
@@ -2020,6 +2033,7 @@ function InputEngine({
   setFile,
   analyze,
   syncing,
+  accepted,
   preparation, fConnection, setFConnection, fEvidence, setFEvidence, inputError,
 }: {
   model: { provider: string; id: string } | null
@@ -2030,6 +2044,7 @@ function InputEngine({
   setFEvidence: (value: string) => void
   inputError: string | null
   syncing: boolean
+  accepted: boolean
   input: string
   setInput: (value: string) => void
   fileName: string
@@ -2109,7 +2124,7 @@ function InputEngine({
             </div>
           </div>
           </div>
-          {(syncing || fileName) && <p className="mt-1 break-all px-3 text-[10px] text-slate-500" role="status">{syncing ? "Đang kiểm tra thông tin…" : `Đã đính kèm: ${fileName}`}</p>}
+          {(syncing || fileName) && <p className="mt-1 break-all px-3 text-[10px] text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
           </>}
           </EvidenceImageInput>
         </div>

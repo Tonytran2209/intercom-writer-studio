@@ -1,4 +1,4 @@
-import { sendPerformanceSample } from "../../lib/performanceTelemetry";
+import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../../lib/performanceTelemetry";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, Eye, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
 import type {
@@ -182,18 +182,23 @@ export default function Step3Outline({
   const [newSectionHeading, setNewSectionHeading] = useState("");
   const [newSectionLevel, setNewSectionLevel] = useState<"h2" | "h3">("h2");
   const generationInFlight = useRef(false);
-  const generationTiming = useRef<{ start: number; clickSent: boolean; saved: boolean } | null>(null);
+  // ui-kpi-v2: the server acknowledged the outline request (before the AI call).
+  const [accepted, setAccepted] = useState(false);
+  const generationTiming = useRef<{ start: number; clickSent: boolean; accepted: Promise<number | null> | null; saved: boolean } | null>(null);
   useLayoutEffect(() => {
     const timing = generationTiming.current;
     if (!timing) return;
     if (generating && !timing.clickSent) {
       timing.clickSent = true;
       sendPerformanceSample("clickLatency", timing.start);
-    } else if (!generating) {
-      generationTiming.current = null;
-      if (timing.saved) sendPerformanceSample("responseTime", timing.start);
     }
-  }, [generating]);
+    if (generating && accepted && !timing.accepted) timing.accepted = measureAfterPaint(timing.start);
+    if (!generating) {
+      generationTiming.current = null;
+      // Measured when "accepted" was painted; sent only for saved outlines, as before.
+      if (timing.saved && timing.accepted) void timing.accepted.then((ms) => postPerformanceSample("responseTime", ms));
+    }
+  }, [generating, accepted]);
   const outline = article.outline || [];
   const prerequisite = gateArticleStep(article, 3);
 
@@ -265,8 +270,7 @@ export default function Step3Outline({
   ].filter(Boolean).join(" ");
 
   const handleGenerate = async (manual: boolean, eventTime: number) => {
-    const now = performance.now();
-    const startedAt = eventTime > 0 && eventTime <= now ? eventTime : now;
+    const startedAt = interactionStart({ timeStamp: eventTime });
     if (generationInFlight.current) return;
     if (!prerequisite.allowed) {
       setError(tr(prerequisite.reasonVi, prerequisite.reason));
@@ -285,7 +289,8 @@ export default function Step3Outline({
       return;
     }
     generationInFlight.current = true;
-    generationTiming.current = { start: startedAt, clickSent: false, saved: false };
+    generationTiming.current = { start: startedAt, clickSent: false, accepted: null, saved: false };
+    setAccepted(false);
     setGenerating(true);
     setError(null);
     setWarning(null);
@@ -365,6 +370,7 @@ export default function Step3Outline({
         bypassCache: manual,
         jsonMode: true,
         contextQuery,
+        onAccepted: () => setAccepted(true),
       });
       aiResponses.push(res);
       let lastResponse = res;
@@ -443,6 +449,7 @@ export default function Step3Outline({
     } finally {
       generationInFlight.current = false;
       setGenerating(false);
+      setAccepted(false);
     }
   };
 
@@ -660,7 +667,7 @@ export default function Step3Outline({
             disabled={stepActionDisabled}
             className="workflow-endpoint-button"
           >
-            {generating ? <><LoaderCircle className="app-icon animate-spin" aria-hidden="true" /><span>{tr('Đang dựng...', 'Generating...')}</span></>
+            {generating ? <><LoaderCircle className="app-icon animate-spin" aria-hidden="true" /><span>{accepted ? tr('Đã tiếp nhận · đang dựng...', 'Accepted · generating...') : tr('Đang dựng...', 'Generating...')}</span></>
               : needsOutlineApproval ? <><Check className="app-icon" aria-hidden="true" /><span>{tr('Phê duyệt outline', 'Approve outline')}</span></>
               : canContinueToDraft ? <><span>{tr('Tiếp tục — First Draft', 'Continue — First Draft')}</span><ArrowRight className="app-icon" aria-hidden="true" /></>
               : <><Sparkles className="app-icon" aria-hidden="true" /><span>{outline.length ? tr('Tạo lại outline', 'Regenerate outline') : tr('Tạo outline', 'Generate outline')}</span></>}

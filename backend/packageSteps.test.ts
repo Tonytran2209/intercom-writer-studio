@@ -17,6 +17,9 @@ test("gate runs map to pipeline sub-jobs by stage", () => {
   assert.ok(pipelineSteps.every((step) => labProfile.jobTargets[step] > 0))
   assert.equal(labProfile.errorRateTarget, 1, "success target ≥ 99%")
   assert.ok(labProfile.kpiDescriptions.responseTime.includes("Phân tích"))
+  assert.ok(labProfile.kpiDescriptions.responseTime.includes("accepted"))
+  assert.ok(labProfile.kpiDescriptions.responseTime.includes("không chờ AI"))
+  assert.ok(labProfile.kpiDescriptions.clickLatency.includes("khung hình thứ hai"))
 })
 
 test("a package run counts processing time once and leaves out approvals and feedback", () => {
