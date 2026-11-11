@@ -1106,10 +1106,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           </button>
         </div>
       </header>
-      {page === "board" && <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
+      {page === "board" && <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div ref={filterRef} className="relative">
             <button
+              type="button"
+              aria-expanded={filterOpen}
               onClick={(event) => {
                 event.stopPropagation()
                 setFilterOpen((value) => !value)
@@ -1121,7 +1123,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
             {filterOpen && (
-              <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-64 rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-xl">
+              <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-xl">
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Filter packages
                 </p>
@@ -1160,18 +1162,24 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             </button>
           ))}
         </div>
-        <div className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+        <div role="group" aria-label="Workspace view" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
           <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={view === "list"}
             onClick={() => setView("list")}
-            className={`rounded-md px-2 py-1 ${
+            className={`grid min-h-9 min-w-9 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 ${
               view === "list" ? "bg-white shadow-2xs" : ""
             }`}
           >
             <List className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
+            aria-label="Grid view"
+            aria-pressed={view === "grid"}
             onClick={() => setView("grid")}
-            className={`rounded-md px-2 py-1 ${
+            className={`grid min-h-9 min-w-9 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 ${
               view === "grid" ? "bg-white shadow-2xs" : ""
             }`}
           >
@@ -1186,7 +1194,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               <div
                 className={
                   view === "grid"
-                    ? "grid h-full gap-3 overflow-y-auto pr-1 xl:min-h-0 xl:grid-cols-4 xl:overflow-hidden xl:pr-0"
+                    ? "eb-grid-scroll grid h-full content-start gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-4 xl:grid-rows-1 xl:content-stretch xl:overflow-hidden"
                     : "h-full overflow-y-auto space-y-4 pr-1"
                 }
               >
@@ -1565,11 +1573,11 @@ function GateGroup({
       className={
         isList
           ? "relative scroll-mt-2"
-          : `gate-column gate-${config.tone} rounded-2xl border p-3 xl:flex xl:min-h-0 xl:flex-col`
+          : `gate-column gate-${config.tone} min-w-0 rounded-2xl border p-3 xl:flex xl:min-h-0 xl:flex-col`
       }
     >
       <div
-        className={`mb-3 flex items-center justify-between ${
+        className={`mb-3 flex shrink-0 items-center justify-between gap-2 ${
           isList ? "sticky top-0 z-20 -mx-1 bg-white px-1 py-2" : ""
         }`}
       >
@@ -1584,7 +1592,7 @@ function GateGroup({
         </div>
         <span className="text-xs text-slate-400">{tasks.length}</span>
       </div>
-      <div className={isList ? "space-y-2" : "space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"}>
+      <div className={isList ? "space-y-2" : "eb-grid-scroll space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"}>
         {tasks.length ? (
           tasks.map((task) => (
             <TaskCard
@@ -1690,7 +1698,7 @@ function TaskCard({
             </span>
           )}
         </div>
-        <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900">
+        <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900 [overflow-wrap:anywhere]">
           {task.title}
         </h3>
         <p className="mt-1 text-[10px] text-slate-500">
@@ -1776,18 +1784,18 @@ function TaskCard({
             <X className="h-3.5 w-3.5" />
           </span>
         )}
-        <div ref={actionsRef} className="relative ml-auto">
+        <div ref={actionsRef} className="relative ml-auto max-w-full">
           <button
             onClick={() => setActionsOpen((open) => !open)}
             title="More item actions"
             aria-label="More item actions"
             aria-expanded={actionsOpen}
-            className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+            className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
           {actionsOpen && (
-            <div className="pointer-events-auto absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            <div className={`pointer-events-auto z-30 w-44 max-w-full rounded-xl border border-slate-200 bg-white p-1 shadow-lg ${view === "grid" ? "mt-1" : "absolute right-0 top-[calc(100%+6px)]"}`}>
               {task.gate === "review" && task.channels && <>
                 {needsThreads && <label className="block px-2 py-1 text-[10px] text-slate-600">Threads variants
                   <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">

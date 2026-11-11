@@ -2782,7 +2782,11 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   .onboarding-content { padding-block: .75rem; }
 }
 
-/* Main Input Engine: keep expanded evidence and validation outside the pill. */
+/* Grid uses its own scroll regions on desktop and a shared one on smaller screens. */
+.eb-workspace .eb-grid-scroll { scrollbar-width: none; }
+.eb-workspace .eb-grid-scroll::-webkit-scrollbar { display: none; }
+
+/* Main Input Engine: keep validation outside the pill. */
 .eb-input-engine .eb-input-pill { border-radius: 2rem; }
 .eb-input-engine .eb-input-pill::before { border-radius: inherit; }
 .eb-input-engine .eb-input-row {
@@ -2799,7 +2803,7 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .eb-input-engine .eb-input-topic {
   height: 2.5rem;
   min-height: 2.5rem;
-  max-height: 10rem;
+  max-height: min(10rem, 28dvh);
   padding: .625rem .25rem;
   border: 0;
   overflow-y: auto;
@@ -2829,13 +2833,7 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   border-radius: .75rem;
 }
 .eb-input-engine .eb-input-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
-.eb-input-engine .eb-input-actions > button:first-child {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 0;
-  border-radius: 9999px;
-}
-.eb-input-engine .eb-input-actions > button:first-child svg { width: 1.125rem; height: 1.125rem; }
+.eb-input-engine [role="alert"] { max-height: min(16rem, 28dvh); }
 .eb-input-engine .eb-input-analyze { background: #f3f4f6; color: #202124; }
 .eb-input-engine .eb-input-analyze:hover:not(:disabled) { background: #e5e7eb; }
 @media (max-width: 480px) {

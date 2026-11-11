@@ -33,6 +33,9 @@ for (const theme of ['light', 'dark']) {
     await topic.pressSequentially('Topic with F source');
     await expect(topic).toHaveValue('Topic with F source');
     await expect(analyze).toBeEnabled();
+    const analyzeBounds = await analyze.boundingBox();
+    const analyzeLabel = await analyze.locator('span').boundingBox();
+    expect(analyzeLabel.x + analyzeLabel.width).toBeLessThan(analyzeBounds.x + analyzeBounds.width);
     await expectNoStroke();
     await expect(topic).toHaveCSS('resize', 'vertical');
     await expect(topic).toHaveCSS('overflow-y', 'auto');
@@ -55,3 +58,36 @@ for (const theme of ['light', 'dark']) {
     await expect(analyze).toBeDisabled();
   });
 }
+
+test('Gate Grid scrolls without tracks and keeps card actions reachable', async ({page}, testInfo) => {
+  const desktop = testInfo.project.name === 'desktop';
+  await page.setViewportSize(desktop ? {width:1600,height:850} : {width:390,height:700});
+  const packages = Array.from({length:24}, (_, index) => ({
+    id:'brief-' + index, title:'Synthetic brief ' + index, state:'brief',
+  }));
+  await page.route('**/api/eb-v2/workspace', route => route.fulfill({
+    json:{packages,runs:[],articles:[],channels:[],discovery:[]},
+  }));
+  await page.goto('/?screen=eb');
+  // This fixture mounts the workspace directly. Match the app shell's viewport constraint.
+  await page.locator('.eb-workspace').evaluate(element => { element.style.height = 'calc(100dvh - 24px)'; });
+  const gridToggle = page.getByRole('button',{name:'Grid view',exact:true});
+  await gridToggle.click();
+  await expect(gridToggle).toHaveAttribute('aria-pressed','true');
+  const grid = page.locator('.eb-grid-scroll').first();
+  const columns = grid.locator('.gate-column');
+  await expect(columns).toHaveCount(4);
+  expect(await grid.evaluate(element=>getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(desktop ? 4 : 1);
+  const scroll = desktop ? columns.first().locator('.eb-grid-scroll') : grid;
+  await expect(scroll).toHaveCSS('scrollbar-width','none');
+  await scroll.hover();
+  await page.mouse.wheel(0,480);
+  await expect.poll(()=>scroll.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);
+  const actions = columns.first().getByRole('button',{name:'More item actions',exact:true}).last();
+  await actions.click();
+  const regenerate = columns.first().getByRole('button',{name:'Regenerate',exact:true});
+  await regenerate.scrollIntoViewIfNeeded();
+  await expect(regenerate).toBeInViewport();
+  await expect(page.getByRole('button',{name:'Kiểm tra thông tin và chạy Gate 1',exact:true})).toBeInViewport();
+  expect(await grid.evaluate(element=>element.scrollWidth <= element.clientWidth)).toBe(true);
+});
