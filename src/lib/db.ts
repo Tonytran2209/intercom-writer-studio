@@ -183,6 +183,19 @@ export async function runEbV2DiscoveryLive(model: { provider: string; id: string
 export async function fetchEbV2LibraryDocuments() { return railwayRequest<{ documents: any[] }>("/api/eb-v2/library-documents", undefined, ebV2Origin()) }
 export async function fetchEbV2Activity(id: string, kind: "package" | "channel") { return railwayRequest<any>(`/api/eb-v2/activity/${encodeURIComponent(id)}?kind=${kind}`, undefined, ebV2Origin()) }
 export async function fetchEbV2DiscoveryDetail(id: string) { return railwayRequest<any>(`/api/eb-v2/discovery/${encodeURIComponent(id)}/details`, undefined, ebV2Origin()) }
+export type DiscoveryFEvidence = { title: string; url: string; checkedAt: string; quote: string; connection: string }
+export async function findEbV2DiscoveryEvidence(id: string, model: { provider: string; id: string }) {
+  const result = await railwayRequest<{ evidence: DiscoveryFEvidence | null }>(
+    `/api/eb-v2/discovery/${encodeURIComponent(id)}/f-evidence`, jsonRequest("POST", { model }), ebV2Origin())
+  return result.evidence
+}
+export type WebsiteEvidenceStatus = { id: string; checkedAt?: string; ready: boolean }
+export async function fetchWebsiteEvidenceApprovals() {
+  return (await railwayRequest<{ sources: WebsiteEvidenceStatus[] }>("/api/website-inventory/evidence")).sources
+}
+export async function updateWebsiteEvidenceApproval(id: string, approved: boolean) {
+  await railwayRequest(`/api/website-inventory/${encodeURIComponent(id)}/evidence`, jsonRequest("PUT", { approved }))
+}
 export async function deleteEbV2Discovery(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/discovery/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 export async function clearEbV2Discovery() { return railwayRequest<EbV2Workspace>("/api/eb-v2/discovery", { method: "DELETE" }, ebV2Origin()) }
 export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin()) }

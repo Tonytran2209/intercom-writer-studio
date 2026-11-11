@@ -101,3 +101,46 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  await expect(draft).toHaveCount(0);
  await expect(destination).toHaveValue(target==='input'?'Existing source text\n\nDẫn chứng / nguồn từ ảnh:\nHuman confirmed source':'Existing source text\n\nHuman confirmed source');
 });
+
+test('Discovery previews approved website evidence before applying it to Gate 1', async ({page}) => {
+ const idea = {id:'idea-web',status:'suggested',title:'Learning workshop',source_summary:'Synthetic trend',
+  evidence:[{kind:'research_topic',sourceIds:['trend'],ebAngle:'Practice through workshops'}]};
+ const data = {packages:[],runs:[],articles:[],channels:[],discovery:[idea]};
+ const evidence = {title:'Workshop case study',url:'https://example.test/case-study',
+  checkedAt:'2026-11-10T00:00:00Z',quote:'F.Learning Studio organized a practical learning workshop.',
+  connection:'F có một workshop thực hành liên quan đến chủ đề.'};
+ let searches = 0;
+ await page.route('**/api/**', route => {
+  const path = new URL(route.request().url()).pathname;
+  if(path.endsWith('/workspace')) return route.fulfill({json:data});
+  if(path.endsWith('/details')) return route.fulfill({json:{item:idea,sources:[{id:'trend',url:'https://example.test/trend'}]}});
+  if(path.endsWith('/f-evidence')) {
+   expect(route.request().postDataJSON().model.id).toBe('evidence-fixture');
+   return route.fulfill({json:{evidence:++searches === 1 ? null : evidence}});
+  }
+  return route.abort();
+ });
+ await page.goto('/?screen=eb');
+ await page.evaluate(async () => {
+  const {DEFAULT_CONFIG,DEFAULT_MODELS} = await import('/src/lib/defaultData.ts');
+  DEFAULT_CONFIG.models = [{...DEFAULT_MODELS[0],id:'evidence-fixture',enabled:true}];
+ });
+ await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+ await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
+ await page.getByRole('button',{name:'Bổ sung thông tin cho Gate 1',exact:true}).click();
+ const search = page.getByRole('button',{name:'Tìm dẫn chứng F tự động',exact:true});
+ const connection = page.getByRole('textbox',{name:'Liên hệ với F / sự kiện của F',exact:true});
+ const reference = page.getByRole('textbox',{name:'Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)',exact:true});
+ await search.click();
+ await expect(page.getByText('Chưa tìm thấy dẫn chứng về F trong Website Inventory.',{exact:true})).toBeVisible();
+ await expect(reference).toHaveValue('');
+ await search.click();
+ await expect(page.getByRole('link',{name:evidence.title})).toHaveAttribute('href',evidence.url);
+ await expect(page.locator('blockquote')).toContainText(evidence.quote);
+ await expect(connection).toHaveValue('');
+ await page.getByRole('button',{name:'Dùng dẫn chứng',exact:true}).click();
+ await expect(connection).toHaveValue(evidence.connection);
+ await expect(reference).toHaveValue(new RegExp(evidence.url));
+ await expect(page.locator('#eb-input')).toHaveValue(/https:\/\/example\.test\/trend[\s\S]*Practice through workshops/);
+});

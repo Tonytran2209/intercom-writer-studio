@@ -14,6 +14,9 @@ import SourceImportPanel from "./SourceImportPanel"
 import {
   cancelAllWebsiteInventoryBatches,
   deleteWebsiteInventoryRecord,
+  fetchWebsiteEvidenceApprovals,
+  updateWebsiteEvidenceApproval,
+  type WebsiteEvidenceStatus,
   fetchWebsiteInventory,
   fetchWebsiteInventoryBatch,
   scanWebsiteUrl,
@@ -278,6 +281,30 @@ function WebsiteInventoryPanel({
   const [page, setPage] = useState(1)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const resumeStarted = useRef(false)
+  const [approvedEvidence, setApprovedEvidence] = useState<WebsiteEvidenceStatus[] | null>(null)
+  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null)
+  const [evidenceError, setEvidenceError] = useState("")
+  useEffect(() => {
+    let active = true
+    void fetchWebsiteEvidenceApprovals().then(ids => {
+      if (active) setApprovedEvidence(ids)
+    }).catch(error => {
+      if (active) setEvidenceError(error instanceof Error ? error.message : "Không tải được nguồn dẫn chứng F.")
+    })
+    return () => { active = false }
+  }, [])
+  async function toggleEvidence(id: string, approved: boolean) {
+    setEvidenceBusy(id)
+    setEvidenceError("")
+    try {
+      await updateWebsiteEvidenceApproval(id, approved)
+      setApprovedEvidence(await fetchWebsiteEvidenceApprovals())
+    } catch (error) {
+      setEvidenceError(error instanceof Error ? error.message : "Không lưu được nguồn dẫn chứng F.")
+    } finally {
+      setEvidenceBusy(null)
+    }
+  }
   const pageSize = 25
   const filteredRecords = useMemo(() => {
     const query = inventoryQuery.trim().toLocaleLowerCase()
@@ -570,6 +597,7 @@ function WebsiteInventoryPanel({
             </button>
           </div>
         </div>
+        {evidenceError && <p role="alert" className="text-xs text-red-600">{evidenceError}</p>}
         <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px_140px]">
           <input
             value={inventoryQuery}
@@ -713,6 +741,14 @@ function WebsiteInventoryPanel({
                       {record.summarizedAt && <span>{record.summaryCacheHit ? "Cached" : record.aiModel || "AI"} · {new Date(record.summarizedAt).toLocaleDateString()}</span>}
                       {record.searchIntent && <span className="capitalize">{record.searchIntent}</span>}
                     </div>
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input type="checkbox" checked={approvedEvidence?.some(source => source.id === record.id) ?? false}
+                        disabled={!approvedEvidence || Boolean(evidenceBusy)}
+                        onChange={event => void toggleEvidence(record.id, event.target.checked)} />
+                      {evidenceBusy === record.id ? "Đang lưu nguồn…" : "Dùng làm dẫn chứng F"}
+                    </label>
+                    {approvedEvidence?.some(source => source.id === record.id && !source.ready) &&
+                      <span className="text-amber-700">Nguồn dẫn chứng cần kiểm tra lại</span>}
                     <div className="flex items-center gap-1 self-end sm:self-auto">
                       <button
                         type="button"

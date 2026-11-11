@@ -7,6 +7,7 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
    '/api/eb-v2/library-documents':{documents:[{id:'library-fixture',name:'fixture-library.md',content:'Library sentinel',updated_at:'2026-01-01'}]},
    '/api/eb-v2/learning-signals':{signals:[]},
    '/api/website-inventory':{records:[]},
+   '/api/website-inventory/evidence':{sources:[]},
   };
   if(!bodies[path])throw new Error(`Unexpected fixture API: ${path}`);
   await route.fulfill({json:bodies[path]});

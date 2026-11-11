@@ -1876,10 +1876,18 @@ function Discovery({
     </div>
   )
 }
-function DiscoveryPreparationSources({ item }: { item: DiscoveryIdea }) {
+function DiscoveryPreparationSources({ item, model, disabled, onApply }: {
+  item: DiscoveryIdea
+  model: { provider: string; id: string } | null
+  disabled: boolean
+  onApply: (evidence: db.DiscoveryFEvidence, context: string) => void
+}) {
   const [detail, setDetail] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [finding, setFinding] = useState(false)
+  const [evidence, setEvidence] = useState<db.DiscoveryFEvidence | null>(null)
+  const [evidenceStatus, setEvidenceStatus] = useState("")
   useEffect(() => {
     let active = true
     setDetail(null); setError(null)
@@ -1892,6 +1900,22 @@ function DiscoveryPreparationSources({ item }: { item: DiscoveryIdea }) {
   }, [item.id, attempt])
   const ids = new Set((item.evidence ?? []).filter((entry: any) => entry?.kind === "research_topic").flatMap((entry: any) => Array.isArray(entry.sourceIds) ? entry.sourceIds : []))
   const sources = (Array.isArray(detail?.sources) ? detail.sources : []).filter((source: any) => ids.has(source.id))
+  const angle = (item.evidence ?? []).find((entry: any) => entry?.kind === "research_topic")?.ebAngle
+  async function findEvidence() {
+    if (!model) return
+    setFinding(true)
+    setEvidence(null)
+    setEvidenceStatus("")
+    try {
+      const result = await db.findEbV2DiscoveryEvidence(item.id, model)
+      setEvidence(result)
+      if (!result) setEvidenceStatus("Chưa tìm thấy dẫn chứng về F trong Website Inventory.")
+    } catch (error) {
+      setEvidenceStatus(error instanceof Error ? error.message : "Không tìm được dẫn chứng lúc này.")
+    } finally {
+      setFinding(false)
+    }
+  }
   return <div className="space-y-1 text-slate-600">
     <p className="font-medium">Nguồn xu hướng được suggestion trích dẫn</p>
     {error ? <div role="alert">{error} <button type="button" onClick={() => setAttempt((value) => value + 1)} className="underline">Thử tải lại nguồn</button></div>
@@ -1899,6 +1923,27 @@ function DiscoveryPreparationSources({ item }: { item: DiscoveryIdea }) {
       : <>{sources.map((source: any) => <p key={source.id}>{source.source_name ?? source.name ?? source.id}{source.url ? ` · ${source.url}` : ""}</p>)}
         {sources.length < ids.size && <p>Một số nguồn được trích dẫn không có trong dữ liệu trả về.</p>}
         {!ids.size && <p>Suggestion chưa lưu ID nguồn trích dẫn.</p>}</>}
+    {angle && <p><strong>Góc EB</strong> {angle}</p>}
+    <button type="button" disabled={disabled || finding || !model} onClick={() => void findEvidence()}
+      className="rounded border border-indigo-200 px-3 py-2 text-indigo-700 disabled:opacity-50">
+      {finding ? "Đang tìm dẫn chứng…" : "Tìm dẫn chứng F tự động"}
+    </button>
+    {evidenceStatus && <p role="status">{evidenceStatus}</p>}
+    {evidence && <div className="space-y-1 rounded border border-slate-200 p-2">
+      <p>{evidence.connection}</p>
+      <blockquote className="whitespace-pre-wrap">“{evidence.quote}”</blockquote>
+      <a className="block underline" href={evidence.url} target="_blank" rel="noreferrer">{evidence.title}</a>
+      <p>Đã kiểm tra {new Date(evidence.checkedAt).toLocaleDateString("vi-VN")}</p>
+      <button type="button" disabled={disabled} className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-50"
+        onClick={() => {
+          const links = sources.map((source: any) => source.url).filter(Boolean)
+          onApply(evidence, [
+            links.length ? `Nguồn xu hướng:\n${links.join("\n")}` : "",
+            angle ? `Góc EB: ${angle}` : "",
+          ].filter(Boolean).join("\n\n"))
+          setEvidence(null)
+        }}>Dùng dẫn chứng</button>
+    </div>}
   </div>
 }
 // Only backend-verified validation messages may become missing-information items.
@@ -2073,8 +2118,12 @@ function InputEngine({
               <h3 className="font-semibold">Chuẩn bị Gate 1 · {discoveryTag(preparation)}</h3>
               <p className="font-medium">{preparation.title}</p>
               <p className="whitespace-pre-wrap text-slate-600">{preparation.source_summary}</p>
-              <DiscoveryPreparationSources key={preparation.id} item={preparation} />
-              <p>Nguồn xu hướng và góc EB không xác nhận liên hệ với F. Bổ sung thông tin thực tế trước khi gửi.</p>
+              <DiscoveryPreparationSources key={preparation.id} item={preparation} model={model} disabled={syncing}
+                onApply={(evidence, context) => {
+                  setFConnection(evidence.connection)
+                  setFEvidence(`${evidence.title} · ${evidence.url}\n“${evidence.quote}”`)
+                  if (context && !input.includes(context)) setInput([input, context].filter(Boolean).join("\n\n"))
+                }} />
               <label className="block">Liên hệ với F / sự kiện của F
                 <textarea disabled={syncing} value={fConnection} onChange={(event) => setFConnection(event.target.value)} rows={2} className="mt-1 block w-full rounded border border-slate-200 bg-white p-2" />
               </label>

@@ -19,6 +19,7 @@ import {
 } from "./supabase.ts"
 import { extractDocumentText } from "./documentParser.ts"
 import { collectDiscoveryResearch } from "./discoveryResearch.ts"
+import { findWebsiteEvidence } from "./websiteEvidence.ts"
 import { refinementPlan, refinementChecks } from "./refinement.ts"
 import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
 
@@ -710,6 +711,22 @@ export function registerEbV2Routes(app: express.Express) {
       res.status(200).json({ saved: true })
     } catch {
       res.status(500).json({ error: "Không thể lưu thông báo đã xoá. Vui lòng thử lại." })
+    }
+  })
+  app.post("/api/eb-v2/discovery/:id/f-evidence", async (req, res) => {
+    const model = modelFrom(req.body)
+    if (!model) return res.status(400).json({ error: "Chọn model Gate 1 trước khi tìm dẫn chứng." })
+    try {
+      const item = await one<any>("eb_v2_discovery_items", text(req.params.id))
+      if (!item || item.status !== "suggested")
+        return res.status(404).json({ error: "Không tìm thấy suggestion trong Discovery." })
+      const angle = Array.isArray(item.evidence)
+        ? item.evidence.find((entry: any) => entry?.kind === "research_topic")?.ebAngle
+        : ""
+      const topic = [item.title, item.source_summary, angle].filter(Boolean).join("\n")
+      res.json({ evidence: await findWebsiteEvidence(topic, model) })
+    } catch {
+      res.status(502).json({ error: "Không tìm được dẫn chứng lúc này. Vui lòng thử lại." })
     }
   })
   app.get("/api/eb-v2/discovery/:id/details", async (req, res) => {
