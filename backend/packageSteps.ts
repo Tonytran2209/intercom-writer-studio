@@ -2,6 +2,8 @@ import type { ParentRun } from "./jobHistory.ts"
 
 // AI Agent Lab run history for EB V2: one package = one Main Job run, its gate runs = sub-jobs.
 export const PACKAGE_JOB = "EB V2 package"
+export const MARKDOWN_EVIDENCE_STEP = "Tìm dẫn chứng Markdown"
+export const MARKDOWN_EVIDENCE_RUN_PREFIX = "lab-markdown-evidence:"
 
 const channelLabels: Record<string, string> = { facebook: "Facebook", linkedin: "LinkedIn", threads: "Threads" }
 const channelName = (channel: string) => channelLabels[channel] ?? (channel.charAt(0).toUpperCase() + channel.slice(1))
@@ -9,6 +11,7 @@ const channelName = (channel: string) => channelLabels[channel] ?? (channel.char
 // Sub-jobs in pipeline order (brief → article → channels → repetition check). Feedback revisions
 // are separate sub-jobs that do not count toward the package time.
 export const pipelineSteps = [
+  MARKDOWN_EVIDENCE_STEP,
   "Trích xuất brief",
   "Article Spec",
   "Lập outline",
@@ -47,11 +50,12 @@ export const labProfile = {
   // What the browser KPIs measure under ui-kpi-v2 (src/components/EbWorkingSpace.tsx,
   // legacy Step3Outline.tsx, src/lib/performanceTelemetry.ts).
   kpiDescriptions: {
-    responseTime: "Từ lúc bấm 'Phân tích' (input EB V2) hoặc 'Tạo outline' (luồng cũ) → khung hình thứ hai sau khi giao diện đã hiển thị 'Đã tiếp nhận', tức là server đã gửi tín hiệu accepted đầu tiên ngay trước khi gọi AI; không chờ AI tạo xong brief/outline",
-    clickLatency: "Từ lúc bấm 'Phân tích' / 'Tạo outline' → khung hình thứ hai sau khi giao diện đã vẽ xong trạng thái đang xử lý",
+    responseTime: "Từ lúc bấm 'Phân tích' hoặc 'Tạo outline' đến khung hình thứ hai sau tín hiệu accepted. Với 'Chuyển sang Gate 1' hoặc 'Tìm lại dẫn chứng F', đo đến khi hiển thị thẻ sau khi server nhận việc. Chỉ số không chờ AI hoàn thành brief/outline.",
+    clickLatency: "Từ lúc bấm 'Phân tích', 'Tạo outline', 'Chuyển sang Gate 1' hoặc 'Tìm lại dẫn chứng F' đến khung hình thứ hai hiển thị trạng thái đang xử lý",
   },
   jobTargets: <Record<string, number>>{
     [PACKAGE_JOB]: 2,
+    [MARKDOWN_EVIDENCE_STEP]: 15 / 60,
     "Trích xuất brief": 10 / 60,
     "Article Spec": 15 / 60,
     "Lập outline": 15 / 60,

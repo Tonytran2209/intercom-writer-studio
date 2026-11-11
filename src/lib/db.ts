@@ -166,8 +166,8 @@ export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return rail
 export async function saveEbV2NotificationDismissals(entries: Array<[string, string]>): Promise<void> {
   await railwayRequest("/api/eb-v2/notification-dismissals", jsonRequest("POST", { entries }), ebV2Origin())
 }
-export async function createEbV2Package(input: { title?: string; inputText: string; fConnection?: string; fEvidence?: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted) }
-export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string; fConnection?: string; fEvidence?: string }, onAccepted?: () => void) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); if (context.fConnection) body.append("fConnection", context.fConnection); if (context.fEvidence) body.append("fEvidence", context.fEvidence); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted) }
+export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted) }
+export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string }, onAccepted?: () => void) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted) }
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
 export type DiscoveryStreamEvent = { event: "progress"; message?: string } | { event: "item"; item: any } | { event: "complete"; items: any[] } | { event: "error"; error: string }
 export async function runEbV2DiscoveryLive(model: { provider: string; id: string }, sourceUrls: string[] = [], onEvent: (event: DiscoveryStreamEvent) => void) {
@@ -187,19 +187,22 @@ export async function promoteEbV2Discovery(id: string, model: { provider: string
   return railwayRequest<{ packageId: string }>(
     `/api/eb-v2/discovery/${encodeURIComponent(id)}/promote`, jsonRequest("POST", { model }), ebV2Origin())
 }
-export type WebsiteEvidenceStatus = { id: string; checkedAt?: string; ready: boolean }
-export async function fetchWebsiteEvidenceApprovals() {
-  return (await railwayRequest<{ sources: WebsiteEvidenceStatus[] }>("/api/website-inventory/evidence")).sources
+export type MarkdownEvidenceDocument = { name: string; uploadedAt: string }
+export async function fetchMarkdownEvidenceDocument() {
+  return (await railwayRequest<{ document: MarkdownEvidenceDocument | null }>("/api/eb-v2/markdown-evidence", undefined, ebV2Origin())).document
 }
-export async function updateWebsiteEvidenceApproval(id: string, approved: boolean) {
-  await railwayRequest(`/api/website-inventory/${encodeURIComponent(id)}/evidence`, jsonRequest("PUT", { approved }))
+export async function uploadMarkdownEvidenceDocument(file: File) {
+  const body = new FormData()
+  body.append("file", file)
+  return (await railwayRequest<{ document: MarkdownEvidenceDocument }>("/api/eb-v2/markdown-evidence", { method: "POST", body }, ebV2Origin())).document
 }
+
 export async function deleteEbV2Discovery(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/discovery/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 export async function clearEbV2Discovery() { return railwayRequest<EbV2Workspace>("/api/eb-v2/discovery", { method: "DELETE" }, ebV2Origin()) }
 export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin()) }
 export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel }), ebV2Origin()) }
 export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck", approvedVariants?: "a" | "b" | "both") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action, approvedVariants }), ebV2Origin()) }
-export async function regenerateEbV2Package(id: string, stage: "brief" | "article", model: { provider: string; id: string }, fields?: { fConnection: string; fEvidence: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { stage, model, ...fields }), ebV2Origin()) }
+export async function regenerateEbV2Package(id: string, stage: "brief" | "article", model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { stage, model }), ebV2Origin()) }
 export async function moveEbV2Package(id: string, target: "brief" | "article") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/move`, jsonRequest("POST", { target }), ebV2Origin()) }
 export async function regenerateEbV2Channel(id: string, model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { model }), ebV2Origin()) }
 export async function fetchEbV2FeedbackStatus(packageId: string) { return railwayRequest<any>(`/api/eb-v2/feedback-status/${encodeURIComponent(packageId)}`, undefined, ebV2Origin()) }
@@ -358,12 +361,4 @@ export async function pingRailway(
   } catch {
     return { ok: false }
   }
-}
-
-
-export async function scanEbV2Evidence(file: File, model: { provider: string; id: string }, signal?: AbortSignal) {
-  const body = new FormData()
-  body.append("file", file)
-  body.append("model", JSON.stringify(model))
-  return railwayRequest<{ evidence: string }>("/api/eb-v2/evidence/scan", { method: "POST", body, signal }, ebV2Origin())
 }

@@ -108,17 +108,17 @@ for(const english of [false,true]){
   const writes=await openApp(page,{english});
   const next=()=>page.getByRole('button',{name:english?'Next':'Tiếp',exact:true}).click();
   await expect(dialog(page).getByRole('listitem')).toHaveCount(4);
-  for(const text of [english?'AI workflow':'Workflow AI',english?'EB knowledge & rules':'EB Knowledge & Rules','EB Library','EB Workflow Rules','Website Inventory','New activity','Quét dẫn chứng','Dùng dẫn chứng','Analyze']){
+  for(const text of [english?'AI workflow':'Workflow AI',english?'EB knowledge & rules':'EB Knowledge & Rules','EB Library','EB Workflow Rules','Website Inventory','New activity',english?'Markdown evidence':'Dẫn chứng Markdown','Analyze']){
    await expect(dialog(page)).toContainText(text);
   }
   await next();
   await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
-  for(const text of ['Source & evidence','Lưu và chạy lại brief','Approve brief','Approve article','Channel output','Done','Reject','Re-check','Variant A, B']){
+  for(const text of ['Source & evidence','Approve brief','Approve article','Channel output','Done','Reject','Re-check','Variant A, B']){
    await expect(dialog(page)).toContainText(text);
   }
   await next();
   await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
-  for(const text of ['Scan sources','Details','Verified trend','Emerging signal','Source lead','Run Gate 1','Website articles','Final review','Library Article','Search','refresh']){
+  for(const text of ['Scan sources','Details','Verified trend','Emerging signal','Source lead','Chuyển sang Gate 1','Website articles','Final review','Library Article','Search','refresh']){
    await expect(dialog(page)).toContainText(text);
   }
   expect(await page.evaluate(()=>localStorage.getItem('writer:onboarding:v1'))).toBeNull();

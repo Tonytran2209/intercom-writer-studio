@@ -14,9 +14,9 @@ import SourceImportPanel from "./SourceImportPanel"
 import {
   cancelAllWebsiteInventoryBatches,
   deleteWebsiteInventoryRecord,
-  fetchWebsiteEvidenceApprovals,
-  updateWebsiteEvidenceApproval,
-  type WebsiteEvidenceStatus,
+  fetchMarkdownEvidenceDocument,
+  uploadMarkdownEvidenceDocument,
+  type MarkdownEvidenceDocument,
   fetchWebsiteInventory,
   fetchWebsiteInventoryBatch,
   scanWebsiteUrl,
@@ -160,7 +160,8 @@ export default function TabKnowledgeBase({
         />
       ) : (
         <div className="space-y-4">
-          {activeSubTab === "kb" && <EbLibraryCollections files={files} />}
+          <MarkdownEvidenceUpload />
+          <EbLibraryCollections files={files} />
           <SourceImportPanel
             key={activeSubTab}
             category={meta.category ?? "kb"}
@@ -259,6 +260,51 @@ function EditorialLearningsPanel() {
   return <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-xs font-bold text-slate-800">Editorial learnings</h2><p className="mt-1 text-xs leading-5 text-slate-500">Accepted feedback revisions and explicit Threads variant approvals appear here. Approvals record editorial preference; performance evidence can be linked separately. Active learnings guide relevant future article or channel runs.</p></div><button onClick={() => void load()} title="Refresh editorial learnings" className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-100"><RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/></button></div>{error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[10px] text-red-700">{error}</p>}<div className="mt-3 space-y-2">{!loading && !signals.length && <p className="rounded-lg bg-slate-50 px-3 py-3 text-[10px] text-slate-500">No accepted feedback revisions yet.</p>}{signals.map(signal => <div key={signal.id} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{signal.gate}{signal.channel ? ` · ${signal.channel}` : ""}</span><div className="flex items-center gap-1"><button onClick={() => void save(signal.id, { active: !signal.active })} className={`rounded-md px-2 py-1 text-[9px] font-semibold ${signal.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{signal.active ? "Active" : "Disabled"}</button><button onClick={() => { setEditing(signal.id); setDraft(signal.instruction) }} className="rounded-md px-2 py-1 text-[9px] font-semibold text-slate-500 hover:bg-slate-100">Edit</button><button onClick={() => void remove(signal.id)} title="Delete learning" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3 w-3"/></button></div></div>{editing === signal.id ? <div className="mt-2"><textarea value={draft} onChange={event => setDraft(event.target.value)} rows={3} className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[10px] text-slate-700"/><div className="mt-2 flex justify-end gap-1"><button onClick={() => setEditing(null)} className="rounded-md px-2 py-1 text-[9px] font-semibold text-slate-500">Cancel</button><button onClick={() => void save(signal.id, { instruction: draft })} disabled={!draft.trim()} className="rounded-md bg-indigo-600 px-2 py-1 text-[9px] font-semibold text-white disabled:opacity-40">Save</button></div></div> : <p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{signal.instruction}</p>}</div>)}</div></section>
 }
 
+function MarkdownEvidenceUpload() {
+  const [document, setDocument] = useState<MarkdownEvidenceDocument | null>(null)
+  const [busy, setBusy] = useState(true)
+  const [error, setError] = useState("")
+  useEffect(() => {
+    let active = true
+    void fetchMarkdownEvidenceDocument().then(result => {
+      if (active) setDocument(result)
+    }).catch(reason => {
+      if (active) setError(reason.message)
+    }).finally(() => {
+      if (active) setBusy(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  async function upload(file: File) {
+    setBusy(true)
+    setError("")
+    try {
+      setDocument(await uploadMarkdownEvidenceDocument(file))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không tải được tài liệu dẫn chứng.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className="space-y-2 rounded-xl border border-slate-200 p-4">
+    <h3 className="text-sm font-semibold">Tài liệu dẫn chứng F cho Gate 1</h3>
+    <p className="text-xs text-slate-600">Gate 1 tự tìm dẫn chứng trong một tệp .md dùng chung. Tải tệp mới để thay thế tệp hiện tại.</p>
+    {document && <p className="break-words text-xs text-slate-700">{document.name} · {new Date(document.uploadedAt).toLocaleString("vi-VN")}</p>}
+    <label className="block text-xs font-medium">Tải tài liệu Markdown
+      <input type="file" accept=".md" disabled={busy} className="mt-1 block w-full"
+        onChange={event => {
+          const file = event.target.files?.[0]
+          event.target.value = ""
+          if (file) void upload(file)
+        }} />
+    </label>
+    {busy && <p role="status" className="text-xs text-slate-500">Đang xử lý tài liệu…</p>}
+    {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+  </section>
+}
+
 function WebsiteInventoryPanel({
   records,
   railwayUrl,
@@ -281,30 +327,6 @@ function WebsiteInventoryPanel({
   const [page, setPage] = useState(1)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const resumeStarted = useRef(false)
-  const [approvedEvidence, setApprovedEvidence] = useState<WebsiteEvidenceStatus[] | null>(null)
-  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null)
-  const [evidenceError, setEvidenceError] = useState("")
-  useEffect(() => {
-    let active = true
-    void fetchWebsiteEvidenceApprovals().then(ids => {
-      if (active) setApprovedEvidence(ids)
-    }).catch(error => {
-      if (active) setEvidenceError(error instanceof Error ? error.message : "Không tải được nguồn dẫn chứng F.")
-    })
-    return () => { active = false }
-  }, [])
-  async function toggleEvidence(id: string, approved: boolean) {
-    setEvidenceBusy(id)
-    setEvidenceError("")
-    try {
-      await updateWebsiteEvidenceApproval(id, approved)
-      setApprovedEvidence(await fetchWebsiteEvidenceApprovals())
-    } catch (error) {
-      setEvidenceError(error instanceof Error ? error.message : "Không lưu được nguồn dẫn chứng F.")
-    } finally {
-      setEvidenceBusy(null)
-    }
-  }
   const pageSize = 25
   const filteredRecords = useMemo(() => {
     const query = inventoryQuery.trim().toLocaleLowerCase()
@@ -597,7 +619,6 @@ function WebsiteInventoryPanel({
             </button>
           </div>
         </div>
-        {evidenceError && <p role="alert" className="text-xs text-red-600">{evidenceError}</p>}
         <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px_140px]">
           <input
             value={inventoryQuery}
@@ -741,14 +762,6 @@ function WebsiteInventoryPanel({
                       {record.summarizedAt && <span>{record.summaryCacheHit ? "Cached" : record.aiModel || "AI"} · {new Date(record.summarizedAt).toLocaleDateString()}</span>}
                       {record.searchIntent && <span className="capitalize">{record.searchIntent}</span>}
                     </div>
-                    <label className="flex items-center gap-2 text-xs text-slate-600">
-                      <input type="checkbox" checked={approvedEvidence?.some(source => source.id === record.id) ?? false}
-                        disabled={!approvedEvidence || Boolean(evidenceBusy)}
-                        onChange={event => void toggleEvidence(record.id, event.target.checked)} />
-                      {evidenceBusy === record.id ? "Đang lưu nguồn…" : "Dùng làm dẫn chứng F"}
-                    </label>
-                    {approvedEvidence?.some(source => source.id === record.id && !source.ready) &&
-                      <span className="text-amber-700">Nguồn dẫn chứng cần kiểm tra lại</span>}
                     <div className="flex items-center gap-1 self-end sm:self-auto">
                       <button
                         type="button"

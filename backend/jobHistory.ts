@@ -5,7 +5,7 @@ const rejectedOutput = /^(?:Brief còn thông tin N\/A\.|AI did not return a val
 type JobRecord = {
   job: string
   workload: string
-  status: "completed" | "failed"
+  status: "completed" | "failed" | "running"
   valid: boolean
   startedAt: string | Date | null
   endedAt: string | Date | null
@@ -86,16 +86,16 @@ export function jobRuns(rows: JobRecord[], now: number, max = 5000, parents: Par
   const runs: Run[] = []
   let truncated = false
   for (const row of rows) {
-    if (row.status !== "completed" && row.status !== "failed") continue
-    const endedAt = iso(row.endedAt) ?? iso(row.recordedAt)
-    if (!endedAt || Date.parse(endedAt) < since) continue
-    if (runs.length >= max) { truncated = true; break }
     const startedAt = iso(row.startedAt)
+    const endedAt = row.status === "running" ? null : iso(row.endedAt) ?? iso(row.recordedAt)
+    const at = endedAt ?? (row.status === "running" ? startedAt : null)
+    if (!at || Date.parse(at) < since) continue
+    if (runs.length >= max) { truncated = true; break }
     const title = row.title?.trim()
     runs.push({
       job: row.job, workload: title ? (row.workload + " · " + title).slice(0, 200) : row.workload,
-      status: row.status === "completed" ? "success" : "failed",
-      startedAt: startedAt && Date.parse(startedAt) <= Date.parse(endedAt) ? startedAt : null, endedAt,
+      status: row.status === "completed" ? "success" : row.status,
+      startedAt: startedAt && (!endedAt || Date.parse(startedAt) <= Date.parse(endedAt)) ? startedAt : null, endedAt,
       ...(row.runId ? { runId: String(row.runId) } : {}),
       ...(row.parentRunId ? { parentRunId: String(row.parentRunId) } : {}),
       ...(row.parent ? { parent: row.parent } : {}),

@@ -9,7 +9,6 @@ import {
   Download,
   FileText,
   Grid2X2,
-  ImagePlus,
   Lightbulb,
   List,
   LoaderCircle,
@@ -529,7 +528,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
     if (placeholder.test(input)) {
-      setInputError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
+      setInputError("Chưa thể chạy Gate 1. Nhập nội dung ý tưởng cụ thể thay cho N/A.")
       return
     }
     if (file && !isShellMode) {
@@ -660,16 +659,19 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       .finally(() => setSyncing(false))
   }
   const promotingDiscovery = useRef(false)
-  async function promoteDiscovery(id: string) {
+  async function promoteDiscovery(id: string, event: { timeStamp: number }) {
     if (promotingDiscovery.current) return
+    const startedAt = interactionStart(event)
     const model = selectedModel(config, 1)
     promotingDiscovery.current = true
+    analyzeClick.current = startedAt
     setSyncing(true)
     try {
       const { packageId } = await db.promoteEbV2Discovery(id, model)
       await refresh()
       setPage("board")
       setSelectedId(packageId)
+      sendPerformanceSample("responseTime", startedAt)
     } catch (error) {
       notifyWorkspace(error instanceof Error ? error.message : "Không chuyển được ý tưởng sang Gate 1.", "error")
     } finally {
@@ -784,7 +786,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       setSyncing(false)
     }
   }
-  const regenerate = async (task: Task, fields?: { fConnection: string; fEvidence: string }) => {
+  const regenerate = async (task: Task) => {
     if (approvalLock.current || syncing) return false
     if (isShellMode) {
       setTasks((current) =>
@@ -846,7 +848,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         ? db.regenerateEbV2Package(task.packageId ?? task.id, task.gate, {
             provider: model.provider,
             id: model.id,
-          }, fields)
+          })
         : db.regenerateEbV2Channel(task.id, {
             provider: model.provider,
             id: model.id,
@@ -1207,7 +1209,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               </div>
             </section>
             <InputEngine
-              model={selectedModel(config, 1)}
               input={input}
               setInput={setInput}
               fileName={fileName}
@@ -1227,7 +1228,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               onOpen={setSelectedDiscovery}
               onDelete={removeDiscovery}
               onClear={clearDiscovery}
-              onPick={item => void promoteDiscovery(item.id)}
+              onPick={(item, event) => void promoteDiscovery(item.id, event)}
               promoting={syncing}
             />
             <DiscoveryResearch
@@ -1246,7 +1247,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             approvalPending={approvalPending}
             approvalError={approvalError?.id === selectedTask?.id ? approvalError?.message : null}
             onBrief={approveBrief}
-            onRetryDiscovery={id => void promoteDiscovery(id)}
+            onRetryDiscovery={(id, event) => void promoteDiscovery(id, event)}
             onArticle={approveArticle}
             model={(() => {
               const task = selectedTask
@@ -1889,10 +1890,10 @@ function gateOneRequirements(message: string): string[] | null {
   if (!normalized.startsWith(prefix)) return null
   const labels: Record<string, string> = {
     "Nội dung topic: bổ sung thông tin thực tế, không để trống hoặc N/A.": "Bổ sung nội dung topic",
-    "Mối liên hệ với F: nêu câu chuyện, hoạt động hoặc sự kiện cụ thể của F liên quan đến topic.": "Nêu liên hệ cụ thể với F / sự kiện của F",
-    "Nguồn xác nhận tại F: bổ sung link hoặc thông tin tham chiếu cụ thể để kiểm chứng.": "Thêm nguồn xác nhận tại F",
-    "connection": "Nêu liên hệ cụ thể với F / sự kiện của F",
-    "evidence": "Thêm nguồn xác nhận tại F",
+    "Mối liên hệ với F: nêu câu chuyện, hoạt động hoặc sự kiện cụ thể của F liên quan đến topic.": "Cần mối liên hệ cụ thể trong tài liệu Markdown dẫn chứng",
+    "Nguồn xác nhận tại F: bổ sung link hoặc thông tin tham chiếu cụ thể để kiểm chứng.": "Cần nguồn xác nhận trong tài liệu Markdown dẫn chứng",
+    "connection": "Cần mối liên hệ cụ thể trong tài liệu Markdown dẫn chứng",
+    "evidence": "Cần nguồn xác nhận trong tài liệu Markdown dẫn chứng",
   }
   const items = normalized.slice(prefix.length).split("\n").filter((item) => item.trim())
   return items.length ? items.map((item) => labels[item.trim()] ?? item) : null
@@ -1923,102 +1924,9 @@ function InputValidationFeedback({ message }: { message: string }) {
   )
 }
 
-function EvidenceImageInput({ model, disabled, onApply, children }: {
-  children?: (trigger: ReactNode) => ReactNode
-  model: { provider: string; id: string } | null
-  disabled: boolean
-  onApply: (value: string) => void
-}) {
-  const [file, setFile] = useState<File | null>(null)
-  const [draft, setDraft] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const picker = useRef<HTMLInputElement | null>(null)
-  const dragDepth = useRef(0)
-  const [dragging, setDragging] = useState(false)
-  const request = useRef<AbortController | null>(null)
-  const version = useRef(0)
-  useEffect(() => () => { version.current++; request.current?.abort() }, [])
-  useEffect(() => { version.current++; request.current?.abort(); setBusy(false); dragDepth.current = 0; setDragging(false) }, [model?.id, model?.provider, disabled])
-  async function scan() {
-    if (!file || !model || disabled || busy) return
-    const current = ++version.current
-    request.current?.abort()
-    const controller = new AbortController()
-    request.current = controller
-    setBusy(true); setError("")
-    try {
-      const result = await db.scanEbV2Evidence(file, model, controller.signal)
-      if (version.current === current) setDraft(result.evidence)
-    } catch (error) {
-      if (version.current === current) setError(error instanceof Error ? error.message : "Không quét được ảnh. Thử lại.")
-    } finally { if (version.current === current) setBusy(false) }
-  }
-  function receiveFiles(files: FileList | null) {
-    if (disabled || !files?.length) return
-    version.current++; request.current?.abort(); setBusy(false); setDraft(""); setError("")
-    setFile(null)
-    if (files.length !== 1) { setError("Chọn một ảnh mỗi lần."); return }
-    const next = files[0]
-    if (!["image/png", "image/jpeg", "image/webp"].includes(next.type) || next.size > 15 * 1024 * 1024) {
-      setError("Chọn ảnh PNG/JPEG/WebP tối đa 15 MiB."); return
-    }
-    setFile(next)
-  }
-  const input = <input ref={picker} aria-label="Ảnh dẫn chứng" type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled}
-    className={children ? "hidden" : "mt-1 block w-full"} onChange={event => {
-      receiveFiles(event.target.files)
-      event.target.value = ""
-    }} />
-  const trigger = <button type="button" disabled={disabled} aria-label="Chọn ảnh dẫn chứng" title="Chọn ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB)"
-    onClick={() => picker.current?.click()} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40">
-    <ImagePlus aria-hidden="true" className="h-3.5 w-3.5" />
-  </button>
-  return <div className={dragging ? "rounded-lg outline-2 outline-offset-2 outline-indigo-500" : undefined}
-    onDragEnter={event => {
-      if (!event.dataTransfer.types.includes("Files")) return
-      event.preventDefault(); dragDepth.current++
-      if (!disabled) setDragging(true)
-    }}
-    onDragOver={event => {
-      if (!event.dataTransfer.types.includes("Files")) return
-      event.preventDefault(); event.dataTransfer.dropEffect = disabled ? "none" : "copy"
-    }}
-    onDragLeave={event => {
-      if (!event.dataTransfer.types.includes("Files")) return
-      event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1)
-      if (!dragDepth.current) setDragging(false)
-    }}
-    onDrop={event => {
-      if (!event.dataTransfer.types.includes("Files")) return
-      event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragging(false)
-      receiveFiles(event.dataTransfer.files)
-    }}>
-    {children && input}
-    {(!children || file || error) && <div className="my-2 space-y-2 rounded-lg border border-slate-200 p-2 text-xs">
-    {!children && <label className="block">Ảnh dẫn chứng (PNG/JPEG/WebP · tối đa 15 MiB){input}</label>}
-    {children && file && <p className="break-all">Ảnh dẫn chứng: {file.name}</p>}
-    <button type="button" disabled={disabled || busy || !file || !model} onClick={() => void scan()} className="rounded border border-indigo-200 px-3 py-2 text-indigo-700 disabled:opacity-50">{busy ? "Đang quét ảnh…" : "Quét dẫn chứng"}</button>
-    {!model && <p>Chọn model Gate 1 có hỗ trợ ảnh trong Workflow AI.</p>}
-    {busy && <p role="status">Đang đọc ảnh…</p>}
-    {error && <p role="alert" className="text-red-600">{error}</p>}
-    {draft && <div className="space-y-2">
-      <label className="block">Xem / sửa dẫn chứng từ ảnh
-        <textarea aria-label="Dẫn chứng từ ảnh" value={draft} disabled={disabled || busy} onChange={event => setDraft(event.target.value)} className="mt-1 min-h-24 w-full rounded border p-2" />
-      </label>
-      <p>Kết quả đọc ảnh chưa được xác minh độc lập. Kiểm tra nguồn trước khi dùng.</p>
-      <button type="button" disabled={disabled || busy || !draft.trim()} onClick={() => { onApply(draft.trim()); setDraft("") }} className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-50">Dùng dẫn chứng</button>
-    </div>}
-    </div>}
-    {children?.(trigger)}
-    {children && dragging && !disabled && <p className="mt-1 text-[10px] text-slate-500" role="status">Thả một ảnh dẫn chứng tại đây</p>}
-  </div>
-}
-
 type AnalysisTiming = { start: number; accepted: Promise<number | null> | null }
 
 function InputEngine({
-  model,
   input,
   setInput,
   fileName,
@@ -2029,7 +1937,6 @@ function InputEngine({
   accepted,
   inputError,
 }: {
-  model: { provider: string; id: string } | null
   inputError: string | null
   syncing: boolean
   accepted: boolean
@@ -2044,14 +1951,11 @@ function InputEngine({
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
       <div className="mx-auto max-w-4xl">
         <div className="space-y-2">
-          <EvidenceImageInput model={model} disabled={syncing}
-            onApply={value => setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))}>
-          {imageTrigger => <>
           {inputError && <InputValidationFeedback message={inputError} />}
           <div className="glow-input-container eb-input-pill">
           <div className="eb-input-row">
             <label
-              title={fileName || "Upload material"}
+              title={fileName || "Đính kèm tài liệu ý tưởng"}
               className={`eb-input-upload relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-full hover:bg-slate-50 ${
                 fileName
                   ? "border-indigo-200 bg-indigo-50 text-indigo-600"
@@ -2062,7 +1966,7 @@ function InputEngine({
               <input
                 type="file"
                 disabled={syncing}
-                aria-label="Upload material"
+                aria-label="Đính kèm tài liệu ý tưởng"
                 className="sr-only"
                 accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md"
                 onChange={(event) => {
@@ -2077,13 +1981,12 @@ function InputEngine({
               disabled={syncing}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              aria-label="Nội dung topic, mối liên hệ với F và nguồn xác nhận"
+              aria-label="Nội dung ý tưởng"
               rows={1}
-              placeholder="Nhập topic/câu chuyện, mối liên hệ với F hoặc sự kiện của F, kèm link hay nguồn xác nhận…"
+              placeholder="Nhập chủ đề hoặc câu chuyện…"
               className="eb-input-topic min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 placeholder:text-slate-400"
             />
             <div className="eb-input-actions">
-            {imageTrigger}
             <button
               disabled={syncing || (!input.trim() && !fileName)}
               onClick={analyze}
@@ -2098,8 +2001,6 @@ function InputEngine({
           </div>
           </div>
           {(syncing || fileName) && <p className="mt-1 break-all px-3 text-[10px] text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
-          </>}
-          </EvidenceImageInput>
         </div>
       </div>
     </div>
@@ -2199,7 +2100,7 @@ function DiscoveryArchive({
   onOpen: (item: DiscoveryIdea) => void
   onDelete: (item: DiscoveryIdea) => void
   onClear: () => void
-  onPick: (item: DiscoveryIdea) => void
+  onPick: (item: DiscoveryIdea, event: { timeStamp: number }) => void
   promoting: boolean
 }) {
   const groups = [
@@ -2253,7 +2154,7 @@ function DiscoveryArchive({
                     </button>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">Details</button>
-                      <button disabled={promoting} onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Chuyển sang Gate 1</button>
+                      <button disabled={promoting} onClick={event => onPick(item, event)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Chuyển sang Gate 1</button>
                       <button onClick={() => onDelete(item)} title="Delete suggestion" aria-label="Delete suggestion" className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </article>
@@ -2427,18 +2328,15 @@ function TaskDetail({
   approvalPending: boolean
   approvalError: string | null | undefined
   onBrief: (task: Task) => void
-  onRetryDiscovery: (id: string) => void
+  onRetryDiscovery: (id: string, event: { timeStamp: number }) => void
   onArticle: (task: Task) => void
   task: Task | null
   model: { provider: string; id: string } | null
   onWorkspaceChange: (data: db.EbV2Workspace) => void
   onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
-  onRegenerate: (task: Task, fields?: { fConnection: string; fEvidence: string }) => Promise<boolean | undefined>
+  onRegenerate: (task: Task) => Promise<boolean | undefined>
   onClose: () => void
 }) {
-  const [briefFields, setBriefFields] = useState({ fConnection: "", fEvidence: "" })
-  const briefFieldsTask = useRef<string | null>(null)
-  const [briefSaving, setBriefSaving] = useState(false)
   const [activity, setActivity] = useState<any>(null)
   const activityItem = useRef<string | null>(null)
   const feedbackActionLock = useRef(false)
@@ -2460,23 +2358,13 @@ function TaskDetail({
     const key = task ? `${task.id}:${task.gate}` : null
     if (activityItem.current !== key) {
       setActivity(null)
-      setBriefFields({ fConnection: "", fEvidence: "" })
-      briefFieldsTask.current = null
       activityItem.current = key
     }
     if (!task || isShellMode) return
     setLoading(true)
     setError(null)
     void db.fetchEbV2Activity(task.id, task.gate === "adapt" ? "channel" : "package")
-      .then((data) => { if (active) {
-        setActivity(data)
-        if (briefFieldsTask.current !== key && !(task.discoveryNeedsEvidence && task.status === "checking")) {
-          const saved = data.inputs?.[0]?.raw_snapshot?.briefValidation
-          const found = data.runs?.find((run: any) => run.stage === "discovery-evidence")?.output_snapshot?.discoveryEvidence
-          if (saved || found) setBriefFields({ fConnection: saved?.connection ?? found?.fConnection ?? "", fEvidence: saved?.evidence ?? found?.fEvidence ?? "" })
-          briefFieldsTask.current = saved || found ? key : null
-        }
-      } })
+      .then((data) => { if (active) setActivity(data) })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load activity.") })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -2768,33 +2656,13 @@ function TaskDetail({
                       : "Chọn model Gate 1 trong Workflow AI để tìm dẫn chứng F."}
                   </p>
                   <button type="button" disabled={approvalDisabled || !model}
-                    onClick={() => {
-                      briefFieldsTask.current = null
-                      onRetryDiscovery(task.id)
-                    }}
+                    onClick={event => onRetryDiscovery(task.id, event)}
                     className="rounded border border-indigo-200 px-3 py-2 text-xs text-indigo-700 disabled:opacity-50">Tìm lại dẫn chứng F</button>
                 </div>}
-                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading || task.status === "checking"} className="mt-2 space-y-2">
-                  <label className="block text-xs text-slate-600">Mối liên hệ với F
-                    <textarea value={briefFields.fConnection} onChange={event => setBriefFields(current => ({ ...current, fConnection: event.target.value }))} className="mt-1 block min-h-12 w-full rounded-lg border border-slate-200 px-2 py-1.5" rows={2} />
-                  </label>
-                  <EvidenceImageInput key={task.id} model={model} disabled={approvalDisabled || briefSaving || loading} onApply={value => setBriefFields(current => ({ ...current, fEvidence: [current.fEvidence, value].filter(Boolean).join("\n\n") }))}>
-                    {trigger => <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <label htmlFor="brief-f-evidence" className="text-xs text-slate-600">Dẫn chứng / nguồn xác nhận tại F</label>
-                        {trigger}
-                      </div>
-                      <textarea id="brief-f-evidence" value={briefFields.fEvidence} onChange={event => setBriefFields(current => ({ ...current, fEvidence: event.target.value }))} rows={2} className="block min-h-12 w-full resize-y rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
-                      <p className="text-[10px] text-slate-500">Chọn hoặc thả một ảnh PNG/JPEG/WebP · tối đa 15 MiB.</p>
-                    </div>}
-                  </EvidenceImageInput>
-                  <button disabled={!briefFields.fConnection.trim() || !briefFields.fEvidence.trim() || briefSaving || approvalDisabled} onClick={async () => {
-                    if (briefSaving) return
-                    setBriefSaving(true)
-                    try { await onRegenerate(task, briefFields) } finally { setBriefSaving(false) }
-                  }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{briefSaving ? "Đang kiểm tra và chạy lại…" : "Lưu và chạy lại brief"}</button>
-                  <p className="text-xs text-slate-500">Kiểm tra đầy đủ trước khi lưu. Chỉ duyệt sau khi brief mới hoàn tất.</p>
-                </fieldset>}
+                {task.gate === "brief" && sources[0]?.raw_snapshot?.briefValidation?.evidence &&
+                  <p className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-600">
+                    {sources[0].raw_snapshot.briefValidation.evidence}
+                  </p>}
                 <details key={task.id} open={task.gate === "brief" ? undefined : true} className="mt-2">
                   <summary className="cursor-pointer rounded text-[10px] text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Source snapshots ({sources.length})</summary>
                 {sources.length ? (

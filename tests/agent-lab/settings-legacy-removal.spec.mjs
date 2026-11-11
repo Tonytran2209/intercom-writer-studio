@@ -1,13 +1,19 @@
 import {test,expect} from './browser-fixture.mjs';
 
 test('Settings exposes current sources and preserves synthetic legacy files on save',async({page})=>{
+ let document = null;
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
+  if(path==='/api/eb-v2/markdown-evidence' && route.request().method()==='POST') {
+   expect(route.request().postDataBuffer().toString()).toContain('evidence.md');
+   document = {name:'evidence.md',uploadedAt:'2026-11-11T00:00:00Z'};
+   return route.fulfill({status:201,json:{document}});
+  }
   const bodies={
    '/api/eb-v2/library-documents':{documents:[{id:'library-fixture',name:'fixture-library.md',content:'Library sentinel',updated_at:'2026-01-01'}]},
    '/api/eb-v2/learning-signals':{signals:[]},
    '/api/website-inventory':{records:[]},
-   '/api/website-inventory/evidence':{sources:[]},
+   '/api/eb-v2/markdown-evidence':{document},
   };
   if(!bodies[path])throw new Error(`Unexpected fixture API: ${path}`);
   await route.fulfill({json:bodies[path]});
@@ -16,6 +22,8 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
  const nav=page.locator('.settings-subnav');
  await expect(nav.getByRole('button')).toHaveText(['EB Library','EB Workflow Rules','Website Inventory']);
  await expect(page.getByText('fixture-library.md',{exact:true})).toBeVisible();
+ await page.getByLabel('Tải tài liệu Markdown').setInputFiles({name:'evidence.md',mimeType:'text/markdown',buffer:Buffer.from('# F evidence')});
+ await expect(page.getByText(/evidence\.md/)).toBeVisible();
  await expect(page.getByText(/Legacy Action Plan/)).toHaveCount(0);
  await expect(page.getByRole('button',{name:/Download fixture-action/})).toHaveCount(0);
  await nav.getByRole('button',{name:'EB Workflow Rules',exact:true}).click();

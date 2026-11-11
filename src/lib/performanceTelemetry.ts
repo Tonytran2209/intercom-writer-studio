@@ -13,15 +13,16 @@ export function interactionStart(event?: { timeStamp?: number } | null, now = pe
 export const roundMs = (ms: number) => Math.round(ms * 10) / 10
 
 /** Call right after the state change. Resolves inside the SECOND nested requestAnimationFrame,
- * i.e. once the frame showing that state has been painted; null when the page is hidden. */
+ * i.e. once the frame showing that state has been painted, or when the page becomes hidden. */
 export function measureAfterPaint(startedAt: number): Promise<number | null> {
-  if (document.hidden) return Promise.resolve(null)
+  if (document.hidden) return Promise.resolve(roundMs(performance.now() - startedAt))
   return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        resolve(document.hidden ? null : roundMs(performance.now() - startedAt))
-      })
-    })
+    const finish = () => {
+      document.removeEventListener("visibilitychange", finish)
+      resolve(roundMs(performance.now() - startedAt))
+    }
+    document.addEventListener("visibilitychange", finish)
+    requestAnimationFrame(() => requestAnimationFrame(finish))
   })
 }
 

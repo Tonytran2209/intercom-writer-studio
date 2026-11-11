@@ -13,7 +13,7 @@ for (const theme of ['light', 'dark']) {
     await setTheme(page, theme);
     const engine = page.locator('.eb-input-engine');
     const topic = engine.locator('.eb-input-topic');
-    const upload = engine.getByLabel('Upload material', { exact: true });
+    const upload = engine.getByLabel('Đính kèm tài liệu ý tưởng', { exact: true });
     const analyze = engine.getByRole('button', { name: 'Kiểm tra thông tin và chạy Gate 1', exact: true });
     await expect(upload).toBeEnabled();
     await expect(analyze).toBeDisabled();

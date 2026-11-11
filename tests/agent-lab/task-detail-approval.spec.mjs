@@ -131,14 +131,14 @@ function backendRoute(path) {
  return ts.transpileModule(`return (${callback});`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 }
 function regenerationHarness() {
- const state={writes:[],inputs:[{id:'old',input_text:'Original topic',raw_snapshot:{sourceType:'upload',briefValidation:{connection:'old connection',evidence:'old evidence'}}}],runs:[],locks:new Set(),validationError:false,saveError:false,aiError:false};
+ const state={writes:[],inputs:[{id:'old',input_text:'Original topic\n\nCONNECTION TO F / F EVENT:\nOld website evidence',raw_snapshot:{sourceType:'upload',briefValidation:{connection:'old connection',evidence:'old evidence'}}}],runs:[],locks:new Set(),validationError:false,saveError:false,aiError:false};
  class BriefInputError extends Error {}
  const deps={
   randomUUID:()=> 'synthetic-unique-id', text:value=>String(value??'').trim(), modelFrom:()=>({provider:'mock',modelId:'gate-one'}),
   one:async()=>({id:'pkg',title:'Topic'}),briefRegenerationLocks:state.locks,BriefInputError,
   tableSelect:async(table)=>table==='eb_v2_package_inputs'?state.inputs:state.runs,
   requireBriefInput:(_input,connection,evidence)=>{if(!connection||!evidence||connection==='N/A')throw new BriefInputError('missing fields');},
-  preflightBrief:async(_input,fields)=>{if(state.validationError)throw new BriefInputError('validation failed');return {connection:fields.fConnection,evidence:fields.fEvidence,validatedAt:'new-validation'};},
+  preflightBrief:async(input)=>{if(state.validationError)throw new BriefInputError('validation failed');state.sourceInput=input;return {connection:'Specific F event',evidence:'workshop.md · Workshop quote',validatedAt:'new-validation'};},
   tableInsert:async(table,row)=>{if(state.saveError)throw new Error('save failed');state.writes.push([table,row]);state.inputs.unshift({...row,id:'new'});return row;},
   archiveOutputs:async()=>state.writes.push(['archiveOutputs']),archiveArticles:async()=>state.writes.push(['archiveArticles']),
   tableUpdate:async(...args)=>state.writes.push(args),stages:{brief:'brief'},libraryContext:async()=>[],
@@ -151,12 +151,11 @@ function regenerationHarness() {
 }
 test('regenerate validates before writes, preserves source metadata, and supplies saved evidence to the real run call',async()=>{
  const h=regenerationHarness();
- for(const body of [{fConnection:'N/A',fEvidence:'source'},{fConnection:'',fEvidence:''}]){assert.equal((await h.invoke(body)).code,422);assert.equal(h.state.writes.length,0);}
  h.state.validationError=true;assert.equal((await h.invoke()).code,422);assert.equal(h.state.writes.length,0);
  h.state.validationError=false;
- assert.equal((await h.invoke({fConnection:'Specific F event',fEvidence:'https://example.test/reference'})).code,200);
- assert.equal(h.state.inputs[0].input_text,'Original topic');assert.equal(h.state.inputs[0].raw_snapshot.sourceType,'upload');
- assert.match(h.state.generation[3],/Specific F event/);assert.match(h.state.generation[3],/https:\/\/example.test\/reference/);
+ assert.equal((await h.invoke({fConnection:'Untrusted manual connection',fEvidence:'Untrusted manual source'})).code,200);
+ assert.equal(h.state.sourceInput,'Original topic');assert.equal(h.state.inputs[0].raw_snapshot.sourceType,'upload');
+ assert.match(h.state.generation[3],/Specific F event/);assert.match(h.state.generation[3],/workshop\.md/);assert.doesNotMatch(h.state.generation[3],/Untrusted manual/);
  assert.equal(h.state.generation[4].modelId,'gate-one');assert.equal(h.state.generation[6].briefRegenerationAt,'new-validation:synthetic-unique-id');
 });
 test('regenerate blocks concurrent calls and approval, keeps failed snapshots safe, and permits retry',async()=>{
@@ -172,42 +171,6 @@ test('regenerate blocks concurrent calls and approval, keeps failed snapshots sa
  h.state.saveError=true;assert.equal((await h.invoke()).code,500);assert.equal(h.state.locks.size,0);
  h.state.saveError=false;assert.equal((await h.invoke()).code,200);
 });
-
-if (!process.env.TASK_APPROVAL_OFFLINE) {
- const {expect}=await import('./browser-fixture.mjs');
- test('existing brief detail saves connection and evidence, retains failed edits, and reloads saved values',async({page})=>{
-  const data={packages:[{id:'existing',title:'Existing brief',state:'brief'}],articles:[],channels:[],runs:[],discovery:[]};
-  let saved={connection:'Saved F connection',evidence:'Saved source'};let fail=true;const calls=[];
-  await page.route('**/api/eb-v2/**',async route=>{
-   const req=route.request(),path=new URL(req.url()).pathname;
-   if(path.endsWith('/workspace'))return route.fulfill({json:data});
-   if(path.includes('/activity/'))return route.fulfill({json:{inputs:[{id:'input',input_text:'Synthetic original topic',raw_snapshot:{briefValidation:saved}}],runs:[],articles:[],channels:[],feedback:[],actions:[]}});
-   if(path.endsWith('/regenerate')){
-    const body=req.postDataJSON();calls.push(body);
-    if(fail)return route.fulfill({status:422,json:{error:'Synthetic validation failure'}});
-    saved={connection:body.fConnection,evidence:body.fEvidence};return route.fulfill({json:data});
-   }
-   return route.abort();
-  });
-  await page.goto('/?screen=eb');
-  await page.evaluate(async()=>{const {DEFAULT_CONFIG,DEFAULT_MODELS}=await import('/src/lib/defaultData.ts');DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'brief-editor',enabled:true}];});
-  await page.getByRole('button',{name:'Open task: Existing brief',exact:true}).click();
-  const popup=page.locator('aside');const connection=popup.getByLabel('Mối liên hệ với F');const evidence=popup.getByLabel('Dẫn chứng / nguồn xác nhận tại F');
-  await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
-  await connection.fill('Specific synthetic F event');await evidence.fill('https://example.test/evidence');
-  await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
-  await expect(popup.getByRole('alert').filter({hasText:'Synthetic validation failure'})).toContainText('Synthetic validation failure');
-  await expect(connection).toHaveValue('Specific synthetic F event');fail=false;
-  await popup.getByRole('button',{name:'Lưu và chạy lại brief',exact:true}).click();
-  await expect.poll(()=>calls.length).toBe(2);await expect(popup.getByRole('alert').filter({hasText:'Synthetic validation failure'})).toHaveCount(0);
-  expect(calls[1]).toMatchObject({stage:'brief',model:{id:'brief-editor'},fConnection:'Specific synthetic F event',fEvidence:'https://example.test/evidence'});
-  await page.keyboard.press('Escape');
-  // Close via the existing header control when Escape is not a task-detail shortcut.
-  if(await connection.isVisible())await popup.locator('header button').last().click();
-  await page.getByRole('button',{name:'Open task: Existing brief',exact:true}).click();
-  await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
- });
-}
 
 test('Discovery promotion persists one pending card and retries evidence before generating a brief', async () => {
  const id = 'suggestion-id';
@@ -229,10 +192,10 @@ test('Discovery promotion persists one pending card and retries evidence before 
    return inserted;
   },
   tableUpdate:async(table,key,fields)=>Object.assign(tables[table].find(row=>row.id===key),fields),
-  findWebsiteEvidence:async()=>evidence,
-  preflightBrief:async(input,fields)=>{
-   validation={input,fields};
-   return {connection:fields.fConnection,evidence:fields.fEvidence};
+  preflightBrief:async(input)=>{
+   if(!evidence) throw new BriefInputError('Markdown evidence missing');
+   validation={input,evidence};
+   return evidence;
   },
   runGate:async(...args)=>{
    generation=args;
@@ -252,11 +215,11 @@ test('Discovery promotion persists one pending card and retries evidence before 
  assert.equal(tables.eb_v2_packages[0].id,id);
  assert.equal(tables.eb_v2_gate_runs[0].status,'failed');
  assert.equal(generation,undefined);
- evidence={title:'Case study',url:'https://example.test/case',quote:'Workshop quote',connection:'F hosted a workshop'};
+ evidence={evidence:'workshop.md · Workshop quote',connection:'F hosted a workshop'};
  assert.equal((await promote()).code,201);
  assert.match(validation.input,/example\.test\/trend/);
- assert.match(validation.fields.fEvidence,/Workshop quote/);
- assert.match(generation[3],/example\.test\/case/);
+ assert.match(validation.evidence.evidence,/Workshop quote/);
+ assert.match(generation[3],/workshop\.md/);
  assert.equal((await promote()).code,200);
  assert.equal(tables.eb_v2_packages.length,1);
  assert.equal(tables.eb_v2_package_inputs.length,2);

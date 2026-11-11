@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import { PGlite } from "@electric-sql/pglite"
 import { gateStepName, packageRun, pipelineSteps, labProfile, PACKAGE_JOB } from "./packageSteps.ts"
 import { readMonitoringData } from "./monitoringData.ts"
+import { createMonitoring } from "./monitoring.ts"
+import express from "express"
 
 test("gate runs map to pipeline sub-jobs by stage", () => {
   assert.equal(gateStepName("brief", "extract_mapping"), "Trích xuất brief")
@@ -64,6 +66,65 @@ test("the report sends package runs and stage-level gate runs to AI Agent Lab", 
     assert.equal(runs.some((r: any) => r.runId === "package:wait"), false, "no package run while waiting for approval")
     assert.equal(runs.find((r: any) => r.runId === "g4").parentRunId, "package:wait", "its gate runs are still listed for the group")
     assert.equal(result.jobHistoryAllTime?.executed, 4, "package runs are not counted as gate executions")
+  } finally {
+    if (previous === undefined) delete process.env.DATABASE_PROVIDER
+    else process.env.DATABASE_PROVIDER = previous
+    await db.close()
+  }
+})
+
+test("the monitoring report includes Markdown evidence attempts and their package linkage", async () => {
+  const db = new PGlite()
+  const previous = process.env.DATABASE_PROVIDER
+  process.env.DATABASE_PROVIDER = "postgres"
+  try {
+    await db.exec("CREATE TABLE kv_store(key text primary key,value jsonb)")
+    const startedAt = new Date(Date.now() - 10_000).toISOString()
+    const endedAt = new Date().toISOString()
+    for (const [runId, status, start] of [
+      ["success", "completed", startedAt],
+      ["failure", "failed", startedAt],
+      ["pending", "running", startedAt],
+      ["unknown-start", "failed", null],
+    ]) {
+      await db.query("INSERT INTO kv_store VALUES ($1,$2)", [
+        "lab-markdown-evidence:" + startedAt + ":" + runId,
+        JSON.stringify({ runId, packageId: "p1", status, startedAt: start, endedAt: status === "running" ? null : endedAt }),
+      ])
+    }
+    const client = { query: (sql: string, values?: any[]) => db.query(sql, values), release: () => {} }
+    const token = "x".repeat(40)
+    const monitor = createMonitoring("test", {
+      readData: since => readMonitoringData(since, { connect: async () => client } as any),
+      token: () => token,
+      save: async () => {},
+    })
+    const app = express()
+    app.get("/internal/monitoring", (req, res) => monitor.handler(req, res))
+    const server = app.listen(0, "127.0.0.1")
+    let report: any
+    try {
+      await new Promise<void>((resolve, reject) => server.once("listening", resolve).once("error", reject))
+      const address = server.address() as { port: number }
+      const response = await fetch("http://127.0.0.1:" + address.port + "/internal/monitoring", {
+        headers: { Authorization: "Bearer " + token },
+      })
+      assert.equal(response.status, 200)
+      report = await response.json()
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()))
+      await monitor.stop()
+    }
+    const runs = new Map<string, any>(report.jobRuns.runs.map((run: any) => [run.runId, run]))
+    assert.equal(labProfile.mainJob.steps[0], "Tìm dẫn chứng Markdown")
+    assert.deepEqual(runs.get("success"), {
+      runId: "success", job: "Tìm dẫn chứng Markdown", workload: "1 package", status: "success",
+      startedAt, endedAt, parentRunId: "package:p1", parent: PACKAGE_JOB,
+    })
+    assert.equal(runs.get("failure").status, "failed")
+    assert.equal(runs.get("pending").status, "running")
+    assert.equal(runs.get("pending").endedAt, null)
+    assert.equal(runs.get("unknown-start").startedAt, null)
   } finally {
     if (previous === undefined) delete process.env.DATABASE_PROVIDER
     else process.env.DATABASE_PROVIDER = previous

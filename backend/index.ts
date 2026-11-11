@@ -36,7 +36,6 @@ import { compileBackendWorkflowRules } from "./workflowRules.ts"
 import { researchSeoKeywords, seoResearchConfigured } from "./seoResearch.ts"
 import { jsonrepair } from "jsonrepair"
 import { scanWebsiteUrl, selectWebsiteCandidates } from "./websiteInventory.ts"
-import { refreshDueWebsiteEvidence, saveWebsiteEvidenceSnapshot, setWebsiteEvidenceApproval, websiteEvidenceStatus } from "./websiteEvidence.ts"
 import { registerEbV2Routes } from "./ebV2.ts"
 import { registerAgentLibraryRoutes } from "./agentLibrary.ts"
 import { acceptOnRequest } from "./acceptedStream.ts"
@@ -5257,7 +5256,6 @@ async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message:
 
 async function processWebsiteInventoryUrl(url: string, summarize = true) {
     let record: any = await scanWebsiteUrlWithRetry(url)
-    const scan = record
     const extractedContent = String(record.extractedContent ?? "")
     delete record.extractedContent
     if (record.status !== "broken" && summarize && getAvailableProviders().openai) {
@@ -5345,8 +5343,6 @@ async function processWebsiteInventoryUrl(url: string, summarize = true) {
       crawlStatus: record.status === "broken" ? "failed" : "complete",
     }
     await persistWebsiteInventoryRecord(record)
-    await saveWebsiteEvidenceSnapshot(record.id, { ...scan, extractedContent }).catch(error =>
-      console.error("[website-evidence] snapshot failed:", error))
     return record
 }
 
@@ -5556,27 +5552,6 @@ app.get("/api/website-inventory", async (_req, res) => {
   }
 })
 
-app.get("/api/website-inventory/evidence", async (_req, res) => {
-  try {
-    res.json({ sources: await websiteEvidenceStatus() })
-  } catch {
-    res.status(500).json({ error: "Không tải được danh sách nguồn dẫn chứng F." })
-  }
-})
-
-app.put("/api/website-inventory/:id/evidence", async (req, res) => {
-  if (typeof req.body?.approved !== "boolean")
-    return res.status(400).json({ error: "Cần xác định trạng thái duyệt nguồn." })
-  try {
-    const record = (await loadWebsiteInventory()).find(item => item.id === req.params.id)
-    if (!record) return res.status(404).json({ error: "Không tìm thấy URL trong Website Inventory." })
-    await setWebsiteEvidenceApproval(record.id, req.body.approved ? record.url : null)
-    res.json({ approved: req.body.approved })
-  } catch (error) {
-    res.status(422).json({ error: error instanceof Error ? error.message : "Không lưu được nguồn dẫn chứng F." })
-  }
-})
-
 app.patch("/api/website-inventory/:id", async (req, res) => {
   try {
     const allowed: Record<string, string> = {
@@ -5609,7 +5584,6 @@ app.patch("/api/website-inventory/:id", async (req, res) => {
 
 app.delete("/api/website-inventory/:id", async (req, res) => {
   try {
-    await setWebsiteEvidenceApproval(req.params.id, null)
     if (await hasWebsiteInventoryTable())
       await tableDeleteWhere("website_content_inventory", "id", req.params.id)
     else
@@ -6013,10 +5987,6 @@ app.get("*", (_req, res) => {
 // ─── Start ───────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
-  const refreshEvidence = () => void refreshDueWebsiteEvidence().catch(error =>
-    console.error("[website-evidence] refresh failed:", error))
-  refreshEvidence()
-  setInterval(refreshEvidence, 60 * 60 * 1000).unref()
   console.log(`\n🚀 Writer Studio Backend running on port ${PORT}`)
   console.log(`   Providers: ${JSON.stringify(getAvailableProviders())}`)
   console.log(

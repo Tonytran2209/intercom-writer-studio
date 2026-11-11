@@ -1,5 +1,5 @@
 import { jobHistoryWindows } from "./jobHistory.ts"
-import { PACKAGE_JOB, gateStepName, packageRun, type GateRow } from "./packageSteps.ts"
+import { MARKDOWN_EVIDENCE_RUN_PREFIX, MARKDOWN_EVIDENCE_STEP, PACKAGE_JOB, gateStepName, packageRun, type GateRow } from "./packageSteps.ts"
 import { performance } from "node:perf_hooks"
 import { databasePool } from "./postgres.ts"
 // Fixed aggregate SQL only. No article content, user identity or credentials leave this module.
@@ -134,14 +134,24 @@ export async function readMonitoringData(
          ${packageTitles ? "p.title" : "NULL"} AS title, ${packageTitles ? "p.state" : "NULL"} AS state
        FROM public.eb_v2_gate_runs g
        ${packageTitles ? "LEFT JOIN public.eb_v2_packages p ON p.id = g.package_id" : ""}
-       WHERE g.status IN ('completed', 'failed') AND g.completed_at IS NOT NULL
+       WHERE g.status IN ('completed', 'failed') AND g.completed_at IS NOT NULL AND g.stage <> 'discovery-evidence'
        ORDER BY g.completed_at DESC, g.id LIMIT $1`, [jobLimit + 1],
     )).rows.map((row: any) => ({
       ...row, job: gateStepName(row.gate, row.stage), workload: "1 package",
       parentRunId: "package:" + row.packageId, parent: PACKAGE_JOB,
     })) : null
+    const evidenceSince = new Date(Date.now() - 61 * 86400000).toISOString()
+    const evidenceRows = (await client.query(
+      "SELECT value FROM public.kv_store WHERE key LIKE $1 AND key >= $2 ORDER BY key DESC LIMIT $3",
+      [MARKDOWN_EVIDENCE_RUN_PREFIX + "%", MARKDOWN_EVIDENCE_RUN_PREFIX + evidenceSince, jobLimit + 1],
+    )).rows.map(({ value }: any) => ({
+      ...value, job: MARKDOWN_EVIDENCE_STEP, workload: "1 package", valid: value.status === "completed",
+      recordedAt: value.endedAt, parentRunId: "package:" + value.packageId, parent: PACKAGE_JOB,
+    }))
+    const rows = [...(gateRows ?? []), ...evidenceRows]
+      .sort((a, b) => Date.parse(b.endedAt ?? b.startedAt) - Date.parse(a.endedAt ?? a.startedAt))
     const packages = new Map<string, { id: string; workload: string; state: string | null; gates: GateRow[] }>()
-    for (const row of gateRows ?? []) {
+    for (const row of [...(gateRows ?? []), ...evidenceRows]) {
       const pkg = packages.get(row.packageId) ?? { id: row.packageId, state: row.state,
         workload: row.title?.trim() ? ("1 package · " + row.title.trim()).slice(0, 200) : "1 package", gates: [] as GateRow[] }
       const gate: GateRow = { runId: row.runId, job: row.job, status: row.status === "completed" ? "success" : "failed",
@@ -153,7 +163,7 @@ export async function readMonitoringData(
       const run = packageRun(pkg, pkg.gates)
       return run ? [run] : []
     })
-    const history = gateRows ? jobHistoryWindows(gateRows, since, jobLimit, Date.now(), packageRuns) : { jobHistory: null, jobHistoryAllTime: null }
+    const history = gateRows || evidenceRows.length ? jobHistoryWindows(rows, since, jobLimit, Date.now(), packageRuns) : { jobHistory: null, jobHistoryAllTime: null }
     const contentWorkload = await exists("eb_v2_articles")
       ? {
           kind: "eb-v2",
