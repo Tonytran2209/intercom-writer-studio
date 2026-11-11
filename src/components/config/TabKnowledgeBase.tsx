@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { BookOpen, BookOpenCheck, Check, Globe2, Plus, RefreshCw, Save, ScrollText, Search, Square, Trash2, X } from "lucide-react"
+import { BookOpen, BookOpenCheck, Check, FolderUp, Globe2, Plus, RefreshCw, Save, ScrollText, Search, Square, Trash2, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type {
   ActionDataSource,
@@ -261,6 +261,7 @@ function EditorialLearningsPanel() {
 }
 
 function MarkdownEvidenceUpload() {
+  const fileInput = useRef<HTMLInputElement>(null)
   const [document, setDocument] = useState<MarkdownEvidenceDocument | null>(null)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState("")
@@ -288,18 +289,28 @@ function MarkdownEvidenceUpload() {
     }
   }
 
-  return <section className="space-y-2 rounded-xl border border-slate-200 p-4">
-    <h3 className="text-sm font-semibold">Tài liệu dẫn chứng F cho Gate 1</h3>
-    <p className="text-xs text-slate-600">Gate 1 tự tìm dẫn chứng trong một tệp .md dùng chung. Tải tệp mới để thay thế tệp hiện tại.</p>
-    {document && <p className="break-words text-xs text-slate-700">{document.name} · {new Date(document.uploadedAt).toLocaleString("vi-VN")}</p>}
-    <label className="block text-xs font-medium">Tải tài liệu Markdown
-      <input type="file" accept=".md" disabled={busy} className="mt-1 block w-full"
+  return <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 space-y-1">
+        <h3 className="text-sm font-semibold text-slate-800">Tài liệu dẫn chứng F cho Gate 1</h3>
+        <p className="text-xs text-slate-600">Gate 1 tự tìm dẫn chứng trong tệp Markdown dùng chung.</p>
+        {document && <p className="break-words text-xs text-slate-700">{document.name} · {new Date(document.uploadedAt).toLocaleString("vi-VN")}</p>}
+      </div>
+      <div className="flex shrink-0 flex-col gap-1 sm:items-end">
+        <button type="button" disabled={busy} onClick={() => fileInput.current?.click()}
+          className="settings-secondary-action inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 sm:w-auto">
+          <FolderUp className="size-4 shrink-0" aria-hidden="true" />
+          {document ? "Thay tệp Markdown" : "Tải tệp Markdown"}
+        </button>
+        <p className="text-xs text-slate-500">.md · tối đa 256 KiB</p>
+      </div>
+      <input ref={fileInput} type="file" accept=".md" hidden disabled={busy}
         onChange={event => {
           const file = event.target.files?.[0]
           event.target.value = ""
           if (file) void upload(file)
         }} />
-    </label>
+    </div>
     {busy && <p role="status" className="text-xs text-slate-500">Đang xử lý tài liệu…</p>}
     {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
   </section>

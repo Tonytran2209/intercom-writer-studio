@@ -22,7 +22,12 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
  const nav=page.locator('.settings-subnav');
  await expect(nav.getByRole('button')).toHaveText(['EB Library','EB Workflow Rules','Website Inventory']);
  await expect(page.getByText('fixture-library.md',{exact:true})).toBeVisible();
- await page.getByLabel('Tải tài liệu Markdown').setInputFiles({name:'evidence.md',mimeType:'text/markdown',buffer:Buffer.from('# F evidence')});
+ const upload = page.getByRole('button',{name:'Tải tệp Markdown',exact:true});
+ await expect(upload).toBeEnabled();
+ await upload.focus();
+ const [chooser] = await Promise.all([page.waitForEvent('filechooser'),page.keyboard.press('Enter')]);
+ await chooser.setFiles({name:'evidence.md',mimeType:'text/markdown',buffer:Buffer.from('# F evidence')});
+ await expect(page.getByRole('button',{name:'Thay tệp Markdown',exact:true})).toBeEnabled();
  await expect(page.getByText(/evidence\.md/)).toBeVisible();
  await expect(page.getByText(/Legacy Action Plan/)).toHaveCount(0);
  await expect(page.getByRole('button',{name:/Download fixture-action/})).toHaveCount(0);
