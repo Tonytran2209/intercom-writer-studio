@@ -183,11 +183,9 @@ export async function runEbV2DiscoveryLive(model: { provider: string; id: string
 export async function fetchEbV2LibraryDocuments() { return railwayRequest<{ documents: any[] }>("/api/eb-v2/library-documents", undefined, ebV2Origin()) }
 export async function fetchEbV2Activity(id: string, kind: "package" | "channel") { return railwayRequest<any>(`/api/eb-v2/activity/${encodeURIComponent(id)}?kind=${kind}`, undefined, ebV2Origin()) }
 export async function fetchEbV2DiscoveryDetail(id: string) { return railwayRequest<any>(`/api/eb-v2/discovery/${encodeURIComponent(id)}/details`, undefined, ebV2Origin()) }
-export type DiscoveryFEvidence = { title: string; url: string; checkedAt: string; quote: string; connection: string }
-export async function findEbV2DiscoveryEvidence(id: string, model: { provider: string; id: string }) {
-  const result = await railwayRequest<{ evidence: DiscoveryFEvidence | null }>(
-    `/api/eb-v2/discovery/${encodeURIComponent(id)}/f-evidence`, jsonRequest("POST", { model }), ebV2Origin())
-  return result.evidence
+export async function promoteEbV2Discovery(id: string, model: { provider: string; id: string } | null) {
+  return railwayRequest<{ packageId: string }>(
+    `/api/eb-v2/discovery/${encodeURIComponent(id)}/promote`, jsonRequest("POST", { model }), ebV2Origin())
 }
 export type WebsiteEvidenceStatus = { id: string; checkedAt?: string; ready: boolean }
 export async function fetchWebsiteEvidenceApprovals() {

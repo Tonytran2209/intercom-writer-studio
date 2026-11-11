@@ -1,7 +1,7 @@
 import {test,expect} from './browser-fixture.mjs';
 // Synthetic fixtures exercise the real UI; no production image/sample is asserted.
 const image={name:'source.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQ0AAAAASUVORK5CYII=','base64')};
-for(const target of ['input','popup','discovery']) test(target+': review, edit, apply, error retry and stale image response',async({page})=>{
+for(const target of ['input','popup']) test(target+': review, edit, apply, error retry and stale image response',async({page})=>{
  const data={packages:[{id:'image-package',title:'Image evidence fixture',state:'brief'}],runs:[],articles:[],channels:[],discovery:[{id:'idea-image',status:'suggested',title:'Discovery fixture',source_summary:'Synthetic source lead',evidence_status:'source_lead'}]};
  let calls=0;let release;let fail=true;let hold=false;
  await page.route('**/api/**',async route=>{
@@ -25,11 +25,6 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  });
  await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
- if(target==='discovery'){
-  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
-  await page.getByRole('button',{name:'Bổ sung thông tin cho Gate 1',exact:true}).click();
-  await expect(page.locator('.eb-input-engine').getByText('Suggestion chưa lưu ID nguồn trích dẫn.',{exact:true})).toBeVisible();
- }
  let scope=page.locator('.eb-input-engine');
  if(target==='popup'){
   await page.getByRole('button',{name:'Open task: Image evidence fixture',exact:true}).click();
@@ -76,7 +71,7 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
   await expect(scope.getByRole('alert').filter({hasText:'một ảnh'})).toContainText('một ảnh');
   expect(calls).toBe(0);
  }
- const destination=target==='discovery'?scope.getByRole('textbox',{name:'Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)',exact:true}):target==='input'?scope.getByRole('textbox',{name:'Nội dung topic, mối liên hệ với F và nguồn xác nhận'}):scope.getByRole('textbox',{name:'Dẫn chứng / nguồn xác nhận tại F',exact:true});
+ const destination=target==='input'?scope.getByRole('textbox',{name:'Nội dung topic, mối liên hệ với F và nguồn xác nhận'}):scope.getByRole('textbox',{name:'Dẫn chứng / nguồn xác nhận tại F',exact:true});
  await destination.fill('Existing source text');
  await drop([{name:'dropped.webp',type:'image/webp'}]);
  await expect(scope.getByText('Ảnh dẫn chứng: dropped.webp',{exact:true})).toBeVisible();
@@ -102,22 +97,27 @@ for(const target of ['input','popup','discovery']) test(target+': review, edit, 
  await expect(destination).toHaveValue(target==='input'?'Existing source text\n\nDẫn chứng / nguồn từ ảnh:\nHuman confirmed source':'Existing source text\n\nHuman confirmed source');
 });
 
-test('Discovery previews approved website evidence before applying it to Gate 1', async ({page}) => {
- const idea = {id:'idea-web',status:'suggested',title:'Learning workshop',source_summary:'Synthetic trend',
-  evidence:[{kind:'research_topic',sourceIds:['trend'],ebAngle:'Practice through workshops'}]};
+test('Discovery goes directly to Gate 1 and waits for a validated brief', async ({page}) => {
+ const idea = {id:'idea-web',status:'suggested',title:'Learning workshop'};
  const data = {packages:[],runs:[],articles:[],channels:[],discovery:[idea]};
- const evidence = {title:'Workshop case study',url:'https://example.test/case-study',
-  checkedAt:'2026-11-10T00:00:00Z',quote:'F.Learning Studio organized a practical learning workshop.',
-  connection:'F có một workshop thực hành liên quan đến chủ đề.'};
- let searches = 0;
+ const error = 'Chưa tìm thấy dẫn chứng F phù hợp.';
+ let promotions = 0;
  await page.route('**/api/**', route => {
   const path = new URL(route.request().url()).pathname;
   if(path.endsWith('/workspace')) return route.fulfill({json:data});
-  if(path.endsWith('/details')) return route.fulfill({json:{item:idea,sources:[{id:'trend',url:'https://example.test/trend'}]}});
-  if(path.endsWith('/f-evidence')) {
+  if(path.endsWith('/promote')) {
    expect(route.request().postDataJSON().model.id).toBe('evidence-fixture');
-   return route.fulfill({json:{evidence:++searches === 1 ? null : evidence}});
+   promotions++;
+   data.packages = [{id:idea.id,title:idea.title,state:'brief',source_type:'discovery'}];
+   Object.assign(idea,{status:'used',package_id:idea.id});
+   data.runs = promotions === 1
+    ? [{package_id:idea.id,gate:'brief',stage:'discovery-evidence',status:'failed',error_message:error}]
+    : [{package_id:idea.id,gate:'brief',stage:'extract_mapping',status:'completed',output_snapshot:{content:'Validated brief'}}];
+   return route.fulfill({status:201,json:{packageId:idea.id}});
   }
+  if(path.includes('/activity/')) return route.fulfill({json:{runs:data.runs,inputs:promotions === 2
+   ? [{raw_snapshot:{briefValidation:{connection:'F organized the workshop.',evidence:'https://example.test/workshop'}}}]
+   : []}});
   return route.abort();
  });
  await page.goto('/?screen=eb');
@@ -127,20 +127,15 @@ test('Discovery previews approved website evidence before applying it to Gate 1'
  });
  await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+ await page.locator('#eb-input').fill('Unrelated draft');
  await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
- await page.getByRole('button',{name:'Bổ sung thông tin cho Gate 1',exact:true}).click();
- const search = page.getByRole('button',{name:'Tìm dẫn chứng F tự động',exact:true});
- const connection = page.getByRole('textbox',{name:'Liên hệ với F / sự kiện của F',exact:true});
- const reference = page.getByRole('textbox',{name:'Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)',exact:true});
- await search.click();
- await expect(page.getByText('Chưa tìm thấy dẫn chứng về F trong Website Inventory.',{exact:true})).toBeVisible();
- await expect(reference).toHaveValue('');
- await search.click();
- await expect(page.getByRole('link',{name:evidence.title})).toHaveAttribute('href',evidence.url);
- await expect(page.locator('blockquote')).toContainText(evidence.quote);
- await expect(connection).toHaveValue('');
- await page.getByRole('button',{name:'Dùng dẫn chứng',exact:true}).click();
- await expect(connection).toHaveValue(evidence.connection);
- await expect(reference).toHaveValue(new RegExp(evidence.url));
- await expect(page.locator('#eb-input')).toHaveValue(/https:\/\/example\.test\/trend[\s\S]*Practice through workshops/);
+ await page.getByRole('button',{name:'Chuyển sang Gate 1',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Open task: Learning workshop',exact:true})).toBeVisible();
+ await expect(page.locator('#eb-input')).toHaveValue('Unrelated draft');
+ const detail = page.locator('aside');
+ await expect(detail.getByText(error,{exact:true}).first()).toBeVisible();
+ await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toHaveCount(0);
+ await detail.getByRole('button',{name:'Tìm lại dẫn chứng F',exact:true}).click();
+ await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toBeEnabled();
+ await expect(detail.getByRole('textbox',{name:'Dẫn chứng / nguồn xác nhận tại F',exact:true})).toHaveValue('https://example.test/workshop');
 });

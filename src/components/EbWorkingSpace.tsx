@@ -58,6 +58,7 @@ type Task = {
   approvedVariants?: ApprovedVariants
   decision?: Decision
   source?: "input" | "discovery"
+  discoveryNeedsEvidence?: boolean
 }
 type DiscoveryIdea = {
   id: string
@@ -145,7 +146,7 @@ function selectedModel(config: AppConfig, step: number, fallbackId?: string) {
   )
 }
 function canApproveTask(task: Task) {
-  return (task.gate === "brief" && task.status === "ready") ||
+  return (task.gate === "brief" && task.status === "ready" && !task.discoveryNeedsEvidence) ||
     (task.gate === "article" && task.status === "ready" && task.type !== "Approved website article")
 }
 function formatTaskCreatedAt(value: string | undefined): string {
@@ -211,11 +212,19 @@ function workspaceTasks(
   for (const article of articleRows)
     if (!articleByPackage.has(article.package_id))
       articleByPackage.set(article.package_id, article)
-  const runningBrief = new Set(
-    runRows
-      .filter((run: any) => run.gate === "brief" && run.status === "running")
-      .map((run: any) => run.package_id),
-  )
+  const latestBrief = new Map<string, any>()
+  const runningBrief = new Set<string>()
+  for (const run of runRows)
+    if (run.gate === "brief") {
+      if (!latestBrief.has(run.package_id)) latestBrief.set(run.package_id, run)
+      if (run.status === "running") runningBrief.add(run.package_id)
+    }
+  const promoted = new Set(data?.discovery?.filter(item => item.id === item.package_id).map(item => item.id))
+  const briefIsRunning = (id: string) => {
+    if (!promoted.has(id)) return runningBrief.has(id)
+    const run = latestBrief.get(id)
+    return run?.status === "running" && (!run.created_at || Date.now() - Date.parse(run.created_at) < 600_000)
+  }
   const runningArticle = new Set(
     runRows
       .filter((run: any) => run.gate === "article" && run.status === "running")
@@ -229,7 +238,8 @@ function workspaceTasks(
       createdAt: item.created_at,
       gate: "brief",
       title: item.title,
-      status: runningBrief.has(item.id) ? "checking" : "ready",
+      status: briefIsRunning(item.id) ? "checking" : "ready",
+      discoveryNeedsEvidence: promoted.has(item.id) && latestBrief.get(item.id)?.status !== "completed",
       source: item.source_type === "discovery" ? "discovery" : "input",
     }))
   for (const item of packageRows.filter(
@@ -303,10 +313,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     useState<DiscoveryIdea | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
-  const [inputDiscoveryId, setInputDiscoveryId] = useState<string | undefined>()
-  const [preparation, setPreparation] = useState<DiscoveryIdea | null>(null)
-  const [fConnection, setFConnection] = useState("")
-  const [fEvidence, setFEvidence] = useState("")
   const [inputError, setInputError] = useState<string | null>(null)
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -343,8 +349,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       if (action === "new") {
         setPage("board")
         setInput("")
-        setInputDiscoveryId(undefined); setPreparation(null)
-        setFConnection(""); setFEvidence(""); setInputError(null); setFile(null)
+        setInputError(null); setFile(null)
         setFileName("")
         setSelectedId(null)
         window.setTimeout(
@@ -489,8 +494,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   }, [tasks])
   const createBrief = async (
     title: string,
-    source: "input" | "discovery",
-    discoveryId: string | undefined,
     startedAt: number,
   ) => {
     const model = selectedModel(config, 1)
@@ -502,18 +505,14 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     setSyncing(true)
     try {
       const result = await db.createEbV2Package({
-        title: preparation?.title ?? title,
+        title,
         inputText: title,
-        fConnection: fConnection.trim(),
-        fEvidence: fEvidence.trim(),
-        sourceType: source,
-        discoveryId,
+        sourceType: "input",
         model: { provider: model.provider, id: model.id },
       }, timing ? () => setAnalysisAccepted(true) : undefined)
       if (timing) trackBrief(result.package?.id, timing)
-      setPreparation(null); setFConnection(""); setFEvidence("")
       await refresh()
-      setInput(""); setInputDiscoveryId(undefined)
+      setInput("")
       setInputError(null)
     } catch (error) {
       setInputError(
@@ -529,10 +528,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     if (syncing || (!input.trim() && !file)) return
     setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
-    if (preparation && (!fConnection.trim() || !fEvidence.trim() || placeholder.test(fConnection) || placeholder.test(fEvidence))) {
-      setInputError("Bổ sung liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận thực tế; không dùng N/A hoặc nguồn xu hướng thay thế.")
-      return
-    }
     if (placeholder.test(input)) {
       setInputError("Chưa thể chạy Gate 1. Writer cần bổ sung mối liên hệ cụ thể với F/sự kiện của F và nguồn xác nhận; không để trống hoặc N/A.")
       return
@@ -546,11 +541,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       const timing = startAnalysis(startedAt)
       setSyncing(true)
       void db
-        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input, fConnection: fConnection.trim(), fEvidence: fEvidence.trim() }, () => setAnalysisAccepted(true))
+        .uploadEbV2Package(file, { provider: model.provider, id: model.id }, { inputText: input }, () => setAnalysisAccepted(true))
         .then(async (result) => {
           trackBrief(result.package?.id, timing)
           await refresh()
-          setInput(""); setFileName(""); setFile(null); setInputDiscoveryId(undefined); setInputError(null)
+          setInput(""); setFileName(""); setFile(null); setInputError(null)
         })
         .catch((error) =>
           setInputError(
@@ -561,7 +556,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )
         .finally(() => { finishAnalysis(); setSyncing(false) })
     } else
-      void createBrief(input.trim() || `Material from ${fileName}`, inputDiscoveryId ? "discovery" : "input", inputDiscoveryId, startedAt)
+      void createBrief(input.trim() || `Material from ${fileName}`, startedAt)
   }
   const reportOperationError = (context: string, message: string) => {
     notifyWorkspace(`${context}: ${message} Refresh workspace to check saved state before retrying the operation.`, "error")
@@ -663,6 +658,24 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         })
       })
       .finally(() => setSyncing(false))
+  }
+  const promotingDiscovery = useRef(false)
+  async function promoteDiscovery(id: string) {
+    if (promotingDiscovery.current) return
+    const model = selectedModel(config, 1)
+    promotingDiscovery.current = true
+    setSyncing(true)
+    try {
+      const { packageId } = await db.promoteEbV2Discovery(id, model)
+      await refresh()
+      setPage("board")
+      setSelectedId(packageId)
+    } catch (error) {
+      notifyWorkspace(error instanceof Error ? error.message : "Không chuyển được ý tưởng sang Gate 1.", "error")
+    } finally {
+      promotingDiscovery.current = false
+      setSyncing(false)
+    }
   }
   const approveTask = async (task: Task, gate: "brief" | "article") => {
     const current = tasks.find((item) => item.id === task.id)
@@ -1203,11 +1216,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               analyze={analyze}
               syncing={syncing}
               accepted={analysisAccepted}
-              preparation={preparation}
-              fConnection={fConnection}
-              setFConnection={setFConnection}
-              fEvidence={fEvidence}
-              setFEvidence={setFEvidence}
               inputError={inputError}
             />
           </div>
@@ -1219,14 +1227,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               onOpen={setSelectedDiscovery}
               onDelete={removeDiscovery}
               onClear={clearDiscovery}
-              onPick={(item) => {
-                setInput([item.title, item.source_summary].filter(Boolean).join("\n\n"))
-                setPreparation(item)
-                setFConnection(""); setFEvidence(""); setInputError(null)
-                setInputDiscoveryId(item.id)
-                setFile(null); setFileName("")
-                setPage("board")
-              }}
+              onPick={item => void promoteDiscovery(item.id)}
+              promoting={syncing}
             />
             <DiscoveryResearch
               status={discoveryStatus}
@@ -1244,6 +1246,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             approvalPending={approvalPending}
             approvalError={approvalError?.id === selectedTask?.id ? approvalError?.message : null}
             onBrief={approveBrief}
+            onRetryDiscovery={id => void promoteDiscovery(id)}
             onArticle={approveArticle}
             model={(() => {
               const task = selectedTask
@@ -1692,6 +1695,9 @@ function TaskCard({
         <p className="mt-1 text-[10px] text-slate-500">
           Ngày tạo: {formatTaskCreatedAt(task.createdAt)}
         </p>
+        {task.discoveryNeedsEvidence && <p className="mt-1 text-xs text-amber-700">
+          {task.status === "checking" ? "Đang tìm dẫn chứng F và chuẩn bị brief" : "Cần kiểm tra dẫn chứng F"}
+        </p>}
         {task.gate === "brief" && (
           <p className="mt-1 text-[10px] text-slate-500">
             Pillar: {task.pillar ?? "awaiting input"} · Persona:{" "}
@@ -1876,76 +1882,6 @@ function Discovery({
     </div>
   )
 }
-function DiscoveryPreparationSources({ item, model, disabled, onApply }: {
-  item: DiscoveryIdea
-  model: { provider: string; id: string } | null
-  disabled: boolean
-  onApply: (evidence: db.DiscoveryFEvidence, context: string) => void
-}) {
-  const [detail, setDetail] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-  const [finding, setFinding] = useState(false)
-  const [evidence, setEvidence] = useState<db.DiscoveryFEvidence | null>(null)
-  const [evidenceStatus, setEvidenceStatus] = useState("")
-  useEffect(() => {
-    let active = true
-    setDetail(null); setError(null)
-    void db.fetchEbV2DiscoveryDetail(item.id).then((result) => {
-      if (active) setDetail(result)
-    }).catch((reason) => {
-      if (active) setError(reason instanceof Error ? reason.message : "Không tải được nguồn Discovery.")
-    })
-    return () => { active = false }
-  }, [item.id, attempt])
-  const ids = new Set((item.evidence ?? []).filter((entry: any) => entry?.kind === "research_topic").flatMap((entry: any) => Array.isArray(entry.sourceIds) ? entry.sourceIds : []))
-  const sources = (Array.isArray(detail?.sources) ? detail.sources : []).filter((source: any) => ids.has(source.id))
-  const angle = (item.evidence ?? []).find((entry: any) => entry?.kind === "research_topic")?.ebAngle
-  async function findEvidence() {
-    if (!model) return
-    setFinding(true)
-    setEvidence(null)
-    setEvidenceStatus("")
-    try {
-      const result = await db.findEbV2DiscoveryEvidence(item.id, model)
-      setEvidence(result)
-      if (!result) setEvidenceStatus("Chưa tìm thấy dẫn chứng về F trong Website Inventory.")
-    } catch (error) {
-      setEvidenceStatus(error instanceof Error ? error.message : "Không tìm được dẫn chứng lúc này.")
-    } finally {
-      setFinding(false)
-    }
-  }
-  return <div className="space-y-1 text-slate-600">
-    <p className="font-medium">Nguồn xu hướng được suggestion trích dẫn</p>
-    {error ? <div role="alert">{error} <button type="button" onClick={() => setAttempt((value) => value + 1)} className="underline">Thử tải lại nguồn</button></div>
-      : !detail ? <p role="status">Đang tải nguồn…</p>
-      : <>{sources.map((source: any) => <p key={source.id}>{source.source_name ?? source.name ?? source.id}{source.url ? ` · ${source.url}` : ""}</p>)}
-        {sources.length < ids.size && <p>Một số nguồn được trích dẫn không có trong dữ liệu trả về.</p>}
-        {!ids.size && <p>Suggestion chưa lưu ID nguồn trích dẫn.</p>}</>}
-    {angle && <p><strong>Góc EB</strong> {angle}</p>}
-    <button type="button" disabled={disabled || finding || !model} onClick={() => void findEvidence()}
-      className="rounded border border-indigo-200 px-3 py-2 text-indigo-700 disabled:opacity-50">
-      {finding ? "Đang tìm dẫn chứng…" : "Tìm dẫn chứng F tự động"}
-    </button>
-    {evidenceStatus && <p role="status">{evidenceStatus}</p>}
-    {evidence && <div className="space-y-1 rounded border border-slate-200 p-2">
-      <p>{evidence.connection}</p>
-      <blockquote className="whitespace-pre-wrap">“{evidence.quote}”</blockquote>
-      <a className="block underline" href={evidence.url} target="_blank" rel="noreferrer">{evidence.title}</a>
-      <p>Đã kiểm tra {new Date(evidence.checkedAt).toLocaleDateString("vi-VN")}</p>
-      <button type="button" disabled={disabled} className="rounded bg-indigo-600 px-3 py-2 text-white disabled:opacity-50"
-        onClick={() => {
-          const links = sources.map((source: any) => source.url).filter(Boolean)
-          onApply(evidence, [
-            links.length ? `Nguồn xu hướng:\n${links.join("\n")}` : "",
-            angle ? `Góc EB: ${angle}` : "",
-          ].filter(Boolean).join("\n\n"))
-          setEvidence(null)
-        }}>Dùng dẫn chứng</button>
-    </div>}
-  </div>
-}
 // Only backend-verified validation messages may become missing-information items.
 function gateOneRequirements(message: string): string[] | null {
   const prefix = "Chưa thể chạy Gate 1. Writer cần bổ sung:\n"
@@ -2091,14 +2027,9 @@ function InputEngine({
   analyze,
   syncing,
   accepted,
-  preparation, fConnection, setFConnection, fEvidence, setFEvidence, inputError,
+  inputError,
 }: {
   model: { provider: string; id: string } | null
-  preparation: DiscoveryIdea | null
-  fConnection: string
-  setFConnection: (value: string) => void
-  fEvidence: string
-  setFEvidence: (value: string) => void
   inputError: string | null
   syncing: boolean
   accepted: boolean
@@ -2113,27 +2044,8 @@ function InputEngine({
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
       <div className="mx-auto max-w-4xl">
         <div className="space-y-2">
-          {preparation && (
-            <div className="mb-3 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 text-xs">
-              <h3 className="font-semibold">Chuẩn bị Gate 1 · {discoveryTag(preparation)}</h3>
-              <p className="font-medium">{preparation.title}</p>
-              <p className="whitespace-pre-wrap text-slate-600">{preparation.source_summary}</p>
-              <DiscoveryPreparationSources key={preparation.id} item={preparation} model={model} disabled={syncing}
-                onApply={(evidence, context) => {
-                  setFConnection(evidence.connection)
-                  setFEvidence(`${evidence.title} · ${evidence.url}\n“${evidence.quote}”`)
-                  if (context && !input.includes(context)) setInput([input, context].filter(Boolean).join("\n\n"))
-                }} />
-              <label className="block">Liên hệ với F / sự kiện của F
-                <textarea disabled={syncing} value={fConnection} onChange={(event) => setFConnection(event.target.value)} rows={2} className="mt-1 block w-full rounded border border-slate-200 bg-white p-2" />
-              </label>
-              <label className="block">Nguồn xác nhận liên hệ F (link hoặc dẫn chứng cụ thể)
-                <textarea disabled={syncing} value={fEvidence} onChange={(event) => setFEvidence(event.target.value)} rows={2} className="mt-1 block w-full rounded border border-slate-200 bg-white p-2" />
-              </label>
-            </div>
-          )}
-          <EvidenceImageInput key={preparation?.id ?? "input"} model={model} disabled={syncing}
-            onApply={value => preparation ? setFEvidence([fEvidence, value].filter(Boolean).join("\n\n")) : setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))}>
+          <EvidenceImageInput model={model} disabled={syncing}
+            onApply={value => setInput([input, "Dẫn chứng / nguồn từ ảnh:\n" + value].filter(Boolean).join("\n\n"))}>
           {imageTrigger => <>
           {inputError && <InputValidationFeedback message={inputError} />}
           <div className="glow-input-container eb-input-pill">
@@ -2149,7 +2061,7 @@ function InputEngine({
               <span aria-hidden="true" className="text-2xl leading-none">+</span>
               <input
                 type="file"
-                disabled={syncing || Boolean(preparation)}
+                disabled={syncing}
                 aria-label="Upload material"
                 className="sr-only"
                 accept=".pdf,.docx,.xlsx,.csv,.tsv,.json,.txt,.md"
@@ -2280,6 +2192,7 @@ function DiscoveryArchive({
   onDelete,
   onClear,
   onPick,
+  promoting,
 }: {
   ideas: DiscoveryIdea[]
   onBack: () => void
@@ -2287,6 +2200,7 @@ function DiscoveryArchive({
   onDelete: (item: DiscoveryIdea) => void
   onClear: () => void
   onPick: (item: DiscoveryIdea) => void
+  promoting: boolean
 }) {
   const groups = [
     { key: "verified", title: "Verified trends", description: "Confirmed by independent publishers, including Vietnamese evidence.", items: ideas.filter((item) => discoveryTag(item) === "Verified trend") },
@@ -2339,7 +2253,7 @@ function DiscoveryArchive({
                     </button>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">Details</button>
-                      <button onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Bổ sung thông tin cho Gate 1</button>
+                      <button disabled={promoting} onClick={() => onPick(item)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Chuyển sang Gate 1</button>
                       <button onClick={() => onDelete(item)} title="Delete suggestion" aria-label="Delete suggestion" className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </article>
@@ -2501,6 +2415,7 @@ function TaskDetail({
   approvalPending,
   approvalError,
   onBrief,
+  onRetryDiscovery,
   onArticle,
   onWorkspaceChange,
   onDecision,
@@ -2512,6 +2427,7 @@ function TaskDetail({
   approvalPending: boolean
   approvalError: string | null | undefined
   onBrief: (task: Task) => void
+  onRetryDiscovery: (id: string) => void
   onArticle: (task: Task) => void
   task: Task | null
   model: { provider: string; id: string } | null
@@ -2554,10 +2470,11 @@ function TaskDetail({
     void db.fetchEbV2Activity(task.id, task.gate === "adapt" ? "channel" : "package")
       .then((data) => { if (active) {
         setActivity(data)
-        if (briefFieldsTask.current !== key) {
+        if (briefFieldsTask.current !== key && !(task.discoveryNeedsEvidence && task.status === "checking")) {
           const saved = data.inputs?.[0]?.raw_snapshot?.briefValidation
-          setBriefFields({ fConnection: saved?.connection ?? "", fEvidence: saved?.evidence ?? "" })
-          briefFieldsTask.current = key
+          const found = data.runs?.find((run: any) => run.stage === "discovery-evidence")?.output_snapshot?.discoveryEvidence
+          if (saved || found) setBriefFields({ fConnection: saved?.connection ?? found?.fConnection ?? "", fEvidence: saved?.evidence ?? found?.fEvidence ?? "" })
+          briefFieldsTask.current = saved || found ? key : null
         }
       } })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load activity.") })
@@ -2844,7 +2761,20 @@ function TaskDetail({
                 <h3 className="text-xs font-bold text-slate-800">
                   Source & evidence
                 </h3>
-                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading} className="mt-2 space-y-2">
+                {task.discoveryNeedsEvidence && task.status !== "checking" && <div className="mt-2 space-y-2">
+                  <p className="whitespace-pre-wrap text-xs text-amber-700">
+                    {model
+                      ? runs.find((run: any) => run.stage === "discovery-evidence")?.error_message ?? "Cần kiểm tra dẫn chứng F trước khi duyệt brief."
+                      : "Chọn model Gate 1 trong Workflow AI để tìm dẫn chứng F."}
+                  </p>
+                  <button type="button" disabled={approvalDisabled || !model}
+                    onClick={() => {
+                      briefFieldsTask.current = null
+                      onRetryDiscovery(task.id)
+                    }}
+                    className="rounded border border-indigo-200 px-3 py-2 text-xs text-indigo-700 disabled:opacity-50">Tìm lại dẫn chứng F</button>
+                </div>}
+                {task.gate === "brief" && <fieldset disabled={approvalDisabled || briefSaving || loading || task.status === "checking"} className="mt-2 space-y-2">
                   <label className="block text-xs text-slate-600">Mối liên hệ với F
                     <textarea value={briefFields.fConnection} onChange={event => setBriefFields(current => ({ ...current, fConnection: event.target.value }))} className="mt-1 block min-h-12 w-full rounded-lg border border-slate-200 px-2 py-1.5" rows={2} />
                   </label>

@@ -208,3 +208,57 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   await expect(connection).toHaveValue(saved.connection);await expect(evidence).toHaveValue(saved.evidence);
  });
 }
+
+test('Discovery promotion persists one pending card and retries evidence before generating a brief', async () => {
+ const id = 'suggestion-id';
+ const idea = {id,title:'Workshop',status:'suggested',run_id:'discovery-run',evidence:[{kind:'research_topic',sourceIds:['source']}]};
+ const tables = {eb_v2_discovery_items:[idea],eb_v2_packages:[],eb_v2_package_inputs:[],eb_v2_gate_runs:[]};
+ const locks = new Set();
+ let evidence;
+ let validation;
+ let generation;
+ class BriefInputError extends Error {}
+ const deps = {
+  modelFrom:()=>({provider:'mock',modelId:'gate-one'}),text:String,briefRegenerationLocks:locks,BriefInputError,
+  one:async(table,key)=>tables[table].find(row=>row.id===key),
+  tableSelect:async(table)=>table==='eb_v2_discovery_sources'?[{url:'https://example.test/trend'}]:tables[table],
+  tableUpsert:async(table,row)=>tables[table].unshift(row),
+  tableInsert:async(table,row)=>{
+   const inserted = {...row,id:'row-'+tables[table].length,created_at:new Date().toISOString()};
+   tables[table].unshift(inserted);
+   return inserted;
+  },
+  tableUpdate:async(table,key,fields)=>Object.assign(tables[table].find(row=>row.id===key),fields),
+  findWebsiteEvidence:async()=>evidence,
+  preflightBrief:async(input,fields)=>{
+   validation={input,fields};
+   return {connection:fields.fConnection,evidence:fields.fEvidence};
+  },
+  runGate:async(...args)=>{
+   generation=args;
+   tables.eb_v2_gate_runs.unshift({status:'completed'});
+  },
+  libraryContext:async()=>[],stages:{brief:'extract_mapping'},
+ };
+ const route = new Function(...Object.keys(deps),backendRoute('/api/eb-v2/discovery/:id/promote'))(...Object.values(deps));
+ async function promote() {
+  const res={code:200,status(code){this.code=code;return this;},json(data){this.data=data;return this;}};
+  await route({params:{id},body:{}},res);
+  await new Promise(resolve=>setImmediate(resolve));
+  return res;
+ }
+ assert.equal((await promote()).code,201);
+ assert.equal(idea.status,'used');
+ assert.equal(tables.eb_v2_packages[0].id,id);
+ assert.equal(tables.eb_v2_gate_runs[0].status,'failed');
+ assert.equal(generation,undefined);
+ evidence={title:'Case study',url:'https://example.test/case',quote:'Workshop quote',connection:'F hosted a workshop'};
+ assert.equal((await promote()).code,201);
+ assert.match(validation.input,/example\.test\/trend/);
+ assert.match(validation.fields.fEvidence,/Workshop quote/);
+ assert.match(generation[3],/example\.test\/case/);
+ assert.equal((await promote()).code,200);
+ assert.equal(tables.eb_v2_packages.length,1);
+ assert.equal(tables.eb_v2_package_inputs.length,2);
+ assert.equal(locks.size,0);
+});

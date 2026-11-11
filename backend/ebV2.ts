@@ -729,6 +729,75 @@ export function registerEbV2Routes(app: express.Express) {
       res.status(502).json({ error: "Không tìm được dẫn chứng lúc này. Vui lòng thử lại." })
     }
   })
+  app.post("/api/eb-v2/discovery/:id/promote", async (req: AuthRequest, res) => {
+    const model = modelFrom(req.body)
+    const id = text(req.params.id)
+    if (briefRegenerationLocks.has(id)) return res.status(409).json({ error: "Gate 1 đang xử lý ý tưởng này." })
+    briefRegenerationLocks.add(id)
+    let background = false
+    try {
+      const item = await one<any>("eb_v2_discovery_items", id)
+      if (!item || (item.status !== "suggested" && !(item.status === "used" && item.package_id === id)))
+        return res.status(404).json({ error: "Không tìm thấy ý tưởng trong Discovery." })
+      const research = Array.isArray(item.evidence)
+        ? item.evidence.find((entry: any) => entry?.kind === "research_topic") : null
+      const ids = Array.isArray(research?.sourceIds) ? research.sourceIds : []
+      const sources = item.run_id && ids.length
+        ? await tableSelect<any>("eb_v2_discovery_sources", query => query.eq("run_id", item.run_id).in("id", ids)) : []
+      const topic = [item.title, item.source_summary, research?.ebAngle && "Góc EB: " + research.ebAngle].filter(Boolean).join("\n\n")
+      const input = [topic, sources.length && "Nguồn xu hướng:\n" + sources.map(source => source.url).join("\n")].filter(Boolean).join("\n\n")
+      const raw = { sourceType: "discovery", discoveryId: id }
+      // Reuse the suggestion UUID to make retries safe after partial writes.
+      const existing = await one<any>("eb_v2_packages", id)
+      if (!existing) await tableUpsert("eb_v2_packages", {
+        id, title: item.title, state: "brief", source_type: "discovery", created_by: req.auth?.userId ?? null,
+      }, "id")
+      if (existing && existing.state !== "brief") return res.json({ packageId: id })
+      if (!await one<any>("eb_v2_package_inputs", id))
+        await tableUpsert("eb_v2_package_inputs", { id, package_id: id, input_text: input, raw_snapshot: raw }, "id")
+      if (item.status === "suggested")
+        await tableUpdate("eb_v2_discovery_items", id, { status: "used", package_id: id })
+      if (!model) return res.status(201).json({ packageId: id })
+      const latest = (await tableSelect<any>("eb_v2_gate_runs", query =>
+        query.eq("package_id", id).eq("gate", "brief").order("created_at", { ascending: false }).limit(1)))[0]
+      if (latest?.status === "completed" || (latest?.status === "running" && Date.now() - Date.parse(latest.created_at) < 600_000))
+        return res.json({ packageId: id })
+      const run = await tableInsert<any>("eb_v2_gate_runs", {
+        package_id: id, gate: "brief", stage: "discovery-evidence", status: "running",
+        model_provider: model.provider, model_id: model.modelId, started_at: new Date().toISOString(),
+      })
+      background = true
+      void (async () => {
+        try {
+          const evidence = await findWebsiteEvidence(topic, model)
+          if (!evidence) throw new BriefInputError("Chưa tìm thấy dẫn chứng F phù hợp. Thêm nguồn đã duyệt trong Website Inventory hoặc bổ sung dẫn chứng trên thẻ.")
+          const fields = { fConnection: evidence.connection, fEvidence: evidence.title + " · " + evidence.url + "\n“" + evidence.quote + "”" }
+          await tableUpdate("eb_v2_gate_runs", run.id, { output_snapshot: { discoveryEvidence: fields } })
+          const validation = await preflightBrief(input, fields, model)
+          const validatedInput = input + "\n\nCONNECTION TO F / F EVENT:\n" + validation.connection + "\n\nF SOURCE REFERENCE:\n" + validation.evidence
+          await tableInsert("eb_v2_package_inputs", {
+            package_id: id, input_text: validatedInput, raw_snapshot: { ...raw, briefValidation: validation },
+          })
+          await runGate(id, "brief", stages.brief,
+            "Extract and validate this employer-brand writing input. Return a concise brief with evidence, missing facts, suggested EVP pillar, persona, and article angle.\n\nINPUT:\n" + validatedInput,
+            model, await libraryContext())
+          await tableUpdate("eb_v2_gate_runs", run.id, { status: "skipped", completed_at: new Date().toISOString() })
+        } catch (error) {
+          await tableUpdate("eb_v2_gate_runs", run.id, {
+            status: "failed", completed_at: new Date().toISOString(),
+            error_message: error instanceof BriefInputError ? error.message : "Không thể tự chuẩn bị brief. Thử tìm lại dẫn chứng hoặc bổ sung trên thẻ.",
+          })
+        } finally {
+          briefRegenerationLocks.delete(id)
+        }
+      })().catch(error => console.error("[eb-v2] Discovery preparation failed:", error))
+      res.status(201).json({ packageId: id })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Không chuyển được ý tưởng sang Gate 1." })
+    } finally {
+      if (!background) briefRegenerationLocks.delete(id)
+    }
+  })
   app.get("/api/eb-v2/discovery/:id/details", async (req, res) => {
     try {
       const item = await one<any>("eb_v2_discovery_items", text(req.params.id))
