@@ -22,6 +22,8 @@ import { collectDiscoveryResearch } from "./discoveryResearch.ts"
 import { findWebsiteEvidence } from "./websiteEvidence.ts"
 import { refinementPlan, refinementChecks } from "./refinement.ts"
 import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
+import { sendPackageRunTelemetry } from "./telemetry.ts"
+import { gateStepName } from "./packageSteps.ts"
 
 const liveRefinements = new Map<string, { text: string; phase: string }>()
 const dismissalPrefix = "eb-v2:notification-dismissal:"
@@ -1730,6 +1732,38 @@ export function registerEbV2Routes(app: express.Express) {
             )
           }
           await tableUpdate("eb_v2_packages", item.id, { state: "review" })
+          // Telemetry auto-reporting to F.Learning Dashboard
+          tableSelect<any>("eb_v2_gate_runs", q => q.eq("package_id", item.id).order("started_at", { ascending: true }))
+            .then(runs => {
+              if (!runs || !runs.length) return
+              const stepEnMap: Record<string, string> = {
+                "Trích xuất brief": "Brief Extraction",
+                "Article Spec": "Article Specification",
+                "Lập outline": "Outline Generation",
+                "Viết bài": "Article Drafting",
+                "Chuyển thể Facebook": "Facebook Adaptation",
+                "Chuyển thể LinkedIn": "LinkedIn Adaptation",
+                "Chuyển thể Threads": "Threads Adaptation",
+                "Kiểm tra trùng lặp": "Repetition Check",
+              };
+              const stages = runs.map((r: any) => {
+                const name = gateStepName(r.gate, r.stage);
+                return {
+                  code: String(r.stage || r.gate || "").replace(":", "_"),
+                  name,
+                  nameEn: stepEnMap[name] || name,
+                  durationMs: Math.max(1, Math.round(r.output_snapshot?.durationMs || (new Date(r.completed_at || Date.now()).getTime() - new Date(r.started_at || Date.now()).getTime()) || 1000)),
+                  status: (r.status === "completed" ? "SUCCESS" : "ERROR") as "SUCCESS" | "ERROR",
+                };
+              });
+              sendPackageRunTelemetry({
+                runId: `pkg_${item.id}`,
+                workload: "1 topic / 4 channels",
+                stages,
+                status: "SUCCESS",
+              }).catch(() => {})
+            })
+            .catch(() => {})
         } catch (error) {
           console.error("[eb-v2] channel adaptation failed:", error)
         }
