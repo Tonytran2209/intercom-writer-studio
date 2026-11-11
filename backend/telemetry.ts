@@ -3,6 +3,8 @@ export type TelemetryStatus = "SUCCESS" | "ERROR";
 export interface PackageStage {
   code: string;
   name: string;
+  nameEn?: string;
+  descriptionEn?: string;
   durationMs: number;
   status: TelemetryStatus;
 }
@@ -24,14 +26,14 @@ export interface PackageTelemetryTracker {
 }
 
 export const PACKAGE_STAGES = [
-  { code: "brief_extract", name: "Trích xuất brief" },
-  { code: "article_spec", name: "Article Spec" },
-  { code: "outline", name: "Lập outline" },
-  { code: "draft", name: "Viết bài" },
-  { code: "adapt_facebook", name: "Chuyển thể Facebook" },
-  { code: "adapt_linkedin", name: "Chuyển thể LinkedIn" },
-  { code: "adapt_threads", name: "Chuyển thể Threads" },
-  { code: "review", name: "Kiểm tra trùng lặp" },
+  { code: "brief_extract", name: "Trích xuất brief", nameEn: "Brief Extraction" },
+  { code: "article_spec", name: "Article Spec", nameEn: "Article Specification" },
+  { code: "outline", name: "Lập outline", nameEn: "Outline Generation" },
+  { code: "draft", name: "Viết bài", nameEn: "Article Drafting" },
+  { code: "adapt_facebook", name: "Chuyển thể Facebook", nameEn: "Facebook Adaptation" },
+  { code: "adapt_linkedin", name: "Chuyển thể LinkedIn", nameEn: "LinkedIn Adaptation" },
+  { code: "adapt_threads", name: "Chuyển thể Threads", nameEn: "Threads Adaptation" },
+  { code: "review", name: "Kiểm tra trùng lặp", nameEn: "Repetition Check" },
 ] as const;
 
 const TOOL_SLUG = "intercom-writer-studio";
@@ -55,6 +57,8 @@ export async function sendPackageRunTelemetry(
     const stages: PackageStage[] = options.stages.map((stage) => ({
       code: stage.code,
       name: stage.name,
+      nameEn: stage.nameEn,
+      descriptionEn: stage.descriptionEn,
       durationMs: stage.durationMs,
       status: stage.status ?? "SUCCESS",
     }));
