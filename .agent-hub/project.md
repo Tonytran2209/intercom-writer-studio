@@ -35,7 +35,7 @@ source_paths: [package.json, backend/package.json, railway.toml, nixpacks.toml]
 
 ## Agent reading order
 
-1. This file and `policies/ownership.md`.
+1. This file, `policies/ownership.md` and `policies/monitoring.md` (every new or changed processing step is a monitored sub-job).
 2. The relevant layer document: `design/`, `backend/`, or `database/`.
 3. Exact referenced source files and migrations before proposing a change.
 4. `policies/automation.md` before executing mutations.

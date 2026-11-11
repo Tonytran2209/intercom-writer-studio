@@ -1,5 +1,9 @@
 # figma-make-app
 
+## Monitoring readiness (đọc trước khi sửa code)
+
+Before changing any code for a user request, read `.agent-hub/policies/monitoring.md`. Every new or changed processing step (job, AI call, external send, background work, user action that hands work to the system) must be declared as a sub-job of the Main Job, logged per run (`runId`, `parentRunId`, `job`, `status`, `startedAt`, `endedAt`, `items` when it handles many units) and reported through `/internal/monitoring` (`app-monitoring-v1`, browser timings per `ui-kpi-v2`) before the work counts as done. Changes with no processing step say "Không ảnh hưởng monitoring" in the final report.
+
 React + Vite + Tailwind CSS project running inside Figma Make.
 
 ## Development Server
