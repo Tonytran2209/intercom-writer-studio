@@ -784,7 +784,7 @@ export function registerEbV2Routes(app: express.Express) {
         } catch (error) {
           await tableUpdate("eb_v2_gate_runs", run.id, {
             status: "failed", completed_at: new Date().toISOString(),
-            error_message: error instanceof BriefInputError ? error.message : "Không thể tự chuẩn bị brief. Kiểm tra tài liệu Markdown trong Settings → EB Library rồi thử lại.",
+            error_message: error instanceof BriefInputError ? error.message : "Quá trình tìm dẫn chứng hoặc tạo brief bị gián đoạn. Bấm Tìm lại dẫn chứng F để thử lại.",
           })
         } finally {
           briefRegenerationLocks.delete(id)

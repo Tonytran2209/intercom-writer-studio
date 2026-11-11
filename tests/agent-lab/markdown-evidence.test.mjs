@@ -11,13 +11,17 @@ test('Markdown evidence references only quotes present in the uploaded document'
  process.env.OPENAI_API_KEY = 'synthetic';
  const quote = 'F.Learning Studio hosted a workshop on peer feedback.';
  const document = {name:'workshops.md',content:'# Workshops\n' + quote,uploadedAt:'2026-11-11'};
- const model = {provider:'openai',modelId:'gpt-4o'};
+ const model = {provider:'openai',modelId:'gpt-5.4-mini'};
  let result = {index:0,quote,connection:'F tổ chức workshop về phản hồi đồng nghiệp.'};
  globalThis.fetch = async (_url, init) => {
-  const prompt = JSON.parse(JSON.parse(init.body).messages.at(-1).content);
+  const body = JSON.parse(init.body);
+  assert.equal(body.text.format.type,'json_object');
+  assert.match(body.input.find(message=>message.role==='system').content,/\bJSON\b/i);
+  const prompt = JSON.parse(body.input.at(-1).content);
   assert.equal(prompt.document,document.name);
   assert.ok(prompt.passages[0].passage.includes(quote));
-  return Response.json({model:model.modelId,choices:[{message:{content:JSON.stringify(result)}}]});
+  return Response.json({object:'response',model:model.modelId,output:[{type:'message',role:'assistant',
+   content:[{type:'output_text',text:JSON.stringify(result),annotations:[]}]}]});
  };
  try {
   assert.deepEqual(await findMarkdownEvidence(document,'Peer feedback',model),{

@@ -76,9 +76,11 @@ async function callOpenAI(req: GenerateRequest): Promise<GenerateResponse> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: globalThis.fetch as unknown as import("openai/core").Fetch });
 
   const messages: any[] = [];
-  if (req.systemPrompt || req.contextDocs?.length) {
+  const jsonObjectMode = req.jsonMode && !req.jsonSchema;
+  if (req.systemPrompt || req.contextDocs?.length || jsonObjectMode) {
     const sysContent = [
       req.systemPrompt ?? '',
+      jsonObjectMode ? 'Return only a valid JSON object.' : '',
       req.contextDocs?.length ? '\n\n=== TÀI LIỆU THAM KHẢO ===\n' + req.contextDocs.join('\n\n---\n\n') : '',
     ].filter(Boolean).join('\n');
     messages.push({ role: 'system', content: sysContent });
