@@ -39,7 +39,7 @@ Use regular, medium and semibold weights. Give rows and sections room through sp
 - Workspace lists align titles, status, source, dates and actions by column. Stack fields below a 760 px board width and keep all actions reachable.
 - Gate Grid keeps all four columns on one horizontally scrollable row. Give each column a 19 rem minimum when the board can fit it, and let each Gate scroll its own tasks vertically. Keep the Input Engine outside the scrolling region.
 - Portal task actions and workspace filters through Twenty Popover. Let the popup reposition at viewport edges and keep the trigger reachable by keyboard.
-- Dock the task inspector from 1360 px. Overlay it on medium screens to preserve board width, and use a full-width panel on mobile. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
+- Open task details as a modal side panel with a dismissible backdrop and a width that fits narrow screens. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
 - Use visible form labels or clearly associated accessible names, keyboard focus, and accessible icon-only actions. Preserve focus when dialogs and panels close.
 - Give loading, empty, error, disabled and saving states the same layout and type scale as the ready state. Provide an actionable recovery message when there is one.
 

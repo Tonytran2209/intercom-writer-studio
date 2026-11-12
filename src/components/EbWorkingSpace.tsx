@@ -4,6 +4,7 @@ import { LightButton, MainButton } from "twenty-ui/components/input"
 import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
+  ArrowDownUp,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
@@ -350,6 +351,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const [newestFirst, setNewestFirst] = useState(true)
   const notificationTriggerRef = useRef<HTMLButtonElement>(null)
   const sessionNotices = useWorkspaceNotices()
   useDismissedWorkspaceNotifications()
@@ -1046,6 +1048,14 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     return channels.length || (!task.channels.length && !channelFilters.length && !decisionFilters.length)
       ? [{ ...task, allChannels: task.channels, channels }] : []
   })
+  const orderedTasks = filteredTasks.map(task => {
+    const created = Date.parse(task.createdAt ?? "")
+    return { task, time: Number.isFinite(created) ? created : Date.parse(task.updatedAt ?? "") }
+  }).sort((a, b) => {
+    if (!Number.isFinite(a.time)) return Number.isFinite(b.time) ? 1 : 0
+    if (!Number.isFinite(b.time)) return -1
+    return newestFirst ? b.time - a.time : a.time - b.time
+  }).map(({ task }) => task)
   const selectedTask = selectedId
     ? filteredTasks.find((task) => task.id === selectedId) ?? tasks.find((task) => task.id === selectedId) ?? null
     : null
@@ -1160,6 +1170,14 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             </Popover.Root>
             <span className="ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
           </div>
+          <label title="Sắp xếp theo ngày tạo" className="eb-task-sort inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2 ui-type-body">
+            <ArrowDownUp size={14} aria-hidden="true" />
+            <select aria-label="Sắp xếp theo ngày tạo" value={newestFirst ? "newest" : "oldest"}
+              onChange={event => setNewestFirst(event.target.value === "newest")}>
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
+            </select>
+          </label>
           {activeFilters.map((filter) => (
             <button
               key={filter}
@@ -1198,7 +1216,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                   <GateGroup
                     key={gate}
                     gate={gate}
-                    tasks={filteredTasks.filter((task) => task.gate === gate)}
+                    tasks={orderedTasks.filter((task) => task.gate === gate)}
                     view={view}
                     selectedId={selectedId}
                     approvalDisabled={syncing || approvalPending}
@@ -1377,7 +1395,10 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
     }}>
     <NoticeIcon kind={active.kind} />
-    <p role="status" aria-live="polite" aria-atomic="true"><span className="sr-only">{active.kind ? `${active.kind}: ` : ""}</span>{active.text}</p>
+    <div className="eb-notice-banner-copy" role="status" aria-live="polite" aria-atomic="true">
+      <strong className="eb-notice-banner-label">{active.kind === "error" ? "Có lỗi" : active.kind === "success" ? "Hoàn tất" : active.kind === "warning" ? "Cần chú ý" : "Cập nhật workspace"}</strong>
+      <p>{active.text}</p>
+    </div>
     <button type="button" aria-label="Thu gọn về chuông" title="Thu gọn về chuông" onClick={() => {
       if (bannerRef.current?.contains(document.activeElement)) onCollapseFocus()
       setCollapsing(true)
@@ -1707,7 +1728,7 @@ function TaskCard({
             <span className="eb-task-status" data-status={status}>{status}</span>
             {source !== "—" && <span className="ui-type-meta text-slate-500">{source}</span>}
           </div>}
-          <h3 className="ui-type-body font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{task.title}</h3>
+          <h3 title={task.title} className={`ui-type-body font-semibold text-slate-900 ${isList ? "truncate" : "line-clamp-3 [overflow-wrap:anywhere]"}`}>{task.title}</h3>
           {!isList && <p className="eb-task-date mt-1 ui-type-meta text-slate-500">Ngày tạo: {formatTaskCreatedAt(task.createdAt)}</p>}
           {(task.channel || task.channels) && <p className="mt-1 ui-type-meta text-slate-500">
             {task.channel ?? `${fullChannels.length} channels · ${summary.done} Done · ${summary.rejected} Rejected · ${summary.pending} Chờ review`}
@@ -2495,21 +2516,34 @@ function TaskDetail({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
-      className="eb-overlay eb-task-inspector absolute inset-0 z-40 flex justify-end"
+      className="eb-overlay eb-task-inspector absolute inset-0 z-50 flex justify-end p-2 sm:p-3"
     >
       <aside
+        role="dialog"
+        aria-modal="true"
         aria-labelledby="eb-task-inspector-title"
-        onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented && event.currentTarget.contains(event.target as Node)) onClose() }}
+        onKeyDown={event => {
+          if (event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return
+          if (event.key === "Escape") onClose()
+          if (event.key === "Tab") {
+            const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+              'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary',
+            )).filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0)
+            const first = controls[0], last = controls.at(-1)
+            if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus() }
+            if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus() }
+          }
+        }}
         onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col border bg-white"
+        className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col overflow-hidden border"
       >
-        <header className="shrink-0 border-b border-slate-200/80 px-4 py-4 sm:px-5">
+        <header className="eb-inspector-header shrink-0 border-b px-4 py-4 sm:px-5">
           <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
+            <p className="eb-inspector-gate ui-type-meta font-medium">
               {gateConfig[task.gate].title}
             </p>
-            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-page font-semibold text-slate-900 [overflow-wrap:anywhere]">
+            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-page font-semibold [overflow-wrap:anywhere]">
               {task.title}
             </h2>
           </div>
@@ -2567,7 +2601,7 @@ function TaskDetail({
                       return (
                         <article key={channel.id} className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs ${isActive ? "border-slate-400" : "border-slate-200/80"}`}>
                           <button disabled={approvalDisabled || !!acceptingFeedbackId} onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
-                            <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
+                            <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><span className="eb-task-status" data-status={status}>{status}</span>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
                             <p className="mt-1 ui-type-body text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
                           </button>
                           <fieldset disabled={approvalDisabled} className="flex shrink-0 items-center gap-1.5">
@@ -2757,16 +2791,15 @@ function TaskDetail({
           )}
         </div>
         </Tabs.Root>
-        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200/80 px-4 py-3 sm:px-5">
-          <button
+        <footer className="eb-inspector-footer flex shrink-0 flex-wrap justify-end gap-2 border-t px-4 py-3 sm:px-5">
+          <LightButton type="button" size="sm" variant="outline"
             onClick={() => void copyResult()}
             title="Copy result as formatted Markdown"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copied" : "Copy result"}
-          </button>
-          <button
+            <span className="ui-type-body">{copied ? "Copied" : "Copy result"}</span>
+          </LightButton>
+          <LightButton type="button" size="sm" variant="outline"
             onClick={() => {
               const link = document.createElement("a")
               link.href = URL.createObjectURL(
@@ -2776,11 +2809,10 @@ function TaskDetail({
               link.click()
               URL.revokeObjectURL(link.href)
             }}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
           >
             <Download className="h-3.5 w-3.5" />
-            Export .md
-          </button>
+            <span className="ui-type-body">Export .md</span>
+          </LightButton>
         </footer>
       </aside>
     </div>

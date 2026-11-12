@@ -36,18 +36,8 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  await expect(page.getByRole('button',{name:'Open task: Learning workshop',exact:true})).toBeVisible();
  await expect(page.locator('#eb-input')).toHaveValue('Unrelated draft');
  const detail = page.locator('aside');
- if (page.viewportSize().width >= 1024) {
-  const viewSwitch = page.getByRole('group',{name:'Workspace view'});
-  const overlay = page.locator('.eb-task-inspector');
-  await expect(overlay).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');
-  const beforeDocking = await viewSwitch.boundingBox();
-  await page.setViewportSize({width:1440,height:900});
-  const board = await viewSwitch.boundingBox();
-  expect(beforeDocking.x).toBeGreaterThan(board.x);
-  const panel = await detail.boundingBox();
-  expect(board.x + board.width).toBeLessThan(panel.x);
-  await expect(page.locator('.eb-task-inspector')).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
- }
+ if (page.viewportSize().width >= 1024) await page.setViewportSize({width:1440,height:900});
+ await expect(page.locator('.eb-task-inspector')).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');
  await expect(detail.getByText(error,{exact:true}).first()).toBeVisible();
  await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toHaveCount(0);
  await detail.getByRole('button',{name:'Tìm lại dẫn chứng F',exact:true}).click();

@@ -497,7 +497,7 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     now = end;
   };
   const notice = (id, text = id, details = []) => ({id,text,details});
-  const activeText = () => tree?.props.children[1].props.children[1];
+  const activeText = () => tree?.props.children[1].props.children[1].props.children;
   const update = notices => { props = {...props,notices}; render(); };
   try {
     const groups = ['brief','article','adapt','review','done','rejected','discovery'].map(id => notice(id));

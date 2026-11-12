@@ -2953,13 +2953,23 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   font-size: var(--ui-font-meta);
   font-weight: var(--t-font-weight-medium);
 }
-.eb-task-status[data-status="Needs evidence"],
-.eb-task-status[data-status="Needs recheck"] {
-  background: var(--t-background-tertiary);
-  color: var(--t-font-color-primary);
+.eb-task-status:is([data-status="Extract & check"], [data-status="Drafting"]) {
+  background: var(--t-color-blue3);
+  color: var(--t-color-blue11);
 }
-.eb-task-status[data-status="Rejected"] { background: var(--t-background-danger); }
-.eb-workspace .eb-inspector-tabs { border-bottom: 1px solid var(--t-border-color-light); }
+.eb-task-status[data-status="Adapting"] { background: var(--t-color-purple3); color: var(--t-color-purple11); }
+.eb-task-status:is([data-status="Needs evidence"], [data-status="Needs recheck"], [data-status="Needs review"], [data-status="Chờ review"]) {
+  background: var(--t-color-amber3);
+  color: var(--t-color-amber11);
+}
+.eb-task-status:is([data-status="Ready"], [data-status="Approved"], [data-status="Done"]) {
+  background: var(--t-color-green3);
+  color: var(--t-color-green11);
+}
+.eb-task-status[data-status="Rejected"] { background: var(--t-color-red3); color: var(--t-color-red11); }
+.eb-task-sort { border-color: var(--t-border-color-medium); color: var(--t-font-color-secondary); }
+.eb-task-sort select { min-width: 0; background: transparent; }
+.eb-task-sort select:focus-visible { outline: 2px solid var(--t-accent-accent9); outline-offset: 2px; }
 
 @container (min-width: 760px) {
   .eb-list-columns { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, .8fr) minmax(8.5rem, .9fr) minmax(8.5rem, auto); }
@@ -3018,30 +3028,27 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 [data-anchor-hidden] > .eb-task-popover { visibility: hidden; }
 .eb-task-popover.eb-filter-popover { width: 16rem; max-height: min(24rem, var(--available-height)); }
 
-@media (min-width: 768px) {
-  .eb-workspace .eb-task-inspector-panel { max-width: 34rem; }
+.codex-dark .eb-workspace > .eb-task-inspector {
+  background: rgb(0 0 0 / .4);
+  backdrop-filter: blur(6px);
 }
-
-@media (min-width: 1360px) {
-  .eb-workspace { --eb-inspector-width: clamp(24rem, 33vw, 32rem); }
-  .eb-workspace:has(.eb-task-inspector) > :is(.eb-board-body, .eb-workspace-header, .eb-workspace-toolbar) {
-    margin-inline-end: var(--eb-inspector-width);
-  }
-  .writer-light .eb-workspace > .eb-task-inspector,
-  .codex-dark .eb-workspace > .eb-task-inspector {
-    pointer-events: none;
-    background: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  .eb-workspace .eb-task-inspector-panel {
-    width: var(--eb-inspector-width);
-    pointer-events: auto;
-    border-radius: 0;
-    box-shadow: none;
-    border-block: 0;
-    border-inline-end: 0;
-  }
+.eb-workspace .eb-task-inspector-panel {
+  max-width: 34rem;
+  border-radius: var(--t-border-radius-lg);
+  color: var(--t-font-color-primary);
+}
+.eb-inspector-header, .eb-inspector-footer, .eb-workspace .eb-inspector-tabs {
+  border-color: var(--t-border-color-light);
+}
+.eb-inspector-footer, .eb-workspace .eb-inspector-tabs {
+  background: var(--t-background-secondary);
+}
+.eb-inspector-gate {
+  display: inline-block;
+  border-radius: var(--t-border-radius-sm);
+  padding: 2px var(--t-spacing-2);
+  background: var(--t-accent-accent3);
+  color: var(--t-accent-accent11);
 }
 
 /* Keep app chrome compact while preserving a separate size for long-form reading. */
@@ -3201,4 +3208,17 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   padding: var(--t-spacing-8) var(--t-spacing-4);
   text-align: center;
   color: var(--t-font-color-secondary);
+}
+
+.eb-notice-banner-copy { min-width: 0; }
+.eb-notice-banner-label {
+  display: block;
+  margin-bottom: var(--t-spacing-1);
+  color: var(--t-font-color-primary);
+  font-size: var(--ui-font-body);
+  font-weight: var(--t-font-weight-semi-bold);
+}
+.workspace-notification .eb-notice-banner-copy p {
+  color: var(--t-font-color-secondary);
+  font-size: var(--ui-font-meta);
 }

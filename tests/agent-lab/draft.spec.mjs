@@ -144,3 +144,41 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
   expect(errors).toEqual([]);expect(unexpected).toEqual([]);
  });
 }
+
+test('Gate sorting, title limits and modal backdrop work in both workspace views', async ({page}, info) => {
+ const longTitle = 'Newest package with a long title '.repeat(12).trim();
+ const packages = [
+  {id:'old',title:'Old package',state:'brief',created_at:'2025-01-01T00:00:00Z'},
+  {id:'new',title:longTitle,state:'brief',created_at:'2025-06-01T00:00:00Z'},
+  {id:'unknown',title:'Undated package',state:'brief'},
+ ];
+ await page.route('**/api/eb-v2/workspace',route=>route.fulfill({json:{packages,articles:[],runs:[],channels:[],discovery:[]}}));
+ const opened = [];
+ await page.route('**/api/eb-v2/activity/*',route=>{
+  opened.push(new URL(route.request().url()).pathname.split('/').at(-1));
+  return route.fulfill({json:{inputs:[],runs:[],actions:[],feedback:[]}});
+ });
+ if (info.project.name === 'desktop') await page.setViewportSize({width:1440,height:900});
+ await page.goto('/?screen=eb');
+ const titles = page.locator('.eb-board-body h3');
+ await expect(titles).toHaveText([longTitle,'Old package','Undated package']);
+ await expect(titles.first()).toHaveCSS('text-overflow','ellipsis');
+ await expect(titles.first()).toHaveCSS('white-space','nowrap');
+ await page.getByLabel('Sắp xếp theo ngày tạo').selectOption('oldest');
+ await expect(titles).toHaveText(['Old package',longTitle,'Undated package']);
+ await page.getByRole('button',{name:'Grid view',exact:true}).click();
+ await expect(titles).toHaveText(['Old package',longTitle,'Undated package']);
+ await expect(titles.nth(1)).toHaveCSS('-webkit-line-clamp','3');
+ await expect(page.locator('.eb-task-status').first()).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+ const trigger = page.getByRole('button',{name:'Open task: Old package',exact:true});
+ const coveredTitle = await titles.nth(1).boundingBox();
+ await trigger.click();
+ const detail = page.getByRole('dialog',{name:'Old package',exact:true});
+ await expect(detail).toBeVisible();
+ const backdrop = page.locator('.eb-task-inspector');
+ if (info.project.name === 'desktop') await page.mouse.click(coveredTitle.x + 8, coveredTitle.y + 8);
+ else await backdrop.click({position:{x:3,y:60}});
+ await expect(detail).toBeHidden();
+ await expect(trigger).toBeFocused();
+ expect(opened).toEqual(['old']);
+});
