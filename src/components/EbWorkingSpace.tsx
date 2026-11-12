@@ -1,5 +1,5 @@
+import { AppDropdown, AppSelect } from "./AppDropdown"
 import { Tabs } from "twenty-ui/primitives/navigation"
-import { Popover } from "twenty-ui/primitives/surfaces"
 import { LightButton, MainButton } from "twenty-ui/components/input"
 import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
@@ -10,7 +10,6 @@ import {
   ArrowUp,
   Bell,
   Check,
-  ChevronDown,
   CircleAlert,
   CircleCheck,
   Copy,
@@ -337,7 +336,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const [inputError, setInputError] = useState<string | null>(null)
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const [filterOpen, setFilterOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState<string[]>([])
   const [discoveryIdeas, setDiscoveryIdeas] = useState<DiscoveryIdea[]>([])
   const [discoveryStatus, setDiscoveryStatus] = useState<{
@@ -1130,54 +1128,39 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:items-center sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h1 className="mr-1 ui-type-page font-semibold text-slate-900">EB Content Packages</h1>
-          <div className="flex items-center gap-2">
-            <Popover.Root modal={false} open={filterOpen} onOpenChange={setFilterOpen}>
-              <Popover.Trigger render={<LightButton type="button" size="sm" variant={filterOpen ? "soft" : "ghost"}
-                startIcon={<IconFilter size={16} aria-hidden="true" />}
-                endIcon={<ChevronDown className="size-3" aria-hidden="true" />} />}>
-                <span className="ui-type-body">Filter</span>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <Popover.Positioner align="start" sideOffset={6} collisionPadding={8}>
-                  <Popover.Popup aria-label="Filter packages" className="eb-task-popover eb-filter-popover">
-                    <p className="px-2 py-1.5 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
-                      Filter packages
-                    </p>
-                    {filterGroups.map((group) => (
-                      <div key={group.label} className="mb-2 last:mb-0">
-                        <p className="px-2 py-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
-                        <div className="space-y-1">
-                          {group.options.map((label) => (
-                            <button key={label} aria-pressed={activeFilters.includes(label)} onClick={() => toggleFilter(label)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left aria-pressed:font-semibold">
-                              <span>{label}</span>
-                              <span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {activeFilters.length > 0 && (
-                      <button
-                        onClick={() => setActiveFilters([])}
-                        className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left ui-type-body font-semibold text-slate-500 hover:bg-slate-50"
-                      >
-                        Clear filters
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <AppDropdown label="Filter" panelLabel="Filter packages" wide icon={<IconFilter size={16} aria-hidden="true" />}>
+              <p className="px-2 py-1.5 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
+                Filter packages
+              </p>
+              {filterGroups.map((group) => (
+                <div key={group.label} className="mb-2 last:mb-0">
+                  <p className="px-2 py-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+                  <div className="space-y-1">
+                    {group.options.map((label) => (
+                      <button key={label} aria-pressed={activeFilters.includes(label)} onClick={() => toggleFilter(label)} className="app-dropdown-action justify-between aria-pressed:font-semibold">
+                        <span>{label}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} />
                       </button>
-                    )}
-                  </Popover.Popup>
-                </Popover.Positioner>
-              </Popover.Portal>
-            </Popover.Root>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {activeFilters.length > 0 && (
+                <button
+                  onClick={() => setActiveFilters([])}
+                  className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left ui-type-body font-semibold text-slate-500 hover:bg-slate-50"
+                >
+                  Clear filters
+                </button>
+              )}
+            </AppDropdown>
+            <AppSelect wide label="Sắp xếp theo ngày tạo" value={newestFirst ? "newest" : "oldest"}
+              icon={<ArrowDownUp size={16} aria-hidden="true" />}
+              onValueChange={next => setNewestFirst(next === "newest")}
+              options={[{ value: "newest", label: "Mới nhất" }, { value: "oldest", label: "Cũ nhất" }]} />
             <span className="ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
           </div>
-          <label title="Sắp xếp theo ngày tạo" className="eb-task-sort inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2 ui-type-body">
-            <ArrowDownUp size={14} aria-hidden="true" />
-            <select aria-label="Sắp xếp theo ngày tạo" value={newestFirst ? "newest" : "oldest"}
-              onChange={event => setNewestFirst(event.target.value === "newest")}>
-              <option value="newest">Mới nhất</option>
-              <option value="oldest">Cũ nhất</option>
-            </select>
-          </label>
           {activeFilters.map((filter) => (
             <button
               key={filter}
@@ -1801,12 +1784,15 @@ function TaskCard({
           </span>
         )}
         <div className="ml-auto">
-          <TaskActionsPopover label="More item actions" panelLabel="Task actions" open={actionsOpen} onOpenChange={setActionsOpen}>
+          <AppDropdown iconOnly align="end" icon={<MoreHorizontal size={16} aria-hidden="true" />} label="More item actions" panelLabel="Task actions" open={actionsOpen} onOpenChange={setActionsOpen}>
             {task.gate === "review" && task.channels && <>
               {needsThreads && <label className="block px-2 py-1 ui-type-meta text-slate-600">Threads variants
-                <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">
-                  <option value="">Choose A / B / both</option><option value="a">Variant A</option><option value="b">Variant B</option><option value="both">A + B</option>
-                </select>
+                <AppSelect label="Bulk Threads variants" value={bulkVariants} disabled={approvalDisabled} className="mt-1 w-full" onValueChange={next => setBulkVariants(next as ApprovedVariants | "")} options={[
+                  { value: "", label: "Choose A / B / both" },
+                  { value: "a", label: "Variant A" },
+                  { value: "b", label: "Variant B" },
+                  { value: "both", label: "A + B" },
+                ]} />
               </label>}
               <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} data-success className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
               <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} data-danger className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
@@ -1834,7 +1820,7 @@ function TaskCard({
             <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} data-danger className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 hover:bg-red-50">
               <Trash2 className="h-3.5 w-3.5" /> Delete item
             </button>
-          </TaskActionsPopover>
+          </AppDropdown>
         </div>
       </div>
     </article>
@@ -2611,7 +2597,7 @@ function TaskDetail({
                             </>}
                             {channel.decision === "done" && <span title={`${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Check className="h-3.5 w-3.5" /></span>}
                             {channel.decision === "reject" && <span title={`${channel.channel} rejected`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600"><X className="h-3.5 w-3.5" /></span>}
-                            <TaskActionsPopover label={`More actions for ${channel.channel}`}
+                            <AppDropdown iconOnly align="end" icon={<MoreHorizontal size={16} aria-hidden="true" />} label={`More actions for ${channel.channel}`}
                               panelLabel={`${channel.channel} actions`} open={channelActionsOpen === channel.id}
                               onOpenChange={open => {
                                 if (open) setSelectedChannelId(channel.id)
@@ -2619,7 +2605,7 @@ function TaskDetail({
                               }}>
                               <button disabled={approvalDisabled} onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
                               <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={approvalDisabled || !model} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
-                            </TaskActionsPopover>
+                            </AppDropdown>
                           </fieldset>
                         </article>
                       )
@@ -2673,7 +2659,7 @@ function TaskDetail({
                     ))}
                     {!feedbackThread.length && <p className="rounded-lg border border-dashed border-indigo-100 bg-white/70 px-2.5 py-2 ui-type-meta text-slate-500">Request a focused rewrite. The current version remains unchanged until you choose a new revision.</p>}
                   </div>
-                  {task.gate === "article" && <label className="mt-3 block ui-type-meta text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
+                  {task.gate === "article" && <label className="mt-3 block ui-type-meta text-slate-500">Edit scope<AppSelect label="Edit scope" value={sectionHeading} className="mt-1 w-full" onValueChange={next => setSectionHeading(next)} options={[{ value: "", label: "Whole article" }, ...Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => ({ value: heading, label: heading }))]} /></label>}
                   <div className="mt-3 flex items-end gap-2">
                     <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 min-w-0 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
                     <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
@@ -2994,39 +2980,13 @@ function Tag({ children }: { children: ReactNode }) {
   )
 }
 
-function TaskActionsPopover({ label, panelLabel, open, onOpenChange, children }: {
-  label: string
-  panelLabel: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  children: ReactNode
-}) {
-  return (
-    <Popover.Root modal={false} open={open} onOpenChange={onOpenChange}>
-      <Popover.Trigger render={<button type="button" aria-label={label} title={label}
-        className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" />}>
-        <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Positioner align="end" sideOffset={6} collisionPadding={8}>
-          <Popover.Popup aria-label={panelLabel} className="eb-task-popover" onClick={event => event.stopPropagation()}>
-            {children}
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
-  )
-}
-
 function VariantApproval({ onApprove }: { onApprove: (variants: ApprovedVariants) => void }) {
-  return <select aria-label="Approve Threads variants" defaultValue="" onChange={(event) => {
-    const value = event.target.value as ApprovedVariants
-    event.target.value = ""
-    if (value) onApprove(value)
-  }} className="h-8 max-w-44 rounded-lg border border-emerald-200 bg-emerald-50 px-2 ui-type-body font-semibold text-emerald-700">
-    <option value="" disabled>Approve variants…</option>
-    <option value="a">Approve Variant A</option>
-    <option value="b">Approve Variant B</option>
-    <option value="both">Approve both</option>
-  </select>
+  return <AppSelect label="Approve Threads variants" value="" className="max-w-44"
+    onValueChange={value => { if (value) onApprove(value as ApprovedVariants) }}
+    options={[
+      { value: "", label: "Approve variants…", disabled: true },
+      { value: "a", label: "Approve Variant A" },
+      { value: "b", label: "Approve Variant B" },
+      { value: "both", label: "Approve both" },
+    ]} />
 }

@@ -149,7 +149,12 @@ test('G3_CHANNEL_ACTIONS verbatim copy/export and explicit per-ID review mutatio
  }
  await mutation('facebook','done',()=>row(page,'facebook').getByRole('button',{name:'Mark Facebook done',exact:true}).click());
  await mutation('linkedin','reject',()=>row(page,'linkedin').getByRole('button',{name:'Reject LinkedIn',exact:true}).click());
- for(const variant of ['a','b','both'])await mutation('threads','done',()=>row(page,'threads').getByLabel('Approve Threads variants').selectOption(variant),{approvedVariants:variant});
+ for(const [variant, option] of [['a','Approve Variant A'],['b','Approve Variant B'],['both','Approve both']]) {
+  await mutation('threads','done',async()=>{
+   await row(page,'threads').getByRole('combobox',{name:'Approve Threads variants'}).click();
+   await page.getByRole('option',{name:option,exact:true}).click();
+  },{approvedVariants:variant});
+ }
  await row(page,'facebook').getByRole('button',{name:'More actions for Facebook',exact:true}).click();
  await mutation('facebook','recheck',()=>page.getByRole('dialog',{name:'Facebook actions'}).getByRole('button',{name:'Send to recheck',exact:true}).click());
  await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
@@ -233,7 +238,8 @@ test('G3_BULK persisted status, partial retry, filter isolation and refresh',asy
  await expect(card).toContainText('0 Done · 0 Rejected · 3 Chờ review');
  await card.getByRole('button',{name:'More item actions',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true})).toBeDisabled();
- await page.getByRole('dialog',{name:'Task actions'}).getByLabel('Bulk Threads variants').selectOption('both');
+ await page.getByRole('dialog',{name:'Task actions'}).getByRole('combobox',{name:'Bulk Threads variants'}).click();
+ await page.getByRole('option',{name:'A + B',exact:true}).click();
  await page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true}).click();
  await expect(card).toContainText('1 Done · 0 Rejected · 2 Chờ review');
  await expect(page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true})).toBeEnabled();

@@ -1,3 +1,4 @@
+import { AppSelect } from "../AppDropdown"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { BookOpen, BookOpenCheck, Check, FolderUp, Globe2, Plus, RefreshCw, Save, ScrollText, Search, Square, Trash2, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -225,7 +226,7 @@ function EbWorkflowRulesPanel({ config, onChange, onPersist }: { config: AppConf
   const add = () => { const rule: EbWorkflowRule = { id: `custom-${Date.now()}`, title: "New custom rule", enabled: true, enforcement: "guided", instruction: "Describe the behavior this rule adds.", advanced: "{}" }; save([...settings.rules, rule]); setSelectedId(rule.id) }
   const persistSelected = async () => { if (!onPersist || saving) return; setSaving(true); setSaved(false); try { await onPersist(config); setSaved(true); window.setTimeout(() => setSaved(false), 1800) } finally { setSaving(false) } }
   const promptPreview = settings.rules.filter(rule => rule.enabled).map(rule => `[${rule.enforcement.toUpperCase()}] ${rule.title}: ${rule.instruction}`).join("\n\n")
-  return <div className="space-y-4"><section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="ui-type-title font-semibold text-slate-800">F.Learning EB Article Writer</h2><p className="mt-1 ui-type-meta leading-5 text-slate-500">Rules are versioned in App Config. Strict rules are intended for the system prompt; guided rules become task guidance.</p></section><div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]"><nav className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-3 py-2"><span className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">Rules</span><button onClick={add} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Add workflow rule" aria-label="Add workflow rule"><Plus className="h-3.5 w-3.5"/></button></div>{settings.rules.map(rule => <button key={rule.id} onClick={() => setSelectedId(rule.id)} className={`flex w-full items-center gap-2 border-b border-slate-200 px-3 py-2.5 text-left last:border-b-0 ${selected?.id === rule.id ? "bg-slate-100" : "hover:bg-slate-50"}`}><span className={`h-2 w-2 rounded-full ${rule.enabled ? "bg-emerald-500" : "bg-slate-300"}`}/><span className="min-w-0 flex-1 truncate ui-type-body font-medium text-slate-700">{rule.title}</span></button>)}</nav>{selected && <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between gap-3"><label className="flex items-center gap-2 ui-type-meta font-semibold text-slate-700"><input type="checkbox" checked={selected.enabled} onChange={event => update(selected.id, { enabled: event.target.checked })}/>{selected.enabled ? "Enabled" : "Disabled"}</label><div className="flex items-center gap-1"><button onClick={() => void persistSelected()} disabled={!onPersist || saving} title={saved ? "Saved" : "Save rule"} aria-label={saved ? "Saved" : "Save rule"} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40">{saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin"/> : saved ? <Check className="h-3.5 w-3.5 text-emerald-600"/> : <Save className="h-3.5 w-3.5"/>}</button><button onClick={() => remove(selected.id)} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete rule" aria-label="Delete rule"><Trash2 className="h-3.5 w-3.5"/></button></div></div><label className="mt-4 block ui-type-meta font-semibold text-slate-700">Rule name<input value={selected.title} onChange={event => update(selected.id, { title: event.target.value })} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 px-2.5 ui-type-body"/></label><label className="mt-3 block ui-type-meta font-semibold text-slate-700">Enforcement<select value={selected.enforcement} onChange={event => update(selected.id, { enforcement: event.target.value as EbWorkflowRule["enforcement"] })} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 ui-type-body"><option value="strict">Strict · system prompt</option><option value="guided">Guided · task guidance</option></select></label><label className="mt-3 block ui-type-meta font-semibold text-slate-700">Instruction<textarea rows={5} value={selected.instruction} onChange={event => updateInstruction(event.target.value)} className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 ui-type-body leading-5"/></label><details className="mt-3 rounded-lg border border-slate-200"><summary className="cursor-pointer px-3 py-2 ui-type-meta font-semibold text-slate-700">Advanced parameters</summary><label className="block border-t border-slate-200 p-3 ui-type-meta text-slate-500">JSON parameters<span className="mt-1 block ui-type-meta leading-4 text-slate-400">Structured runtime constraints. Recognized Threads limits in Instruction sync here automatically; edit JSON for any additional controls.</span><textarea rows={4} value={selected.advanced} onChange={event => update(selected.id, { advanced: event.target.value })} className="mt-1.5 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono ui-type-body text-slate-700"/></label></details></section>}</div><details className="overflow-hidden rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 ui-type-meta font-semibold text-slate-700">Prompt preview & log</summary><div className="border-t border-slate-200 p-4"><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 ui-type-meta leading-5 text-slate-600">{promptPreview || "No enabled workflow rules."}</pre><p className="mt-3 ui-type-meta text-slate-400">{settings.promptLog.length ? `${settings.promptLog.length} stored prompt log entries.` : "No prompt run logged yet in shell mode. Runtime V2 will append a snapshot when each gate starts."}</p></div></details></div>
+  return <div className="space-y-4"><section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="ui-type-title font-semibold text-slate-800">F.Learning EB Article Writer</h2><p className="mt-1 ui-type-meta leading-5 text-slate-500">Rules are versioned in App Config. Strict rules are intended for the system prompt; guided rules become task guidance.</p></section><div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]"><nav className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-3 py-2"><span className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">Rules</span><button onClick={add} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Add workflow rule" aria-label="Add workflow rule"><Plus className="h-3.5 w-3.5"/></button></div>{settings.rules.map(rule => <button key={rule.id} onClick={() => setSelectedId(rule.id)} className={`flex w-full items-center gap-2 border-b border-slate-200 px-3 py-2.5 text-left last:border-b-0 ${selected?.id === rule.id ? "bg-slate-100" : "hover:bg-slate-50"}`}><span className={`h-2 w-2 rounded-full ${rule.enabled ? "bg-emerald-500" : "bg-slate-300"}`}/><span className="min-w-0 flex-1 truncate ui-type-body font-medium text-slate-700">{rule.title}</span></button>)}</nav>{selected && <section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between gap-3"><label className="flex items-center gap-2 ui-type-meta font-semibold text-slate-700"><input type="checkbox" checked={selected.enabled} onChange={event => update(selected.id, { enabled: event.target.checked })}/>{selected.enabled ? "Enabled" : "Disabled"}</label><div className="flex items-center gap-1"><button onClick={() => void persistSelected()} disabled={!onPersist || saving} title={saved ? "Saved" : "Save rule"} aria-label={saved ? "Saved" : "Save rule"} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40">{saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin"/> : saved ? <Check className="h-3.5 w-3.5 text-emerald-600"/> : <Save className="h-3.5 w-3.5"/>}</button><button onClick={() => remove(selected.id)} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete rule" aria-label="Delete rule"><Trash2 className="h-3.5 w-3.5"/></button></div></div><label className="mt-4 block ui-type-meta font-semibold text-slate-700">Rule name<input value={selected.title} onChange={event => update(selected.id, { title: event.target.value })} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 px-2.5 ui-type-body"/></label><label className="mt-3 block ui-type-meta font-semibold text-slate-700">Enforcement<AppSelect label="Enforcement" value={selected.enforcement} className="mt-1.5 w-full" onValueChange={next => update(selected.id, { enforcement: next as EbWorkflowRule["enforcement"] })} options={[{ value: "strict", label: "Strict · system prompt" }, { value: "guided", label: "Guided · task guidance" }]} /></label><label className="mt-3 block ui-type-meta font-semibold text-slate-700">Instruction<textarea rows={5} value={selected.instruction} onChange={event => updateInstruction(event.target.value)} className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 ui-type-body leading-5"/></label><details className="mt-3 rounded-lg border border-slate-200"><summary className="cursor-pointer px-3 py-2 ui-type-meta font-semibold text-slate-700">Advanced parameters</summary><label className="block border-t border-slate-200 p-3 ui-type-meta text-slate-500">JSON parameters<span className="mt-1 block ui-type-meta leading-4 text-slate-400">Structured runtime constraints. Recognized Threads limits in Instruction sync here automatically; edit JSON for any additional controls.</span><textarea rows={4} value={selected.advanced} onChange={event => update(selected.id, { advanced: event.target.value })} className="mt-1.5 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono ui-type-body text-slate-700"/></label></details></section>}</div><details className="overflow-hidden rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 ui-type-meta font-semibold text-slate-700">Prompt preview & log</summary><div className="border-t border-slate-200 p-4"><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 ui-type-meta leading-5 text-slate-600">{promptPreview || "No enabled workflow rules."}</pre><p className="mt-3 ui-type-meta text-slate-400">{settings.promptLog.length ? `${settings.promptLog.length} stored prompt log entries.` : "No prompt run logged yet in shell mode. Runtime V2 will append a snapshot when each gate starts."}</p></div></details></div>
 }
 
 function EditorialLearningsPanel() {
@@ -637,24 +638,24 @@ function WebsiteInventoryPanel({
             placeholder="Search URL, title, topic or service…"
             className="h-9 w-full px-3 ui-type-body"
           />
-          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }} className="h-9 px-2 ui-type-body">
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="redirected">Redirected</option>
-            <option value="broken">Broken</option>
-            <option value="unchecked">Unchecked</option>
-            <option value="queued">Queued</option>
-            <option value="checking">Checking</option>
-          </select>
-          <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1) }} className="h-9 px-2 ui-type-body">
-            <option value="all">All page types</option>
-            <option value="blog">Blog</option>
-            <option value="service">Service</option>
-            <option value="portfolio">Portfolio</option>
-            <option value="landing">Landing</option>
-            <option value="about">About</option>
-            <option value="commercial">Commercial</option>
-          </select>
+          <AppSelect label="Filter by status" value={statusFilter} onValueChange={next => { setStatusFilter(next); setPage(1) }} options={[
+            { value: "all", label: "All statuses" },
+            { value: "active", label: "Active" },
+            { value: "redirected", label: "Redirected" },
+            { value: "broken", label: "Broken" },
+            { value: "unchecked", label: "Unchecked" },
+            { value: "queued", label: "Queued" },
+            { value: "checking", label: "Checking" },
+          ]} />
+          <AppSelect label="Filter by page type" value={typeFilter} onValueChange={next => { setTypeFilter(next); setPage(1) }} options={[
+            { value: "all", label: "All page types" },
+            { value: "blog", label: "Blog" },
+            { value: "service", label: "Service" },
+            { value: "portfolio", label: "Portfolio" },
+            { value: "landing", label: "Landing" },
+            { value: "about", label: "About" },
+            { value: "commercial", label: "Commercial" },
+          ]} />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="website-inventory-list divide-y divide-slate-200">
@@ -684,29 +685,22 @@ function WebsiteInventoryPanel({
                       </a>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                    <select
-                      aria-label="Status"
-                      value={record.status}
-                      disabled={record.status === "queued" || record.status === "checking"}
-                      title={record.lastError}
-                      onChange={(event) => {
-                        const status = event.target.value as WebsiteContentRecord["status"]
+                    <AppSelect label="Status" value={record.status} disabled={record.status === "queued" || record.status === "checking"} title={record.lastError} className="w-full shrink-0 sm:w-28" onValueChange={next => {
+                        const status = next as WebsiteContentRecord["status"]
                         const patch = {
                           status,
                           eligibleForInternalLink: status === "active" || status === "redirected",
                         }
                         update(record.id, patch)
                         void persistUpdate(record.id, patch)
-                      }}
-                      className="h-8 w-full shrink-0 px-2 ui-type-body sm:w-28"
-                    >
-                      <option value="queued">Queued</option>
-                      <option value="checking">Checking</option>
-                      <option value="unchecked">Unchecked</option>
-                      <option value="active">Active</option>
-                      <option value="redirected">Redirected</option>
-                      <option value="broken">Broken</option>
-                    </select>
+                      }} options={[
+                      { value: "queued", label: "Queued" },
+                      { value: "checking", label: "Checking" },
+                      { value: "unchecked", label: "Unchecked" },
+                      { value: "active", label: "Active" },
+                      { value: "redirected", label: "Redirected" },
+                      { value: "broken", label: "Broken" },
+                    ]} />
                       <button
                         type="button"
                         onClick={() => toggleExpanded(record.id)}
@@ -729,22 +723,18 @@ function WebsiteInventoryPanel({
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <label className="min-w-0 ui-type-meta font-medium text-slate-400">
                       Page type
-                      <select
-                        value={record.contentType}
-                        onChange={(event) => {
-                          const patch = { contentType: event.target.value as WebsiteContentRecord["contentType"] }
+                      <AppSelect label="Page type" value={record.contentType} className="mt-1 w-full" onValueChange={next => {
+                          const patch = { contentType: next as WebsiteContentRecord["contentType"] }
                           update(record.id, patch)
                           void persistUpdate(record.id, patch)
-                        }}
-                        className="mt-1 h-9 w-full px-2 ui-type-body"
-                      >
-                        <option value="blog">Blog</option>
-                        <option value="service">Service</option>
-                        <option value="portfolio">Portfolio</option>
-                        <option value="landing">Landing</option>
-                        <option value="about">About</option>
-                        <option value="commercial">Commercial</option>
-                      </select>
+                        }} options={[
+                        { value: "blog", label: "Blog" },
+                        { value: "service", label: "Service" },
+                        { value: "portfolio", label: "Portfolio" },
+                        { value: "landing", label: "Landing" },
+                        { value: "about", label: "About" },
+                        { value: "commercial", label: "Commercial" },
+                      ]} />
                     </label>
                     <label className="min-w-0 ui-type-meta font-medium text-slate-400">
                       Topics

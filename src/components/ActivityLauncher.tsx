@@ -1,3 +1,4 @@
+import { AppSelect } from "./AppDropdown"
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, ArrowRight, FileText, LoaderCircle, Plus, Sheet, Trash2, Upload, X } from "lucide-react"
 import type {
@@ -456,17 +457,11 @@ export default function ActivityLauncher({
                       {articleByPlanItem.get(item.id)?.status === 'done' ? tr('Đã hoàn tất', 'Completed') : tr('Tiếp tục', 'Continue')}
                     </button>
                   )}
-                  <select
-                    value={item.type}
-                    onChange={(event) =>
-                      move(item, event.target.value as ContentPlanItem["type"])
-                    }
-                    className="opacity-0 group-hover:opacity-100 rounded-md border border-[#3a3a3a] bg-[#252525] p-1 text-[9px]"
-                  >
-                    <option value="comparison-seo">Comparison/SEO</option>
-                    <option value="editorial-originality">Editorial</option>
-                    <option value="needs-review">Needs review</option>
-                  </select>
+                  <AppSelect label={tr("Loại nội dung", "Content type")} value={item.type} onValueChange={next => move(item, next as ContentPlanItem["type"])} options={[
+                    { value: "comparison-seo", label: "Comparison/SEO" },
+                    { value: "editorial-originality", label: "Editorial" },
+                    { value: "needs-review", label: "Needs review" },
+                  ]} />
                 </div>
               ))}
             </div>
@@ -613,23 +608,7 @@ export default function ActivityLauncher({
                   }}
                 />
                 <div className="ml-auto flex items-center gap-2">
-                  <select
-                    value={modelId}
-                    onChange={(event) => onModelChange(event.target.value)}
-                    className="max-w-44 bg-transparent text-[10px] text-[#aaa] outline-none"
-                  >
-                    {models
-                      .filter((model) => model.enabled)
-                      .map((model) => (
-                        <option
-                          className="bg-[#252525]"
-                          key={model.id}
-                          value={model.id}
-                        >
-                          {model.name}
-                        </option>
-                      ))}
-                  </select>
+                  <AppSelect label={tr("Model AI", "AI model")} value={modelId} className="max-w-44" onValueChange={onModelChange} options={models.filter(model => model.enabled).map(model => ({ value: model.id, label: model.name }))} />
                   <button
                     disabled={!canSubmit || busy}
                     onClick={submit}

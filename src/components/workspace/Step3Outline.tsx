@@ -1,3 +1,4 @@
+import { AppDropdown, AppSelect } from "../AppDropdown"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../../lib/performanceTelemetry";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, Eye, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
@@ -605,14 +606,7 @@ export default function Step3Outline({
               </div>
 
               <div className="grid grid-cols-[auto_1fr] sm:flex gap-2">
-                <select
-                  value={newSectionLevel}
-                  onChange={e => setNewSectionLevel(e.target.value as "h2" | "h3")}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800"
-                >
-                  <option value="h2">H2</option>
-                  <option value="h3">H3</option>
-                </select>
+                <AppSelect label={tr("Cấp tiêu đề mới", "New heading level")} value={newSectionLevel} onValueChange={next => setNewSectionLevel(next as "h2" | "h3")} options={[{ value: "h2", label: "H2" }, { value: "h3", label: "H3" }]} />
                 <input
                   value={newSectionHeading}
                   onChange={e => setNewSectionHeading(e.target.value)}
@@ -710,21 +704,11 @@ function SectionRow({
   const [headingDraft, setHeadingDraft] = useState(section.heading);
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
   const [rationaleDraft, setRationaleDraft] = useState(section.rationale ?? '');
-  const menuRef = useRef<HTMLDivElement>(null);
   const isH3 = section.level === "h3";
 
   useEffect(() => setHeadingDraft(section.heading), [section.heading]);
   useEffect(() => setNotesDraft(section.notes ?? ''), [section.notes]);
   useEffect(() => setRationaleDraft(section.rationale ?? ''), [section.rationale]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const closeMenu = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', closeMenu);
-    return () => document.removeEventListener('mousedown', closeMenu);
-  }, [menuOpen]);
 
   return (
     <div className={`outline-card group overflow-hidden rounded-xl border transition-colors ${
@@ -788,26 +772,14 @@ function SectionRow({
           >
             <Eye className="app-icon" aria-hidden="true" />
           </button>
-        <div ref={menuRef} className="outline-action-menu relative">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(open => !open)}
-            className="outline-menu-trigger flex h-8 w-8 items-center justify-center rounded-lg border"
-            aria-label={tr('Mở thao tác section', 'Open section actions')}
-            aria-expanded={menuOpen}
-          >
-            <Ellipsis className="app-icon" aria-hidden="true" />
-          </button>
-          {menuOpen && (
-            <div className="outline-menu-popover absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-lg border p-1 shadow-lg" role="menu">
-              <button type="button" role="menuitem" onClick={() => { setShowAudit(true); setMenuOpen(false); }}><Eye className="app-icon" aria-hidden="true" /><span>{tr('Xem AI log', 'View AI log')}</span></button>
-              <button type="button" role="menuitem" disabled={isFirst} onClick={() => { onMove(-1); setMenuOpen(false); }}><ChevronUp className="app-icon" aria-hidden="true" /><span>{tr('Di chuyển lên', 'Move up')}</span></button>
-              <button type="button" role="menuitem" disabled={isLast} onClick={() => { onMove(1); setMenuOpen(false); }}><ChevronDown className="app-icon" aria-hidden="true" /><span>{tr('Di chuyển xuống', 'Move down')}</span></button>
-              <div className="outline-menu-divider my-1 border-t" />
-              <button type="button" role="menuitem" className="is-danger" onClick={() => { onRemove(); setMenuOpen(false); }}><Trash2 className="app-icon" aria-hidden="true" /><span>{tr('Xóa section', 'Delete section')}</span></button>
-            </div>
-          )}
-        </div>
+        <AppDropdown label={tr('Mở thao tác section', 'Open section actions')} iconOnly align="end"
+          open={menuOpen} onOpenChange={setMenuOpen} icon={<Ellipsis size={16} aria-hidden="true" />}>
+              <button type="button" className="app-dropdown-action" onClick={() => { setShowAudit(true); setMenuOpen(false); }}><Eye className="app-icon" aria-hidden="true" /><span>{tr('Xem AI log', 'View AI log')}</span></button>
+              <button type="button" className="app-dropdown-action" disabled={isFirst} onClick={() => { onMove(-1); setMenuOpen(false); }}><ChevronUp className="app-icon" aria-hidden="true" /><span>{tr('Di chuyển lên', 'Move up')}</span></button>
+              <button type="button" className="app-dropdown-action" disabled={isLast} onClick={() => { onMove(1); setMenuOpen(false); }}><ChevronDown className="app-icon" aria-hidden="true" /><span>{tr('Di chuyển xuống', 'Move down')}</span></button>
+              <div className="app-dropdown-divider" />
+              <button type="button" className="app-dropdown-action" data-danger onClick={() => { onRemove(); setMenuOpen(false); }}><Trash2 className="app-icon" aria-hidden="true" /><span>{tr('Xóa section', 'Delete section')}</span></button>
+        </AppDropdown>
         </div>
       </div>
 
@@ -832,27 +804,13 @@ function SectionRow({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Search Intent</label>
-              <select
-                value={section.searchIntent || ""}
-                onChange={e => onChange({ searchIntent: (e.target.value || undefined) as SearchIntent | undefined })}
-                className="outline-editor-control mt-1 w-full rounded-lg border px-2 py-1.5 text-xs outline-none"
-              >
-                <option value="">— {tr('chưa xác định', 'not set')} —</option>
-                {Object.entries(SEARCH_INTENT_META).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
+              <AppSelect label="Search Intent" value={section.searchIntent || ""} className="mt-1 w-full" onValueChange={next => onChange({ searchIntent: (next || undefined) as SearchIntent | undefined })} options={[{ value: "", label: "— " + tr('chưa xác định', 'not set') + " —" }, ...Object.entries(SEARCH_INTENT_META).map(([k, v]) => (
+                  ({ value: k, label: v.label })
+                ))]} />
             </div>
             <div>
               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Level</label>
-              <select
-                value={section.level}
-                onChange={e => onChange({ level: e.target.value as "h2" | "h3" })}
-                className="outline-editor-control mt-1 w-full rounded-lg border px-2 py-1.5 text-xs outline-none"
-              >
-                <option value="h2">H2</option>
-                <option value="h3">H3</option>
-              </select>
+              <AppSelect label="Level" value={section.level} className="mt-1 w-full" onValueChange={next => onChange({ level: next as "h2" | "h3" })} options={[{ value: "h2", label: "H2" }, { value: "h3", label: "H3" }]} />
             </div>
           </div>
           {(section.keywords?.length ?? 0) > 0 && (

@@ -35,6 +35,14 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
  await expect(page.getByText('F.Learning EB Article Writer',{exact:true})).toBeVisible();
  await nav.getByRole('button',{name:'Website Inventory',exact:true}).click();
  await expect(page.getByPlaceholder('Search URL, title, topic or service…')).toBeVisible();
+ const type = page.getByRole('combobox',{name:'Filter by page type'});
+ await type.focus();
+ await page.keyboard.press('Enter');
+ await expect(page.getByRole('listbox',{name:'Filter by page type'})).toBeVisible();
+ await page.keyboard.press('ArrowDown');
+ await page.keyboard.press('Enter');
+ await expect(type).toHaveText('Blog');
+ await expect(type).toBeFocused();
  await nav.getByRole('button',{name:'EB Library',exact:true}).click();
  await expect(page.getByText('fixture-library.md',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:/^(Lưu thay đổi|Save changes)$/}).click();
