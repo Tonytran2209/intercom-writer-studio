@@ -2546,7 +2546,7 @@ function TaskDetail({
               />
             </div>
           </div>
-          <h2 id="eb-task-inspector-title" className="mt-3 ui-type-page font-semibold [overflow-wrap:anywhere]">
+          <h2 id="eb-task-inspector-title" className="mt-4 max-w-[min(26rem,calc(100%_-_1rem))] ui-type-page font-semibold text-pretty [overflow-wrap:anywhere]">
             {task.title}
           </h2>
           {approvalPending && <p role="status" className="mt-2 ui-type-meta text-slate-500">Saving approval and starting the next step…</p>}

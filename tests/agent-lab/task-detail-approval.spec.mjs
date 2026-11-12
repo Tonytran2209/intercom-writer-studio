@@ -80,7 +80,8 @@ test('persisted brief approval cannot be repeated after a failed workspace read'
 if (!process.env.TASK_APPROVAL_OFFLINE) {
  const {expect}=await import('./browser-fixture.mjs');
  for(const gate of ['brief','article'])test(`${gate} popup approval shows errors, locks card and popup, and advances`,async({page})=>{
-  let data={packages:[{id:'popup',title:'Synthetic popup',state:gate}],articles:gate==='article'?[{package_id:'popup',status:'draft',revision:1}]:[],channels:[],runs:[],discovery:[]};
+  const title = 'People and culture capability are becoming a leadership focus across teams and operating models';
+  let data={packages:[{id:'popup',title,state:gate}],articles:gate==='article'?[{package_id:'popup',status:'draft',revision:1}]:[],channels:[],runs:[],discovery:[]};
   const calls=[];const unexpected=[];let fail=true;let release;
   await page.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url());
@@ -104,15 +105,19 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
    const {DEFAULT_CONFIG,DEFAULT_MODELS}=await import('/src/lib/defaultData.ts');
    DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'popup-model',enabled:true}];
   });
-  await page.getByRole('button',{name:'Open task: Synthetic popup',exact:true}).click();
+  await page.getByRole('button',{name:`Open task: ${title}`,exact:true}).click();
   const popup=page.locator('aside');const approve=popup.getByRole('button',{name:'Approve',exact:true});
   await expect(approve).toBeEnabled();
   const actionBounds=await approve.boundingBox();
   const gateBounds=await popup.locator('.eb-inspector-gate').boundingBox();
-  const titleBounds=await popup.getByRole('heading',{name:'Synthetic popup',exact:true}).boundingBox();
+  const titleBounds=await popup.getByRole('heading',{name:title,exact:true}).boundingBox();
   expect(actionBounds.x).toBeGreaterThan(gateBounds.x+gateBounds.width);
   expect(actionBounds.y).toBeLessThan(gateBounds.y+gateBounds.height);
-  expect(actionBounds.y+actionBounds.height).toBeLessThan(titleBounds.y);
+  const closeBounds=await popup.getByRole('button',{name:'Close task details'}).boundingBox();
+  expect(titleBounds.y-Math.max(actionBounds.y+actionBounds.height,closeBounds.y+closeBounds.height,gateBounds.y+gateBounds.height)).toBeGreaterThanOrEqual(16);
+  expect(titleBounds.width).toBeLessThanOrEqual(416);
+  expect(titleBounds.x+titleBounds.width).toBeLessThan(closeBounds.x+closeBounds.width);
+  expect(titleBounds.height).toBeGreaterThan(20);
   await approve.click();await expect(popup.getByRole('alert').filter({hasText:'Synthetic approval failure'})).toContainText('Synthetic approval failure');
   await expect(approve).toBeEnabled();fail=false;await approve.click();
   await expect.poll(()=>calls.length).toBe(2);await expect(approve).toBeDisabled();
