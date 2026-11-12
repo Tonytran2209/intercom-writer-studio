@@ -15,7 +15,7 @@ import {
   Copy,
   Download,
   FileText,
-  Lightbulb,
+  Link,
   LoaderCircle,
   MoreHorizontal,
   RefreshCw,
@@ -646,6 +646,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         const emergingCount = ideas.filter(isEmergingDiscovery).length
         const sourceLeadCount = ideas.filter((item) => discoveryTag(item) === "Source lead").length
         const verifiedCount = ideas.length - emergingCount - sourceLeadCount
+        const failedSources = data.coverage.filter(source => source.status === "failed").length
         setDiscoveryStatus(
           ideas.length
             ? {
@@ -654,8 +655,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               }
             : {
                 state: "empty",
-                message:
-                  "Scan finished, but no topics met the evidence requirements. Earlier suggestions remain saved. Try adding source links or broadening Discovery Research settings.",
+                message: `Scan completed with no new suggestions. Sources may be outside the freshness window, lack a publication date, or duplicate saved topics.${failedSources ? ` ${failedSources} source fetch${failedSources === 1 ? " failed" : "es failed"}.` : ""} Earlier suggestions remain saved.`,
               },
         )
       })
@@ -1228,18 +1228,19 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           </div>
         ) : page === "discovery" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <DiscoveryArchive
-              ideas={discoveryIdeas}
-              onBack={() => setPage("board")}
-              onOpen={setSelectedDiscovery}
-              onDelete={removeDiscovery}
-              onClear={clearDiscovery}
-              onPick={(item, event) => void promoteDiscovery(item.id, event)}
-              promoting={syncing}
-            />
-            <DiscoveryResearch
+            <DiscoveryToolbar
               status={discoveryStatus}
               onDiscover={runDiscovery}
+              onBack={() => setPage("board")}
+              onClear={discoveryIdeas.length ? clearDiscovery : undefined}
+              busy={syncing}
+            />
+            <DiscoveryArchive
+              ideas={discoveryIdeas}
+              onOpen={setSelectedDiscovery}
+              onDelete={removeDiscovery}
+              onPick={(item, event) => void promoteDiscovery(item.id, event)}
+              promoting={syncing}
             />
           </div>
         ) : (
@@ -2006,100 +2007,80 @@ function InputEngine({
     </div>
   )
 }
-function DiscoveryResearch({
-  status,
-  onDiscover,
-}: {
+function DiscoveryToolbar({ status, onDiscover, onBack, onClear, busy }: {
   status: {
     state: "idle" | "running" | "success" | "empty" | "error"
     message?: string
   }
   onDiscover: (urls: string[]) => void
+  onBack: () => void
+  onClear?: () => void
+  busy: boolean
 }) {
   const [sourceInput, setSourceInput] = useState("")
+  const [linksOpen, setLinksOpen] = useState(false)
+  const sourceUrls = sourceInput.split(/\n|,/).map(value => value.trim()).filter(Boolean)
   const running = status.state === "running"
-  const statusClass =
-    status.state === "error"
-      ? "border-red-100 bg-red-50 text-red-700"
-      : status.state === "success"
-        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-        : status.state === "empty"
-          ? "border-amber-100 bg-amber-50 text-amber-700"
-          : "border-purple-100 bg-purple-50 text-purple-700"
+  const statusClass = status.state === "error"
+    ? "border-red-100 bg-red-50 text-red-700"
+    : status.state === "success"
+      ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+      : status.state === "empty"
+        ? "border-amber-100 bg-amber-50 text-amber-800"
+        : "border-slate-200 bg-slate-50 text-slate-600"
 
   return (
-    <section className="sticky bottom-0 z-10 shrink-0 px-4 py-3">
-      <div className="mx-auto max-w-4xl rounded-xl border border-purple-100 bg-white p-3 shadow-2xs">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-indigo-600" />
-              <h2 className="ui-type-title font-semibold text-slate-800">
-                Discovery research
-              </h2>
+    <>
+      <div className="eb-workspace-toolbar flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-3 sm:px-5"
+        role="group" aria-label="Discovery actions">
+        <LightButton type="button" size="sm" variant="ghost" aria-label="Back to workspace"
+          onClick={onBack} startIcon={<ArrowLeft size={16} aria-hidden="true" />}>
+          <span className="ui-type-body">Back</span>
+        </LightButton>
+        <h1 className="ui-type-page font-semibold text-slate-900">Discovery archive</h1>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto">
+          <AppDropdown wide label={sourceUrls.length ? `Paste links (${sourceUrls.length})` : "Paste links"}
+            panelLabel="Discovery source links" icon={<Link size={16} aria-hidden="true" />}
+            open={linksOpen} onOpenChange={setLinksOpen}>
+            <div className="space-y-2 p-2">
+              <label htmlFor="discovery-source-links" className="block font-medium">Source links</label>
+              <textarea id="discovery-source-links" value={sourceInput} onChange={event => setSourceInput(event.target.value)}
+                rows={4} placeholder="Facebook, Instagram or Threads links"
+                className="block w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 ui-type-body" />
+              <div className="flex justify-end">
+                <LightButton type="button" size="sm" variant="soft" onClick={() => setLinksOpen(false)}>Done</LightButton>
+              </div>
             </div>
-            <p className="mt-1 ui-type-meta text-slate-500">
-              Scan configured daily sources, or add social links as extra
-              research evidence.
-            </p>
-          </div>
-          <button
-            disabled={running}
-            onClick={() =>
-              onDiscover(
-                sourceInput
-                  .split(/\n|,/)
-                  .map((value) => value.trim())
-                  .filter(Boolean),
-              )
-            }
-            title={running ? "Scanning sources" : "Scan sources"}
-            aria-label={running ? "Scanning sources" : "Scan sources"}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white disabled:opacity-50"
-          >
-            {running ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ScanSearch className="h-3.5 w-3.5" />
-            )}
-          </button>
+          </AppDropdown>
+          <LightButton type="button" size="sm" variant="soft" disabled={running || busy}
+            onClick={() => onDiscover(sourceUrls)}
+            startIcon={running ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <ScanSearch size={16} aria-hidden="true" />}>
+            <span className="ui-type-body">{running ? "Scanning sources" : "Scan sources"}</span>
+          </LightButton>
+          {onClear && (
+            <LightButton type="button" size="sm" variant="ghost" disabled={running || busy} onClick={onClear}
+              startIcon={<Trash2 size={15} aria-hidden="true" />}>
+              <span className="ui-type-body text-red-600">Clear all</span>
+            </LightButton>
+          )}
         </div>
-        <textarea
-          value={sourceInput}
-          onChange={(event) => setSourceInput(event.target.value)}
-          rows={2}
-          placeholder="Optional: paste Facebook, Instagram or Threads links…"
-          className="mt-3 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-purple-300"
-        />
-        {status.state !== "idle" && (
-          <div
-            role="status"
-            className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 ui-type-meta leading-relaxed ${statusClass}`}
-          >
-            {running && (
-              <LoaderCircle className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
-            )}
-            <span>{status.message}</span>
-          </div>
-        )}
       </div>
-    </section>
+      {status.message && <p role="status" className={`mx-3 mt-2 shrink-0 rounded-md border px-3 py-2 ui-type-meta [overflow-wrap:anywhere] sm:mx-5 ${statusClass}`}>
+        {status.message}
+      </p>}
+    </>
   )
 }
 function DiscoveryArchive({
   ideas,
-  onBack,
   onOpen,
   onDelete,
-  onClear,
   onPick,
   promoting,
 }: {
   ideas: DiscoveryIdea[]
-  onBack: () => void
   onOpen: (item: DiscoveryIdea) => void
   onDelete: (item: DiscoveryIdea) => void
-  onClear: () => void
   onPick: (item: DiscoveryIdea, event: { timeStamp: number }) => void
   promoting: boolean
 }) {
@@ -2111,35 +2092,7 @@ function DiscoveryArchive({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-slate-50/30 p-4">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="ui-type-page font-semibold text-slate-900">
-              Discovery archive
-            </h1>
-            <p className="mt-1 ui-type-meta text-slate-500">
-              Saved, source-backed topic suggestions awaiting selection.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              onClick={onBack}
-              title="Back to workspace"
-              aria-label="Back to workspace"
-              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </button>
-            {ideas.length > 0 && (
-              <button
-                onClick={onClear}
-                className="rounded-lg border border-red-200 px-2.5 py-1.5 ui-type-body font-medium text-red-600 hover:bg-red-50"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="mt-4 space-y-4">
+        <div className="space-y-4">
           {ideas.length ? (
             groups.map((group) => (
               <section key={group.key}>

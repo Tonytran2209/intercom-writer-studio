@@ -345,7 +345,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   assert.equal(events.length, 3, 'One event for each failed attempt');
   // Select Discovery through the mocked hook host; execute its real callback.
   slots[1] = 'discovery'; render();
-  component('DiscoveryResearch').onDiscover(); await flush(); render();
+  component('DiscoveryToolbar').onDiscover(); await flush(); render();
   assert.equal(events.length, 4);
   assert.match(events[3].message, /Discovery.*Synthetic Discovery/);
   await refresh();

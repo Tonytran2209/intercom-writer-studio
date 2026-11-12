@@ -83,3 +83,43 @@ test('Discovery source trace keeps long links inside the detail panel', async ({
  await panel.getByRole('button',{name:'Close',exact:true}).click();
  await expect(panel).toHaveCount(0);
 });
+
+test('Discovery toolbar passes pasted links and distinguishes empty scans from interrupted scans', async ({page}) => {
+ const idea = {id:'saved',title:'Previously saved suggestion',status:'suggested'};
+ const links = ['https://www.threads.com/@source/post/1','https://www.instagram.com/p/source/'];
+ const requests = [];
+ await page.route('**/api/eb-v2/workspace', route => route.fulfill({
+  json:{packages:[],runs:[],articles:[],channels:[],discovery:[idea]},
+ }));
+ await page.route('**/api/eb-v2/discovery', route => {
+  requests.push(route.request().postDataJSON());
+  const event = requests.length === 1
+   ? {event:'complete',items:[],coverage:[{status:'failed'}]}
+   : {event:'progress',message:'Scanning configured sources…'};
+  return route.fulfill({contentType:'application/x-ndjson',body:JSON.stringify(event)+'\n'});
+ });
+ await page.goto('/?screen=eb');
+ await page.evaluate(async () => {
+  const {DEFAULT_CONFIG,DEFAULT_MODELS} = await import('/src/lib/defaultData.ts');
+  DEFAULT_CONFIG.models = [{...DEFAULT_MODELS[0],enabled:true}];
+  window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'}));
+ });
+ const toolbar = page.getByRole('group',{name:'Discovery actions'});
+ await expect(toolbar.getByRole('button',{name:'Clear all'})).toBeEnabled();
+ await toolbar.getByRole('button',{name:'Paste links',exact:true}).click();
+ const picker = page.getByRole('dialog',{name:'Discovery source links'});
+ await picker.getByLabel('Source links').fill(links.join('\n'));
+ await picker.getByRole('button',{name:'Done',exact:true}).click();
+ await expect(picker).toBeHidden();
+ await expect(toolbar.getByRole('button',{name:'Paste links (2)',exact:true})).toBeVisible();
+ const scan = toolbar.getByRole('button',{name:'Scan sources',exact:true});
+ await scan.click();
+ await expect(page.getByRole('status').filter({hasText:'Scan completed with no new suggestions'})).toContainText('1 source fetch failed');
+ await expect(page.getByRole('heading',{name:idea.title})).toBeVisible();
+ expect(requests[0].sourceUrls).toEqual(links);
+ await scan.click();
+ await expect(page.getByRole('status').filter({hasText:'Scan could not finish'})).toContainText('before Discovery confirmed completion');
+ await expect(page.getByRole('heading',{name:idea.title})).toBeVisible();
+ await toolbar.getByRole('button',{name:'Back to workspace'}).click();
+ await expect(page.getByRole('heading',{name:'EB Content Packages'})).toBeVisible();
+});
