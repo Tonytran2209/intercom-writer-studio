@@ -1,6 +1,6 @@
 import { jobFailure, monitoring } from './monitoring.ts';
 import { createHash, randomUUID } from "node:crypto"
-import { BriefInputError, hasUnresolvedValue, requireBriefInput, validateBriefInput } from "./briefValidation.ts"
+import { BriefInputError, briefChecklist, hasUnresolvedValue, requireBriefInput, validateBriefInput, validatedBriefInput } from "./briefValidation.ts"
 import type express from "express"
 import multer from "multer"
 import { jsonrepair } from "jsonrepair"
@@ -19,7 +19,7 @@ import {
 } from "./supabase.ts"
 import { extractDocumentText } from "./documentParser.ts"
 import { collectDiscoveryResearch } from "./discoveryResearch.ts"
-import { findMarkdownEvidence, getEvidenceDocument, maxEvidenceBytes, saveEvidenceDocument } from "./markdownEvidence.ts"
+import { evidencePassages, findMarkdownEvidence, getEvidenceDocument, maxEvidenceBytes, saveEvidenceDocument } from "./markdownEvidence.ts"
 import { refinementPlan, refinementChecks } from "./refinement.ts"
 import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
 import { sendPackageRunTelemetry } from "./telemetry.ts"
@@ -164,15 +164,10 @@ async function workflowRuleContext(
     snapshot,
   }
 }
-async function resolveMarkdownEvidence(input: string, model: Required<ModelInput>) {
-  const document = await getEvidenceDocument()
-  if (!document) throw new BriefInputError("Tải tài liệu Markdown dẫn chứng F lên trong Settings → EB Library trước khi chạy Gate 1.")
-  const evidence = await findMarkdownEvidence(document, input, model)
-  if (!evidence) throw new BriefInputError("Chưa tìm thấy dẫn chứng F phù hợp trong " + document.name + ". Cập nhật tài liệu trong Settings → EB Library rồi thử lại.")
-  return evidence
-}
-
-async function preflightBrief(input: string, model: Required<ModelInput>, packageId: string) {
+type FEvidence = { connection: string; reference: string }
+// One logged "Tìm dẫn chứng Markdown" run. Discovery calls it with the suggestion id, which becomes
+// the package id on promotion, so both lookups group under the same package.
+async function lookupMarkdownEvidence(input: string, model: Required<ModelInput>, packageId: string): Promise<FEvidence> {
   const runId = randomUUID()
   const startedAt = new Date().toISOString()
   const key = MARKDOWN_EVIDENCE_RUN_PREFIX + startedAt + ":" + runId
@@ -180,23 +175,42 @@ async function preflightBrief(input: string, model: Required<ModelInput>, packag
   const log = (status: string, endedAt: string | null, error: string | null = null) =>
     kvSet(key, { ...record, status, endedAt, error }).catch(() => console.error("[eb-v2] Cannot log Markdown evidence run", runId))
   await log("running", null)
-  let evidence
+  let code = "lookup_failed"
   try {
-    evidence = await resolveMarkdownEvidence(input, model)
+    const document = await getEvidenceDocument()
+    if (!document) {
+      code = "no_document"
+      throw new BriefInputError("Tải tài liệu Markdown dẫn chứng F lên trong Settings → EB Library trước khi chạy Gate 1.")
+    }
+    const evidence = await findMarkdownEvidence(document, input, model)
+    if (!evidence) {
+      code = "no_match"
+      throw new BriefInputError("Chưa tìm thấy dẫn chứng F phù hợp trong " + document.name + ". Cập nhật tài liệu trong Settings → EB Library rồi thử lại.")
+    }
     await log("completed", new Date().toISOString())
+    return evidence
   } catch (error) {
-    await log("failed", new Date().toISOString(), error instanceof BriefInputError ? "evidence_unavailable" : "lookup_failed")
+    await log("failed", new Date().toISOString(), code)
     throw error
   }
+}
+
+// The topic text Discovery hands to Gate 1 (also used to look up F evidence when the idea is suggested).
+const discoveryTopic = (item: any) => {
+  const research = Array.isArray(item?.evidence) ? item.evidence.find((entry: any) => entry?.kind === "research_topic") : null
+  return [item?.title, item?.source_summary, research?.ebAngle && "Góc EB: " + research.ebAngle].filter(Boolean).join("\n\n")
+}
+
+const storedFEvidence = (item: any): FEvidence | null => {
+  const entry = Array.isArray(item?.evidence) ? item.evidence.find((value: any) => value?.kind === "f_evidence") : null
+  return text(entry?.connection) && text(entry?.reference) ? { connection: text(entry.connection), reference: text(entry.reference) } : null
+}
+
+async function preflightBrief(input: string, model: Required<ModelInput>, packageId: string, stored?: FEvidence | null) {
+  const evidence = stored ?? await lookupMarkdownEvidence(input, model, packageId)
   const [rules, docs] = await Promise.all([workflowRuleContext("brief"), libraryContext()])
   const rule = rules.snapshot.find((rule: { id: string; advanced: string }) => rule.id === "input-validation")
-  let minimumFields = 11
-  try {
-    const params = JSON.parse(rule?.advanced || "{}")
-    const count = Number(params.mustHave) + Number(params.niceToHave)
-    if (Number.isInteger(count) && count > 0) minimumFields = count
-  } catch {}
-  return validateBriefInput(input, evidence.connection, evidence.reference, model, rules.prompt, docs, generate, minimumFields)
+  return validateBriefInput(input, evidence.connection, evidence.reference, model, rules.prompt, docs, generate, briefChecklist(rule?.advanced))
 }
 async function learningContext(
   gate: "brief" | "article" | "adapt" | "review",
@@ -747,7 +761,7 @@ export function registerEbV2Routes(app: express.Express) {
       const ids = Array.isArray(research?.sourceIds) ? research.sourceIds : []
       const sources = item.run_id && ids.length
         ? await tableSelect<any>("eb_v2_discovery_sources", query => query.eq("run_id", item.run_id).in("id", ids)) : []
-      const topic = [item.title, item.source_summary, research?.ebAngle && "Góc EB: " + research.ebAngle].filter(Boolean).join("\n\n")
+      const topic = discoveryTopic(item)
       const input = [topic, sources.length && "Nguồn xu hướng:\n" + sources.map(source => source.url).join("\n")].filter(Boolean).join("\n\n")
       const raw = { sourceType: "discovery", discoveryId: id }
       // Reuse the suggestion UUID to make retries safe after partial writes.
@@ -772,8 +786,8 @@ export function registerEbV2Routes(app: express.Express) {
       background = true
       void (async () => {
         try {
-          const validation = await preflightBrief(input, model, id)
-          const validatedInput = input + "\n\nCONNECTION TO F / F EVENT:\n" + validation.connection + "\n\nF SOURCE REFERENCE:\n" + validation.evidence
+          const validation = await preflightBrief(input, model, id, storedFEvidence(item))
+          const validatedInput = validatedBriefInput(input, validation)
           await tableInsert("eb_v2_package_inputs", {
             package_id: id, input_text: validatedInput, raw_snapshot: { ...raw, originalInput: input, briefValidation: validation },
           })
@@ -1164,7 +1178,7 @@ export function registerEbV2Routes(app: express.Express) {
     try {
       const packageId = randomUUID()
       const validation = await preflightBrief(inputText, model, packageId)
-      const validatedInput = `${inputText}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`
+      const validatedInput = validatedBriefInput(inputText, validation)
       const item = await tableInsert<any>("eb_v2_packages", {
         id: packageId,
         title,
@@ -1240,7 +1254,7 @@ export function registerEbV2Routes(app: express.Express) {
         const sourceInput = [inputText, text(req.body?.inputText)].filter(Boolean).join("\n\n")
         const packageId = randomUUID()
         const validation = await preflightBrief(sourceInput, model, packageId)
-        const validatedInput = `${sourceInput}\n\nCONNECTION TO F / F EVENT:\n${validation.connection}\n\nF SOURCE REFERENCE:\n${validation.evidence}`
+        const validatedInput = validatedBriefInput(sourceInput, validation)
         const item = await tableInsert<any>("eb_v2_packages", {
           id: packageId,
           title: file.originalname,
@@ -1371,9 +1385,32 @@ export function registerEbV2Routes(app: express.Express) {
         (source) => source.eligibility === "eligible",
       )
       const library = await libraryContext()
+      const evidenceDocument = await getEvidenceDocument().catch(() => null)
+      const evidenceEntries = evidenceDocument
+        ? [...new Set(evidencePassages(evidenceDocument.content).map((passage) => passage.heading).filter(Boolean))].slice(0, 60)
+        : []
+      // Look up F evidence for each suggestion in parallel; the card is re-emitted once it is known.
+      const grounding: Promise<void>[] = []
+      const ground = (item: any) => {
+        if (!evidenceDocument) return
+        grounding.push((async () => {
+          let entry: Record<string, unknown>
+          try {
+            entry = { kind: "f_evidence", status: "found", ...(await lookupMarkdownEvidence(discoveryTopic(item), model, item.id)) }
+          } catch (error) {
+            entry = { kind: "f_evidence", status: error instanceof BriefInputError ? "missing" : "failed" }
+          }
+          try {
+            Object.assign(item, await tableUpdate<any>("eb_v2_discovery_items", item.id, { evidence: [...(Array.isArray(item.evidence) ? item.evidence : []), entry] }))
+            emit("item", { item })
+          } catch (error) {
+            console.error("[eb-v2] Cannot save Discovery F evidence", item.id, error)
+          }
+        })())
+      }
       const freshDays = Math.min(90, Math.max(3, Number(runtime.discoveryFreshDays) || 30))
       const targetTopics = Math.min(5, Math.max(3, Number(runtime.discoveryMaxTopics) || 5))
-      const prompt = `Use ONLY the dated source records below. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}],"emerging":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. A trending topic needs at least two independent publishers, including one Vietnamese source, and at least one cited source published within the last ${freshDays} days. An emerging signal needs at least one cited source published within the last ${freshDays} days, but must be clearly early-stage and must never be presented as a verified trend. Aim for ${targetTopics} total entries whenever the evidence supports it; use empty arrays only when evidence is genuinely thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}`
+      const prompt = `Use ONLY the dated source records below. Return JSON only: {"trending":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}],"emerging":[{"title":"","sourceIds":["uuid"],"reason":"","ebAngle":"","pillarCandidate":""}]}. A trending topic needs at least two independent publishers, including one Vietnamese source, and at least one cited source published within the last ${freshDays} days. An emerging signal needs at least one cited source published within the last ${freshDays} days, but must be clearly early-stage and must never be presented as a verified trend. Aim for ${targetTopics} total entries whenever the evidence supports it; use empty arrays only when evidence is genuinely thin. Use the EB library only to judge fit and pillar; never cite it as trend proof.${evidenceEntries.length ? " Prefer topics whose ebAngle one of the F evidence entries below can support, and name that entry in ebAngle. Never cite F evidence as trend proof." : ""}\n\nSOURCES:\n${eligible.map((source) => `[${source.id}] ${source.source_name} | ${source.language} | ${source.published_at} | ${source.title} | ${source.excerpt ?? ""}`).join("\n")}\n\nEB LIBRARY:\n${library.join("\n\n")}${evidenceEntries.length ? `\n\nF EVIDENCE ENTRIES:\n${evidenceEntries.map((heading) => "- " + heading).join("\n")}` : ""}`
       emit("progress", { message: "Finding verified trends and emerging signals…" })
       const result = eligible.length
         ? await generate({
@@ -1449,6 +1486,7 @@ export function registerEbV2Routes(app: express.Express) {
           })
         items.push(item)
         emit("item", { item })
+        ground(item)
       }
       for (const topic of emergingTopics.slice(
         0,
@@ -1499,6 +1537,7 @@ export function registerEbV2Routes(app: express.Express) {
           })
         items.push(item)
         emit("item", { item })
+        ground(item)
       }
       const fallbackCandidates = savedSources.filter(
         (source) =>
@@ -1518,6 +1557,7 @@ export function registerEbV2Routes(app: express.Express) {
         })
         items.push(item)
         emit("item", { item })
+        ground(item)
       }
       const uncategorized = savedSources
         .filter((source) => source.eligibility === "undated")
@@ -1530,6 +1570,8 @@ export function registerEbV2Routes(app: express.Express) {
           excerpt: source.excerpt,
           classification: "uncategorized",
         }))
+      if (grounding.length) emit("progress", { message: "Checking F evidence for each suggestion…" })
+      await Promise.all(grounding)
       await tableUpdate("eb_v2_discovery_runs", run.id, {
         coverage: research.coverage,
         prompt,
@@ -1809,7 +1851,7 @@ export function registerEbV2Routes(app: express.Express) {
           ? savedText.split("\n\nCONNECTION TO F / F EVENT:\n", 1)[0]
           : savedText)
         const validation = await preflightBrief(sourceInput, model, item.id)
-        const validatedInput = sourceInput + "\n\nCONNECTION TO F / F EVENT:\n" + validation.connection + "\n\nF SOURCE REFERENCE:\n" + validation.evidence
+        const validatedInput = validatedBriefInput(sourceInput, validation)
         const briefRegenerationAt = `${validation.validatedAt}:${randomUUID()}`
         // A persisted marker invalidates old output even if the next write or AI call fails.
         await tableInsert("eb_v2_package_inputs", {

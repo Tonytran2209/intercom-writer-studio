@@ -1,13 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { BriefInputError, hasUnresolvedValue, validateBriefInput } from "../briefValidation.ts"
+import { BriefInputError, DEFAULT_BRIEF_CHECKLIST, briefChecklist, hasUnresolvedValue, validateBriefInput, validatedBriefInput } from "../briefValidation.ts"
 import type { GenerateRequest } from "../providers.ts"
 
 const model = { provider: "test", modelId: "test" }
 const input = "Buổi chia sẻ dự án tháng 10 của đội thiết kế F, có ghi chép trong tài liệu nội bộ."
 const connection = "Đội thiết kế F tổ chức buổi chia sẻ dự án vào ngày 15/10."
 const evidence = "Biên bản buổi chia sẻ 15/10, người xác nhận: trưởng nhóm thiết kế."
-const fields = Array.from({ length: 11 }, (_, i) => ({ name: `Field ${i + 1}`, value: "Concrete supported fact" }))
+const names = [...DEFAULT_BRIEF_CHECKLIST.mustHave, ...DEFAULT_BRIEF_CHECKLIST.niceToHave]
+const fields = names.map(name => ({ name, value: "Concrete supported fact" }))
 const report = { valid: true, fields, missingFields: [], questions: [] }
 const respond = (value: unknown) => async () => ({ content: JSON.stringify(value), model: "test" })
 
@@ -26,15 +27,15 @@ test("does not accept N/A anywhere in the submitted topic", async () => {
   await assert.rejects(validateBriefInput("Sự kiện F. Ngày: N/A", connection, evidence, model, "", [], respond(report)), BriefInputError)
 })
 test("returns every missing question to the writer", async () => {
-  await assert.rejects(validateBriefInput(input, connection, evidence, model, "", [], respond({ ...report, valid: false, missingFields: ["Ngày sự kiện"], questions: ["Ai xác nhận?", "Mục tiêu cụ thể là gì?"] })), error => {
-    assert.match(String(error), /Ngày sự kiện/)
+  await assert.rejects(validateBriefInput(input, connection, evidence, model, "", [], respond({ ...report, valid: false, missingFields: ["Liên hệ với F"], questions: ["Ai xác nhận?", "Mục tiêu cụ thể là gì?"] })), error => {
+    assert.match(String(error), /Liên hệ với F/)
     assert.match(String(error), /Ai xác nhận/)
     assert.match(String(error), /Mục tiêu/)
     return true
   })
 })
 test("rejects an AI pass with missing, duplicate, or unresolved checked fields", async () => {
-  for (const checked of [[], fields.slice(0, 1), Array(11).fill(fields[0]), [...fields.slice(0, 10), { name: "Event date", value: "N/A" }]])
+  for (const checked of [[], fields.slice(0, 1), Array(11).fill(fields[0]), [{ ...fields[0], value: "N/A" }, ...fields.slice(1)]])
     await assert.rejects(validateBriefInput(input, connection, evidence, model, "", [], respond({ ...report, fields: checked })), BriefInputError)
 })
 test("fails closed on malformed AI validation", async () => {
@@ -62,4 +63,23 @@ test("extracts F connection and evidence from a single free-text input", async (
 test("unified input still cannot pass without a concrete F connection and evidence", async () => {
   for (const values of [{ connection: "", evidence }, { connection, evidence: "" }, { connection: "N/A", evidence }, {}])
     await assert.rejects(validateBriefInput(input, "", "", model, "", [], respond({ ...report, ...values })), BriefInputError)
+})
+
+test("missing nice-to-have fields never block and are returned as gaps", async () => {
+  const mustOnly = fields.slice(0, DEFAULT_BRIEF_CHECKLIST.mustHave.length)
+  const result = await validateBriefInput(input, connection, evidence, model, "", [],
+    respond({ valid: false, fields: mustOnly, missingFields: ["Số liệu"], questions: ["Có ảnh sự kiện không?"] }))
+  assert.deepEqual(result.gaps, [...DEFAULT_BRIEF_CHECKLIST.niceToHave, "Có ảnh sự kiện không?"])
+  assert.match(validatedBriefInput(input, result), /NON-BLOCKING GAPS[\s\S]*Số liệu/)
+})
+test("a must-have field is matched by name regardless of case and spacing", async () => {
+  const renamed = fields.map(field => ({ ...field, name: "  " + field.name.toUpperCase() + " " }))
+  await validateBriefInput(input, connection, evidence, model, "", [], respond({ ...report, fields: renamed }))
+})
+test("reads named fields or counts from the input-validation rule", () => {
+  assert.deepEqual(briefChecklist(undefined), DEFAULT_BRIEF_CHECKLIST)
+  assert.deepEqual(briefChecklist("not json"), DEFAULT_BRIEF_CHECKLIST)
+  assert.deepEqual(briefChecklist('{"mustHave":2,"niceToHave":0}'), { mustHave: DEFAULT_BRIEF_CHECKLIST.mustHave.slice(0, 2), niceToHave: [] })
+  assert.deepEqual(briefChecklist('{"mustHaveFields":["A"," A ","B"],"niceToHaveFields":["C"]}'), { mustHave: ["A", "B"], niceToHave: ["C"] })
+  assert.deepEqual(briefChecklist('{"mustHaveFields":[]}').mustHave, DEFAULT_BRIEF_CHECKLIST.mustHave)
 })
