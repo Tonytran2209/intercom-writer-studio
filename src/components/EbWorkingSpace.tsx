@@ -2801,6 +2801,15 @@ function TaskDetail({
     </div>
   )
 }
+function discoverySourceUrl(value: unknown) {
+  if (typeof value !== "string" || !/^https?:\/\//i.test(value)) return null
+  try {
+    return new URL(value)
+  } catch {
+    return null
+  }
+}
+
 function DiscoveryDetail({
   item,
   onClose,
@@ -2848,10 +2857,10 @@ function DiscoveryDetail({
     >
       <aside
         onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel flex h-full w-full max-w-xl flex-col border bg-white"
+        className="eb-detail-panel eb-discovery-detail flex h-full w-full min-w-0 max-w-xl flex-col overflow-hidden border bg-white [overflow-wrap:anywhere]"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200/80 p-4">
-          <div>
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200/80 p-4">
+          <div className="min-w-0">
             <p className="ui-type-meta font-semibold uppercase tracking-wide text-purple-500">
               {discoveryTag(savedItem)}
             </p>
@@ -2872,7 +2881,7 @@ function DiscoveryDetail({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
           <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
             <h3 className="ui-type-title font-semibold text-slate-800">
               Suggestion context
@@ -2903,25 +2912,27 @@ function DiscoveryDetail({
             <h3 className="ui-type-title font-semibold text-slate-800">Sources used</h3>
             {sources.length ? (
               <div className="mt-2 space-y-2">
-                {sources.map((source: any, index: number) => (
-                  <div
-                    key={`${source.slug ?? source.name ?? index}`}
-                    className="rounded-lg bg-slate-50 p-2 ui-type-meta text-slate-600"
-                  >
-                    <b className="text-slate-700">
-                      {source.source_name ??
-                        source.name ??
-                        source.slug ??
-                        "Research source"}
-                    </b>
-                    <p className="mt-1">
-                      {source.sourcePath ?? "EB Library"}
-                      {source.updatedAt
-                        ? ` · updated ${new Date(source.updatedAt).toLocaleString()}`
-                        : ""}
-                    </p>
-                  </div>
-                ))}
+                {sources.map((source: any, index: number) => {
+                  const url = discoverySourceUrl(source.sourcePath)
+                  return (
+                    <div key={source.id ?? index} className="rounded-lg bg-slate-50 p-2 ui-type-meta text-slate-600">
+                      <b className="text-slate-700">
+                        {source.title ?? source.name ?? source.slug ?? "Research source"}
+                      </b>
+                      <div className="mt-1">
+                        {url ? (
+                          <a href={url.href} target="_blank" rel="noopener noreferrer"
+                            className="text-indigo-600 underline underline-offset-2">
+                            {url.hostname}
+                          </a>
+                        ) : <span className="line-clamp-2" title={source.sourcePath}>{source.sourcePath ?? "EB Library"}</span>}
+                        {source.updatedAt && (
+                          <span className="block">Updated {new Date(source.updatedAt).toLocaleString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <p className="mt-2 ui-type-meta text-slate-400">
@@ -2953,7 +2964,7 @@ function DiscoveryDetail({
                   <summary className="cursor-pointer font-medium text-slate-700">
                     View prompt & generated batch
                   </summary>
-                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 ui-type-meta text-slate-600">
+                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border border-slate-200 bg-white p-2 ui-type-meta text-slate-600">
                     {run.prompt}\n\n--- Output ---\n{run.output}
                   </pre>
                 </details>

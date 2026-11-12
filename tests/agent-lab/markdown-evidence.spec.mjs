@@ -57,3 +57,29 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  await expect(detail.getByLabel('Dẫn chứng / nguồn xác nhận tại F')).toHaveCount(0);
  await expect(page.getByLabel('Ảnh dẫn chứng')).toHaveCount(0);
 });
+
+test('Discovery source trace keeps long links inside the detail panel', async ({ page }) => {
+ const url = 'https://example.com/redirect/' + 'AbCd0123'.repeat(180);
+ const idea = {id:'long-source',title:'Research with a long source link',status:'suggested'};
+ await page.route('**/api/eb-v2/workspace', route => route.fulfill({
+  json:{packages:[],runs:[],articles:[],channels:[],discovery:[idea]},
+ }));
+ await page.route('**/api/eb-v2/discovery/long-source/details', route => route.fulfill({
+  json:{item:idea,sources:[
+   {source_name:'Web research',url},
+   {source_name:'Internal evidence',sourcePath:'Research/'.repeat(180)},
+  ]},
+ }));
+ await page.goto('/?screen=eb');
+ await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
+ await page.getByRole('button',{name:'Details',exact:true}).click();
+ const panel = page.locator('.eb-discovery-detail');
+ await expect(panel.getByRole('heading',{name:'Sources used'})).toBeVisible();
+ await expect(panel.getByRole('link',{name:'example.com',exact:true})).toHaveAttribute('href',url);
+ await expect(panel.getByText('Internal evidence',{exact:true})).toBeVisible();
+ expect(await panel.evaluate(node =>
+  [node, ...node.querySelectorAll('section, .overflow-y-auto')].every(element => element.scrollWidth <= element.clientWidth)
+ )).toBe(true);
+ await panel.getByRole('button',{name:'Close',exact:true}).click();
+ await expect(panel).toHaveCount(0);
+});
