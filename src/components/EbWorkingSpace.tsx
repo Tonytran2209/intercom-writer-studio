@@ -5,10 +5,13 @@ import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Bell,
   Check,
   ChevronDown,
+  CircleAlert,
+  CircleCheck,
   Copy,
   Download,
   FileText,
@@ -19,6 +22,7 @@ import {
   RotateCcw,
   ScanSearch,
   Trash2,
+  TriangleAlert,
   Upload,
   X,
 } from "lucide-react"
@@ -1082,12 +1086,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             onClick={() => setNotificationOpen(true)}
             title="Notifications"
             aria-label="Notifications"
-            className="relative grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+            aria-haspopup="dialog"
+            aria-expanded={notificationOpen}
+            aria-description={`${notices.length} thông báo`}
+            className="eb-notice-trigger"
           >
-            <Bell className="h-3.5 w-3.5" />
+            <Bell size={16} aria-hidden="true" />
             {notices.length > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 ui-type-body font-semibold text-white">
-                {notices.length}
+              <span className="eb-notice-count" aria-hidden="true">
+                {notices.length > 99 ? "99+" : notices.length}
               </span>
             )}
           </button>
@@ -1282,6 +1289,21 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   )
 }
 
+function noticeTone(notice: { id: string; kind?: string; error?: boolean }) {
+  if (notice.kind) return notice.kind
+  if (notice.error || notice.id === "rejected") return "error"
+  if (notice.id === "done") return "success"
+  if (notice.id !== "discovery") return "warning"
+}
+
+function NoticeIcon({ kind }: { kind?: string }) {
+  const Icon = kind === "error" ? CircleAlert
+    : kind === "warning" ? TriangleAlert
+    : kind === "success" ? CircleCheck
+    : Bell
+  return <span className="eb-notice-icon" data-kind={kind} aria-hidden="true"><Icon size={16} /></span>
+}
+
 // Presentation only: the bell remains the source of history and details.
 export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocus }: {
   notices: Array<{ id: string; text: string; details: NotificationDetail[]; kind?: string; error?: boolean }>
@@ -1299,7 +1321,7 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
   const bannerRef = useRef<HTMLDivElement>(null)
   // Sort detail records so a different API ordering is not a content change.
   const snapshot = JSON.stringify(notices.map(notice => ({
-    id: notice.id, text: notice.text, kind: notice.kind ?? (notice.error ? "error" : "warning"),
+    id: notice.id, text: notice.text, kind: noticeTone(notice),
     fingerprint: notificationFingerprint(notice),
   })))
   useEffect(() => {
@@ -1347,8 +1369,8 @@ export function WorkspaceNotificationBanner({ notices, confirmed, onCollapseFocu
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
     }}>
-    <span aria-hidden="true" className={`workspace-notification-status is-${active.kind}`}><Bell size={16} /></span>
-    <p role="status" aria-live="polite" aria-atomic="true"><span className="sr-only">{active.kind}: </span>{active.text}</p>
+    <NoticeIcon kind={active.kind} />
+    <p role="status" aria-live="polite" aria-atomic="true"><span className="sr-only">{active.kind ? `${active.kind}: ` : ""}</span>{active.text}</p>
     <button type="button" aria-label="Thu gọn về chuông" title="Thu gọn về chuông" onClick={() => {
       if (bannerRef.current?.contains(document.activeElement)) onCollapseFocus()
       setCollapsing(true)
@@ -1411,7 +1433,7 @@ function NotificationPanel({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
-      className="eb-overlay absolute inset-0 z-50 flex justify-end p-3"
+      className="eb-overlay absolute inset-0 z-50 flex justify-end p-2 sm:p-3"
     >
       <aside
         ref={panelRef}
@@ -1429,17 +1451,11 @@ function NotificationPanel({
           }
         }}
         onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel flex h-full w-full max-w-sm flex-col border bg-white"
+        className="eb-detail-panel eb-notice-panel flex h-full w-full max-w-[26rem] flex-col overflow-hidden border"
       >
-        <header className="flex items-center justify-between border-b border-slate-200 p-4">
-          <div>
-            <p className="ui-type-body font-semibold text-slate-900">
-              Notification center
-            </p>
-            <p className="mt-1 ui-type-meta text-slate-500">
-              Connection, workflow, AI runs and saved-data status
-            </p>
-          </div>
+        <header className="eb-notice-panel-header flex shrink-0 items-center gap-3 border-b p-4">
+          <NoticeIcon />
+          <h2 className="min-w-0 flex-1 ui-type-title font-semibold">Notification center</h2>
           <button
             onClick={onClose}
             aria-label="Close notifications"
@@ -1448,7 +1464,7 @@ function NotificationPanel({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div role="tablist" aria-label="Notification sections" className="flex shrink-0 gap-1 border-b border-slate-200 p-2">
+        <div role="tablist" aria-label="Notification sections" className="eb-notice-tabs flex shrink-0 gap-1 border-b px-3 py-2">
           {(["notices", "system"] as const).map((value, index) => <button
             key={value} ref={node => { tabRefs.current[index] = node }}
             role="tab" id={`notification-tab-${value}`} aria-controls={`notification-panel-${value}`}
@@ -1461,7 +1477,7 @@ function NotificationPanel({
               setTab(next === 0 ? "notices" : "system")
               tabRefs.current[next]?.focus()
             }}
-            className={`min-h-10 flex-1 rounded-lg px-2 ui-type-meta font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
+            className="min-h-9 flex-1 rounded-lg px-2 ui-type-meta font-semibold"
           >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
         </div>
         <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -1490,34 +1506,48 @@ function NotificationPanel({
               </> : <p role="status">This notification is no longer available. Workspace data has changed.</p>}
             </section>
           ) : notices.length ? (
-            notices.map((notice) => (
-              <article key={notice.id} className={`mb-2 rounded-xl border ui-type-meta ${notice.error ? "border-red-100 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
-                <button
-                  ref={node => { if (node) rowRefs.current.set(notice.id, node); else rowRefs.current.delete(notice.id) }}
-                  onClick={() => setSelectedNoticeId(notice.id)}
-                  className="w-full rounded-xl p-3 text-left focus-visible:outline focus-visible:outline-2"
-                >
-                  <span className="block whitespace-pre-wrap break-words font-semibold">{notice.text}</span>
-                  {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="mt-2 block break-words">{detail.title}<span className="mt-0.5 block ui-type-body">{detail.context}</span></span>)}
-                  {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
-                  <span className="mt-2 block ui-type-meta font-semibold">View details →</span>
-                </button>
-                <button aria-label={`Xoá thông báo: ${notice.text}`} onClick={async () => {
-                  const index = notices.findIndex(item => item.id === notice.id)
-                  const next = notices[index + 1] ?? notices[index - 1]
-                  if (!await onDismiss([notice])) return
-                  requestAnimationFrame(() => (rowRefs.current.get(next?.id ?? "") ?? tabRefs.current[0])?.focus())
-                }} className="min-h-10 rounded-lg px-3 ui-type-body font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
-              </article>
-            ))
-          ) : <p className="p-4 text-center ui-type-meta text-slate-500">Không có thông báo mới</p>}
+            <div className="grid gap-2.5">
+              {notices.map(notice => {
+                const kind = noticeTone(notice)
+                return <article key={notice.id} className="eb-notice-card" data-kind={kind}>
+                  <button
+                    ref={node => { if (node) rowRefs.current.set(notice.id, node); else rowRefs.current.delete(notice.id) }}
+                    onClick={() => setSelectedNoticeId(notice.id)}
+                    className="eb-notice-card-open"
+                  >
+                    <NoticeIcon kind={kind} />
+                    <span className="min-w-0">
+                      <span className="block ui-type-body font-semibold">{notice.text}</span>
+                      {notice.details.length > 0 && <span className="eb-notice-preview">
+                        {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="block">
+                          <span className="block">{detail.title}</span>
+                          <span className="eb-notice-context block">{detail.context}</span>
+                        </span>)}
+                        {notice.details.length > 2 && <span className="eb-notice-context block">+{notice.details.length - 2} more</span>}
+                      </span>}
+                      <span className="eb-notice-link">View details <ArrowRight size={12} aria-hidden="true" /></span>
+                    </span>
+                  </button>
+                  <button aria-label={`Xoá thông báo: ${notice.text}`} title="Xoá thông báo" onClick={async () => {
+                    const index = notices.findIndex(item => item.id === notice.id)
+                    const next = notices[index + 1] ?? notices[index - 1]
+                    if (!await onDismiss([notice])) return
+                    requestAnimationFrame(() => (rowRefs.current.get(next?.id ?? "") ?? tabRefs.current[0])?.focus())
+                  }} className="eb-notice-delete"><Trash2 size={15} aria-hidden="true" /></button>
+                </article>
+              })}
+            </div>
+          ) : <div className="eb-notice-empty">
+            <NoticeIcon />
+            <p className="ui-type-body font-medium">Không có thông báo mới</p>
+          </div>}
         </div>
-        {tab === "notices" && notices.length > 0 && <footer className="shrink-0 border-t border-slate-200 p-2">
+        {tab === "notices" && notices.length > 0 && <footer className="eb-notice-footer flex shrink-0 justify-end border-t px-3 py-2">
           <button onClick={async () => {
             if (!await onDismiss(notices)) return
             setSelectedNoticeId(null)
             tabRefs.current[0]?.focus()
-          }} className="min-h-10 rounded-lg px-3 ui-type-body font-semibold focus-visible:outline focus-visible:outline-2">Xoá tất cả</button>
+          }} className="eb-notice-clear min-h-9 rounded-lg px-3 ui-type-body font-semibold">Xoá tất cả</button>
         </footer>}
       </aside>
     </div>

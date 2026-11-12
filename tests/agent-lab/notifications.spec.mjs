@@ -129,7 +129,7 @@ offlineTest('NOTIFICATIONS_OFFLINE system counts and loading-error-recovery rend
   const tasks = [{gate:'brief'}, {gate:'article'}, {gate:'adapt'}, {gate:'review', channels:[{decision:'done'}, {decision:'reject'}, {decision:'recheck'}]}];
   const counts = countsFor(tasks, 4);
   assert.deepEqual(counts.map(item => item.count), [1,1,1,1,1,1,4]);
-  const Panel = new Function('React', 'useState', 'useRef', 'useEffect', 'X', `${compile(source.slice(source.indexOf('function NotificationPanel'), source.indexOf('function GateGroup')))};return NotificationPanel`)(React, initial => [initial === 'notices' ? 'system' : initial, () => {}], initial => ({current:initial}), () => {}, () => null);
+  const Panel = new Function('React', 'useState', 'useRef', 'useEffect', 'X', 'NoticeIcon', `${compile(source.slice(source.indexOf('function NotificationPanel'), source.indexOf('function GateGroup')))};return NotificationPanel`)(React, initial => [initial === 'notices' ? 'system' : initial, () => {}], initial => ({current:initial}), () => {}, () => null, () => null);
   const render = (syncing, runtimeError, currentCounts) => renderToStaticMarkup(React.createElement(Panel, {notices:[], syncing, runtimeError, counts:currentCounts, onRetry(){}, onClose(){}}));
   const live = render(false, null, counts);
   assert.match(live, /V2 workspace is live/);
@@ -461,7 +461,7 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     },
   };
   const noticeStore = await loadNoticeStore();
-  const dependencies = {'twenty-ui/primitives/navigation':{},'twenty-ui/primitives/surfaces':{Popover:{Root:'div',Trigger:'button',Portal:'div',Positioner:'div',Popup:'div'}},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
+  const dependencies = {'twenty-ui/primitives/navigation':{},'twenty-ui/primitives/surfaces':{Popover:{Root:'div',Trigger:'button',Portal:'div',Positioner:'div',Popup:'div'}},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,CircleAlert:()=>null,CircleCheck:()=>null,TriangleAlert:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
   const module = {exports:{}};
   new Function('require','exports',compiled)(name => {
     assert.ok(name in dependencies, `Unexpected module ${name}`);
@@ -581,7 +581,8 @@ for (const theme of ['light', 'dark']) test(`banners collapse into bell history,
   const viewport = page.viewportSize();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width);
-  expect(bounds.y).toBeLessThan(viewport.height/2);
+  if (viewport.width >= 640) expect(bounds.y).toBeLessThan(viewport.height/2);
+  else expect(bounds.y).toBeGreaterThan(viewport.height/2);
   await banner.hover();
   await page.clock.fastForward(8000);
   await expect(banner).toBeVisible();
@@ -699,4 +700,38 @@ test('delete individual notifications and clear all preserve source data', async
   } finally {
     await freshContext.close();
   }
+});
+
+test('Notification badge fits a narrow header and cards separate open and delete actions', async ({page}) => {
+  await page.setViewportSize({width:320,height:640});
+  await page.route('**/api/eb-v2/workspace', route => route.fulfill({
+    json:{packages:[],runs:[],articles:[],channels:[],discovery:[]},
+  }));
+  await page.goto('/?screen=eb');
+  const trigger = page.getByRole('button',{name:'Notifications',exact:true});
+  const badge = trigger.locator('.eb-notice-count');
+  await expect(badge).toHaveCount(0);
+  await page.evaluate(async () => {
+    const {notifyWorkspace} = await import('/src/components/workspace/WorkspaceNotification.tsx');
+    for (let i=0; i<100; i++) notifyWorkspace(`Thông báo ${i} ${'long-word'.repeat(12)}`, i === 0 ? 'error' : 'success');
+  });
+  await expect(badge).toHaveText('99+');
+  await expect(trigger).toHaveAccessibleDescription('100 thông báo');
+  const icon = await trigger.locator('svg').boundingBox();
+  const count = await badge.boundingBox();
+  const button = await trigger.boundingBox();
+  expect(icon.x + icon.width).toBeLessThan(count.x);
+  expect(count.x + count.width).toBeLessThan(button.x + button.width);
+  await trigger.click();
+  const panel = page.getByRole('dialog',{name:'Notification center'});
+  const card = panel.locator('.eb-notice-card').first();
+  await expect(card).toHaveAttribute('data-kind','error');
+  await expect(card.locator('.eb-notice-icon svg')).toBeVisible();
+  const open = await card.locator('.eb-notice-card-open').boundingBox();
+  const remove = await card.locator('.eb-notice-delete').boundingBox();
+  expect(open.x + open.width).toBeLessThan(remove.x);
+  expect(await card.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({path:test.info().outputPath('notification-cards.png')});
+  await card.locator('.eb-notice-card-open').click();
+  await expect(panel.getByRole('region',{name:'Notification details'})).toBeVisible();
 });
