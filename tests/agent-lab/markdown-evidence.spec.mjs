@@ -39,9 +39,9 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  if (page.viewportSize().width >= 1024) await page.setViewportSize({width:1440,height:900});
  await expect(page.locator('.eb-task-inspector')).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');
  await expect(detail.getByText(error,{exact:true}).first()).toBeVisible();
- await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toHaveCount(0);
+ await expect(detail.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0);
  await detail.getByRole('button',{name:'Tìm lại dẫn chứng F',exact:true}).click();
- await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toBeEnabled();
+ await expect(detail.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
  await expect(detail.getByText('workshop.md Verified workshop quote',{exact:true})).toBeVisible();
  const evidenceTab=detail.getByRole('tab',{name:'Dẫn chứng',exact:true});
  await expect(evidenceTab.getByText('Dẫn chứng',{exact:true})).toHaveCSS('font-size','13px');
@@ -53,7 +53,7 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  await detail.getByRole('tab',{name:'Brief',exact:true}).click();
  await expect(detail.getByText('Validated brief',{exact:true})).toHaveCSS('font-size','14px');
  expect(await detail.locator('.eb-task-inspector-content').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
- await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toBeEnabled();
+ await expect(detail.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
  await expect(detail.getByLabel('Dẫn chứng / nguồn xác nhận tại F')).toHaveCount(0);
  await expect(page.getByLabel('Ảnh dẫn chứng')).toHaveCount(0);
 });

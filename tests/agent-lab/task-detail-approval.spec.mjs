@@ -105,7 +105,14 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
    DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'popup-model',enabled:true}];
   });
   await page.getByRole('button',{name:'Open task: Synthetic popup',exact:true}).click();
-  const popup=page.locator('aside');const approve=popup.getByRole('button',{name:`Approve ${gate}`,exact:true});
+  const popup=page.locator('aside');const approve=popup.getByRole('button',{name:'Approve',exact:true});
+  await expect(approve).toBeEnabled();
+  const actionBounds=await approve.boundingBox();
+  const gateBounds=await popup.locator('.eb-inspector-gate').boundingBox();
+  const titleBounds=await popup.getByRole('heading',{name:'Synthetic popup',exact:true}).boundingBox();
+  expect(actionBounds.x).toBeGreaterThan(gateBounds.x+gateBounds.width);
+  expect(actionBounds.y).toBeLessThan(gateBounds.y+gateBounds.height);
+  expect(actionBounds.y+actionBounds.height).toBeLessThan(titleBounds.y);
   await approve.click();await expect(popup.getByRole('alert').filter({hasText:'Synthetic approval failure'})).toContainText('Synthetic approval failure');
   await expect(approve).toBeEnabled();fail=false;await approve.click();
   await expect.poll(()=>calls.length).toBe(2);await expect(approve).toBeDisabled();

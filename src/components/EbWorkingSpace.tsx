@@ -2523,34 +2523,32 @@ function TaskDetail({
         onClick={(event) => event.stopPropagation()}
         className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col overflow-hidden border"
       >
-        <header className="eb-inspector-header shrink-0 border-b px-4 py-4 sm:px-5">
-          <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="eb-inspector-gate ui-type-meta font-medium">
+        <header className="eb-inspector-header shrink-0 border-b px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="eb-inspector-gate min-w-0 truncate ui-type-meta font-medium">
               {gateConfig[task.gate].title}
             </p>
-            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-page font-semibold [overflow-wrap:anywhere]">
-              {task.title}
-            </h2>
-          </div>
-          <LightButton ref={closeButton} type="button" size="sm" variant="ghost" aria-label="Close task details"
-            onClick={onClose}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
-          >
-            <X className="h-4 w-4" />
-          </LightButton>
-          </div>
-          {canApproveTask(task) && (
-            <div className="mt-3">
-              <MainButton size="sm" color="accent"
-                disabled={approvalDisabled || loading || Boolean(error)}
-                onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
-              >
-                {approvalPending && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
-                <span className="ui-type-body">{task.gate === "brief" ? "Approve brief" : "Approve article"}</span>
-              </MainButton>
+            <div className="flex shrink-0 items-center gap-1">
+              {canApproveTask(task) && (
+                <MainButton type="button" size="sm" color="accent"
+                  className="min-h-8"
+                  disabled={approvalDisabled || loading || Boolean(error)}
+                  startIcon={approvalPending ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : undefined}
+                  onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
+                >
+                  <span className="ui-type-body">Approve</span>
+                </MainButton>
+              )}
+              <LightButton ref={closeButton} type="button" size="sm" variant="ghost" aria-label="Close task details"
+                onClick={onClose}
+                className="min-h-8 min-w-8"
+                startIcon={<X size={16} aria-hidden="true" />}
+              />
             </div>
-          )}
+          </div>
+          <h2 id="eb-task-inspector-title" className="mt-3 ui-type-page font-semibold [overflow-wrap:anywhere]">
+            {task.title}
+          </h2>
           {approvalPending && <p role="status" className="mt-2 ui-type-meta text-slate-500">Saving approval and starting the next step…</p>}
         </header>
         <Tabs.Root defaultValue={task.discoveryNeedsEvidence ? "evidence" : "output"} className="min-h-0 flex flex-1 flex-col">
