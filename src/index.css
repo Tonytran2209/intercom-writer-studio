@@ -482,9 +482,7 @@ a .lucide {
   box-shadow: none;
 }
 .writer-light button svg { width: 1rem !important; height: 1rem !important; min-width: 1rem; flex: 0 0 1rem; stroke-width: 1.9; }
-.writer-light button[class*="min-h-28"] > div:first-child { font-size: 1rem !important; line-height: 1.25rem; }
-.writer-light .sidebar-nav { font-size: 0.8125rem; line-height: 1.25rem; }
-.writer-light .sidebar-nav > span:not(.ml-auto) { font-size: 1rem; line-height: 1; }
+.writer-light .sidebar-nav { line-height: 1.25rem; }
 
 .writer-light .writer-sidebar { background: #f1f1ef !important; border-color: #dededb !important; color: #555 !important; }
 .writer-light .writer-sidebar .text-white { color: #1f1f1f !important; }
@@ -764,7 +762,6 @@ html, body, #root {
 .codex-dark .sidebar-nav {
   border-radius: 0.5rem;
   color: #9ca3af;
-  font-size: 0.875rem;
   font-weight: 400;
 }
 
@@ -3003,6 +3000,13 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   font-family: var(--t-font-family, Inter, sans-serif);
   font-size: var(--ui-font-body);
   line-height: 1.4;
+}
+/* Twenty sizes set the control dimensions. Use the app text scale for the label. */
+@layer components {
+  :where(button, [role="button"], [role="tab"], [role="combobox"], [role="menuitem"],
+    input[type="button"], input[type="submit"], input[type="reset"]) {
+    font-size: var(--ui-font-body);
+  }
 }
 .ui-type-page { --ui-type-size: var(--ui-font-page); }
 .ui-type-title { --ui-type-size: var(--ui-font-title); }

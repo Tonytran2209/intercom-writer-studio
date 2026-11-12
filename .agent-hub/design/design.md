@@ -32,7 +32,7 @@ Use Twenty's Inter family and weights. Choose component size through Twenty's AP
 | Reading content | ui-type-reading | 14 px | Briefs and evidence excerpts with relaxed line height |
 | Compact count | ui-type-count | Twenty xxs | Counters inside controls |
 
-Use regular, medium and semibold weights. Give rows and sections room through spacing while maintaining readable line lengths, wrapping and visible focus. Keep authored document previews on their own content scale.
+Buttons, dropdown triggers and tabs default to 13 px through the shared control typography rule. Use the component size prop to set control height and padding. Use regular, medium and semibold weights. Give rows and sections room through spacing while maintaining readable line lengths, wrapping and visible focus. Keep authored document previews on their own content scale.
 
 ## Layout and interaction
 

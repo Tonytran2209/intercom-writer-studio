@@ -564,7 +564,7 @@ export default function ActivityLauncher({
                 <div className="relative">
                   <button
                     onClick={() => setMenu((value) => !value)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-lg text-[#aaa] hover:bg-[#3a3a3a]"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#aaa] hover:bg-[#3a3a3a]"
                   >
                     <Plus className="app-icon" aria-hidden="true" />
                   </button>

@@ -108,6 +108,9 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   await page.getByRole('button',{name:`Open task: ${title}`,exact:true}).click();
   const popup=page.locator('aside');const approve=popup.getByRole('button',{name:'Approve',exact:true});
   await expect(approve).toBeEnabled();
+  await expect(approve).toHaveCSS('font-size','13px');
+  await expect(popup.getByRole('tab',{name:'Lịch sử',exact:true})).toHaveCSS('font-size','13px');
+  await expect(popup.getByRole('button',{name:'Export .md',exact:true})).toHaveCSS('font-size','13px');
   const actionBounds=await approve.boundingBox();
   const gateBounds=await popup.locator('.eb-inspector-gate').boundingBox();
   const titleBounds=await popup.getByRole('heading',{name:title,exact:true}).boundingBox();

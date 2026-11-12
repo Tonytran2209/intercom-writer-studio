@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Ellipsis, LoaderCircle, Search, Sparkles } from "lucide-react";
+import { ArrowRight, Ellipsis, LoaderCircle, Search, Sparkles, X } from "lucide-react";
 import type {
   Article,
   AIModel,
@@ -734,7 +734,7 @@ export default function Step2CoreIdea({
                 </div>
                 <h3 id="core-idea-detail-title" className="mt-2 text-base font-semibold leading-snug text-slate-900">{idea.title}</h3>
               </div>
-              <button type="button" onClick={() => setDetailIdeaId(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 hover:bg-slate-200" aria-label={tr('Đóng', 'Close')}>×</button>
+              <button type="button" onClick={() => setDetailIdeaId(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200" aria-label={tr('Đóng', 'Close')}><X size={16} aria-hidden="true" /></button>
             </header>
             <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">

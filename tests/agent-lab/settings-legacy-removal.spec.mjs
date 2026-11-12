@@ -19,6 +19,12 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
   await route.fulfill({json:bodies[path]});
  });
  await page.goto('/?screen=settings');
+ const footer = page.locator('.settings-footer');
+ for (const name of [/^(Huỷ|Cancel)$/, /^(Lưu thay đổi|Save changes)$/]) {
+  const action = footer.getByRole('button',{name});
+  await expect(action).toHaveCSS('font-size','13px');
+  await expect(action.getByText(name)).toHaveCSS('font-size','13px');
+ }
  const nav=page.locator('.settings-subnav');
  await expect(nav.getByRole('button')).toHaveText(['EB Library','EB Workflow Rules','Website Inventory']);
  await expect(page.getByText('fixture-library.md',{exact:true})).toBeVisible();

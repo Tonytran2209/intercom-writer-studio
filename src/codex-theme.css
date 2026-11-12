@@ -31,7 +31,7 @@
 }
 
 .codex-dark .writer-sidebar { background: var(--cx-sidebar) !important; border-color: #222 !important; }
-.codex-dark .sidebar-nav { padding: .375rem .5rem; border-radius: .375rem; font-size: .875rem; font-weight: 400; }
+.codex-dark .sidebar-nav { padding: .375rem .5rem; border-radius: .375rem; font-weight: 400; }
 .codex-dark .sidebar-nav:hover { background: #262626 !important; color: var(--cx-text) !important; }
 .codex-dark .sidebar-recent-card { min-height: 2.25rem; border-radius: .625rem !important; }
 .codex-dark .sidebar-recent-card:hover { background: #202020 !important; border-color: var(--cx-border) !important; }

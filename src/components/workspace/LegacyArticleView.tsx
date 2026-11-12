@@ -35,7 +35,7 @@ export default function LegacyArticleView({ article, migrating, onMigrate }: Pro
               <h1 className="text-2xl font-semibold leading-tight text-[#ededed]">{article.title || article.topic}</h1>
               <p className="mt-2 text-xs text-[#777]">{tr("Output gốc được hiển thị mà không áp dụng guard hoặc gọi AI mới.", "Original outputs are shown without applying current guards or calling AI.")}</p>
             </div>
-            <button type="button" disabled={migrating} onClick={onMigrate} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#414141] bg-[#242424] px-3.5 py-2 text-sm font-medium text-[#e3e3e3] transition-colors hover:bg-[#2c2c2c] disabled:opacity-50">
+            <button type="button" disabled={migrating} onClick={onMigrate} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#414141] bg-[#242424] px-3.5 py-2 ui-type-body font-medium text-[#e3e3e3] transition-colors hover:bg-[#2c2c2c] disabled:opacity-50">
               <ExternalLink className="app-icon" aria-hidden="true" />
               {migrating ? tr("Đang tạo bản mới…", "Creating copy…") : tr("Tạo bản workflow mới", "Create current-workflow copy")}
             </button>

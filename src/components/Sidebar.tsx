@@ -61,7 +61,7 @@ export default function Sidebar({
       } w-full md:w-[252px] shrink-0 min-h-0 overflow-hidden border-b md:border-b-0 md:border-r border-[#2b2b2b] bg-[#202020] text-[#c8c8c8] transition-all flex flex-col`}
     >
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
-        <button onClick={onNewArticle} className="flex items-center gap-2 text-sm font-semibold text-[#e7e7e7]">
+        <button onClick={onNewArticle} className="flex items-center gap-2 ui-type-body font-semibold text-[#e7e7e7]">
           <BrandMark />
           Writer Studio
         </button>

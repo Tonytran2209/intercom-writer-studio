@@ -105,11 +105,14 @@ test('Discovery toolbar passes pasted links and distinguishes empty scans from i
   window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'}));
  });
  const toolbar = page.getByRole('group',{name:'Discovery actions'});
+ await expect(toolbar.getByRole('button',{name:'Scan sources',exact:true})).toHaveCSS('font-size','13px');
  await expect(toolbar.getByRole('button',{name:'Clear all'})).toBeEnabled();
  await toolbar.getByRole('button',{name:'Paste links',exact:true}).click();
  const picker = page.getByRole('dialog',{name:'Discovery source links'});
  await picker.getByLabel('Source links').fill(links.join('\n'));
- await picker.getByRole('button',{name:'Done',exact:true}).click();
+ const done = picker.getByRole('button',{name:'Done',exact:true});
+ await expect(done.getByText('Done',{exact:true})).toHaveCSS('font-size','13px');
+ await done.click();
  await expect(picker).toBeHidden();
  await expect(toolbar.getByRole('button',{name:'Paste links (2)',exact:true})).toBeVisible();
  const scan = toolbar.getByRole('button',{name:'Scan sources',exact:true});
