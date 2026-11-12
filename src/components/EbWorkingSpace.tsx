@@ -2795,11 +2795,11 @@ function TaskDetail({
           <LightButton type="button" size="sm" variant="outline"
             onClick={() => void copyResult()}
             title="Copy result as formatted Markdown"
+            startIcon={copied ? <Check size={14} className="text-emerald-600" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
             <span className="ui-type-body">{copied ? "Copied" : "Copy result"}</span>
           </LightButton>
-          <LightButton type="button" size="sm" variant="outline"
+          <LightButton type="button" size="sm" variant="outline" startIcon={<Download size={14} aria-hidden="true" />}
             onClick={() => {
               const link = document.createElement("a")
               link.href = URL.createObjectURL(
@@ -2810,7 +2810,6 @@ function TaskDetail({
               URL.revokeObjectURL(link.href)
             }}
           >
-            <Download className="h-3.5 w-3.5" />
             <span className="ui-type-body">Export .md</span>
           </LightButton>
         </footer>
