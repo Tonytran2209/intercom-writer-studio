@@ -16,6 +16,7 @@ for (const theme of ['light', 'dark']) {
     const upload = engine.getByLabel('Đính kèm tài liệu ý tưởng', { exact: true });
     const analyze = engine.getByRole('button', { name: 'Kiểm tra thông tin và chạy Gate 1', exact: true });
     await expect(upload).toBeEnabled();
+    await expect(topic).toBeEnabled();
     await expect(analyze).toBeDisabled();
     await expect(topic).toHaveCSS('font-size', '13px');
     await expect(analyze.getByText('Analyze', { exact: true })).toHaveCSS('font-size', '13px');
@@ -68,6 +69,7 @@ test('Gate Grid scrolls without tracks and keeps card actions reachable', async 
   const packages = Array.from({length:24}, (_, index) => ({
     id:'brief-' + index, title:'Synthetic brief ' + index, state:'brief',
   }));
+  packages.push({id:'last-gate',title:'Synthetic final review',state:'review'});
   await page.route('**/api/eb-v2/workspace', route => route.fulfill({
     json:{packages,runs:[],articles:[],channels:[],discovery:[]},
   }));
@@ -80,17 +82,35 @@ test('Gate Grid scrolls without tracks and keeps card actions reachable', async 
   const grid = page.locator('.eb-grid-scroll').first();
   const columns = grid.locator('.gate-column');
   await expect(columns).toHaveCount(4);
-  expect(await grid.evaluate(element=>getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(desktop ? 4 : 1);
-  const scroll = desktop ? columns.first().locator('.eb-grid-scroll') : grid;
+  const first = await columns.first().boundingBox();
+  const last = await columns.last().boundingBox();
+  expect(first.width).toBeGreaterThanOrEqual(304);
+  expect(last.y).toBe(first.y);
+  await expect(grid).toHaveCSS('scrollbar-width','none');
+  if (!desktop) {
+    await grid.hover();
+    await page.mouse.wheel(1000,0);
+    await expect.poll(()=>grid.evaluate(element=>element.scrollLeft)).toBeGreaterThan(0);
+    await expect(columns.last().getByRole('heading',{level:2})).toBeInViewport();
+    const lastTrigger = columns.last().getByRole('button',{name:'More item actions',exact:true});
+    await lastTrigger.click();
+    const lastMenu = page.getByRole('dialog',{name:'Task actions'});
+    await expect(lastMenu).toBeInViewport({ratio:1});
+    await expect(lastMenu.getByRole('button',{name:'Delete item',exact:true})).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(lastTrigger).toBeFocused();
+    await grid.evaluate(element => { element.scrollLeft = 0; });
+  }
+  const scroll = columns.first().locator('.eb-grid-scroll');
   await expect(scroll).toHaveCSS('scrollbar-width','none');
   await scroll.hover();
   await page.mouse.wheel(0,480);
   await expect.poll(()=>scroll.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);
   const actions = columns.first().getByRole('button',{name:'More item actions',exact:true}).last();
   await actions.click();
-  const regenerate = columns.first().getByRole('button',{name:'Regenerate',exact:true});
-  await regenerate.scrollIntoViewIfNeeded();
+  const regenerate = page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Regenerate',exact:true});
   await expect(regenerate).toBeInViewport();
   await expect(page.getByRole('button',{name:'Kiểm tra thông tin và chạy Gate 1',exact:true})).toBeInViewport();
-  expect(await grid.evaluate(element=>element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await grid.evaluate(element=>element.scrollWidth <= element.clientWidth)).toBe(desktop);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

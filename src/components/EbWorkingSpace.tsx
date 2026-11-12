@@ -1,4 +1,5 @@
 import { Tabs } from "twenty-ui/primitives/navigation"
+import { Popover } from "twenty-ui/primitives/surfaces"
 import { LightButton, MainButton } from "twenty-ui/components/input"
 import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
@@ -341,15 +342,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const notificationTriggerRef = useRef<HTMLButtonElement>(null)
   const sessionNotices = useWorkspaceNotices()
   useDismissedWorkspaceNotifications()
-  const filterRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      if (!filterRef.current?.contains(event.target as Node))
-        setFilterOpen(false)
-    }
-    document.addEventListener("click", close)
-    return () => document.removeEventListener("click", close)
-  }, [])
   useEffect(() => {
     const open = (event: Event) => {
       const action = (event as CustomEvent<"new" | "discovery" | "library">)
@@ -1114,49 +1106,45 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:items-center sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h1 className="mr-1 ui-type-page font-semibold text-slate-900">EB Content Packages</h1>
-          <div ref={filterRef} className="relative">
-            <LightButton
-              type="button"
-              aria-expanded={filterOpen}
-              onClick={(event) => {
-                event.stopPropagation()
-                setFilterOpen((value) => !value)
-              }}
-              size="sm" variant={filterOpen ? "soft" : "ghost"}
-              startIcon={<IconFilter size={16} aria-hidden="true" />}
-              endIcon={<ChevronDown className="size-3" aria-hidden="true" />}
-            >
-              <span className="ui-type-body">Filter</span>
-            </LightButton>
-            <span className="ml-2 ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
-            {filterOpen && (
-              <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 ui-type-meta shadow-xl">
-                <p className="px-2 py-1.5 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
-                  Filter packages
-                </p>
-                {filterGroups.map((group) => (
-                  <div key={group.label} className="mb-2 last:mb-0">
-                    <p className="px-2 py-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
-                    <div className="space-y-1">
-                      {group.options.map((label) => (
-                        <button key={label} onClick={() => toggleFilter(label)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left ${activeFilters.includes(label) ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}>
-                          <span>{label}</span>
-                          <span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {activeFilters.length > 0 && (
-                  <button
-                    onClick={() => setActiveFilters([])}
-                    className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left ui-type-body font-semibold text-slate-500 hover:bg-slate-50"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <Popover.Root modal={false} open={filterOpen} onOpenChange={setFilterOpen}>
+              <Popover.Trigger render={<LightButton type="button" size="sm" variant={filterOpen ? "soft" : "ghost"}
+                startIcon={<IconFilter size={16} aria-hidden="true" />}
+                endIcon={<ChevronDown className="size-3" aria-hidden="true" />} />}>
+                <span className="ui-type-body">Filter</span>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Positioner align="start" sideOffset={6} collisionPadding={8}>
+                  <Popover.Popup aria-label="Filter packages" className="eb-task-popover eb-filter-popover">
+                    <p className="px-2 py-1.5 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
+                      Filter packages
+                    </p>
+                    {filterGroups.map((group) => (
+                      <div key={group.label} className="mb-2 last:mb-0">
+                        <p className="px-2 py-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+                        <div className="space-y-1">
+                          {group.options.map((label) => (
+                            <button key={label} aria-pressed={activeFilters.includes(label)} onClick={() => toggleFilter(label)} className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left aria-pressed:font-semibold">
+                              <span>{label}</span>
+                              <span className={`h-1.5 w-1.5 rounded-full ${activeFilters.includes(label) ? "bg-indigo-500" : "bg-slate-200"}`} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {activeFilters.length > 0 && (
+                      <button
+                        onClick={() => setActiveFilters([])}
+                        className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left ui-type-body font-semibold text-slate-500 hover:bg-slate-50"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
+            <span className="ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
           </div>
           {activeFilters.map((filter) => (
             <button
@@ -1181,12 +1169,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       <>
         {page === "board" ? (
           <div className="eb-board-body flex min-h-0 flex-1 flex-col overflow-hidden">
-            <section className="eb-board-surface min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+            <section className="eb-board-surface flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
               <div
+                role={view === "grid" ? "region" : undefined}
+                aria-label={view === "grid" ? "Gate board, scroll horizontally" : undefined}
+                tabIndex={view === "grid" ? 0 : undefined}
                 className={
                   view === "grid"
-                    ? "eb-board-grid eb-grid-scroll grid h-full content-start gap-4 overflow-y-auto"
-                    : "h-full overflow-y-auto space-y-4 pr-1"
+                    ? "eb-board-grid eb-grid-scroll grid min-h-0 flex-1 gap-4"
+                    : "min-h-0 flex-1 overflow-y-auto space-y-4 pr-1"
                 }
               >
                 {gates.map((gate) => (
@@ -1666,23 +1657,6 @@ function TaskCard({
   const source = task.source === "discovery" ? "Discovery" : task.source === "upload" ? "Upload" : task.source === "input" ? "Input Engine" : "—"
   const canRegenerate = !isWorking && !task.channels?.length
   const [actionsOpen, setActionsOpen] = useState(false)
-  const actionsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!actionsOpen) return
-    const closeActions = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent) {
-        if (event.key === "Escape") setActionsOpen(false)
-        return
-      }
-      if (!actionsRef.current?.contains(event.target as Node)) setActionsOpen(false)
-    }
-    window.addEventListener("mousedown", closeActions)
-    window.addEventListener("keydown", closeActions)
-    return () => {
-      window.removeEventListener("mousedown", closeActions)
-      window.removeEventListener("keydown", closeActions)
-    }
-  }, [actionsOpen])
   return (
     <article role={isList ? "row" : undefined} data-selected={selected || undefined}
       onClick={isList ? event => {
@@ -1709,7 +1683,7 @@ function TaskCard({
         <div role="cell" className="eb-task-date eb-task-row-updated whitespace-nowrap ui-type-meta tabular-nums text-slate-500">{formatTaskCreatedAt(task.updatedAt ?? task.createdAt)}</div>
       </>}
       <div role={isList ? "cell" : undefined}
-        className={`eb-task-actions pointer-events-none relative ${actionsOpen ? "z-30" : "z-10"} flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${isList ? "justify-end" : "mt-2"}`}>
+        className={`eb-task-actions pointer-events-none relative z-10 flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${isList ? "justify-end" : "mt-2"}`}>
         {task.gate === "brief" && canApproveTask(task) && (
           <button
             disabled={approvalDisabled}
@@ -1768,52 +1742,41 @@ function TaskCard({
             <X className="h-3.5 w-3.5" />
           </span>
         )}
-        <div ref={actionsRef} className="relative ml-auto max-w-full">
-          <button
-            onClick={() => setActionsOpen((open) => !open)}
-            title="More item actions"
-            aria-label="More item actions"
-            aria-expanded={actionsOpen}
-            className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </button>
-          {actionsOpen && (
-            <div className={`pointer-events-auto z-30 w-44 max-w-full rounded-xl border border-slate-200 bg-white p-1 shadow-lg ${view === "grid" ? "mt-1" : "absolute right-0 top-[calc(100%+6px)]"}`}>
-              {task.gate === "review" && task.channels && <>
-                {needsThreads && <label className="block px-2 py-1 ui-type-meta text-slate-600">Threads variants
-                  <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">
-                    <option value="">Choose A / B / both</option><option value="a">Variant A</option><option value="b">Variant B</option><option value="both">A + B</option>
-                  </select>
-                </label>}
-                <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
-                <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
-              </>}
-              {canRegenerate && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
-                  <RotateCcw className="h-3.5 w-3.5" /> Regenerate
-                </button>
-              )}
-              {task.gate === "article" && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
-                </button>
-              )}
-              {(task.gate === "adapt" || task.gate === "review") && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Article · Gate 2
-                </button>
-              )}
-              {(task.gate === "adapt" || task.gate === "review") && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
-                  <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
-                </button>
-              )}
-              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 hover:bg-red-50">
-                <Trash2 className="h-3.5 w-3.5" /> Delete item
+        <div className="ml-auto">
+          <TaskActionsPopover label="More item actions" panelLabel="Task actions" open={actionsOpen} onOpenChange={setActionsOpen}>
+            {task.gate === "review" && task.channels && <>
+              {needsThreads && <label className="block px-2 py-1 ui-type-meta text-slate-600">Threads variants
+                <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">
+                  <option value="">Choose A / B / both</option><option value="a">Variant A</option><option value="b">Variant B</option><option value="both">A + B</option>
+                </select>
+              </label>}
+              <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} data-success className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
+              <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} data-danger className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
+            </>}
+            {canRegenerate && (
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
+                <RotateCcw className="h-3.5 w-3.5" /> Regenerate
               </button>
-            </div>
-          )}
+            )}
+            {task.gate === "article" && (
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
+                <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
+              </button>
+            )}
+            {(task.gate === "adapt" || task.gate === "review") && (
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
+                <ArrowLeft className="h-3.5 w-3.5" /> Move to Article · Gate 2
+              </button>
+            )}
+            {(task.gate === "adapt" || task.gate === "review") && (
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
+                <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
+              </button>
+            )}
+            <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} data-danger className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 hover:bg-red-50">
+              <Trash2 className="h-3.5 w-3.5" /> Delete item
+            </button>
+          </TaskActionsPopover>
         </div>
       </div>
     </article>
@@ -2499,7 +2462,7 @@ function TaskDetail({
     >
       <aside
         aria-labelledby="eb-task-inspector-title"
-        onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented) onClose() }}
+        onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented && event.currentTarget.contains(event.target as Node)) onClose() }}
         onClick={(event) => event.stopPropagation()}
         className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col border bg-white"
       >
@@ -2577,13 +2540,15 @@ function TaskDetail({
                             </>}
                             {channel.decision === "done" && <span title={`${channel.channel} done`} className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600"><Check className="h-3.5 w-3.5" /></span>}
                             {channel.decision === "reject" && <span title={`${channel.channel} rejected`} className="grid h-7 w-7 place-items-center rounded-lg bg-red-50 text-red-600"><X className="h-3.5 w-3.5" /></span>}
-                            <div className="relative">
-                              <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen((current) => current === channel.id ? null : channel.id) }} title={`More actions for ${channel.channel}`} aria-label={`More actions for ${channel.channel}`} aria-expanded={channelActionsOpen === channel.id} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><MoreHorizontal className="h-3.5 w-3.5" /></button>
-                              {channelActionsOpen === channel.id && <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                                <button onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
-                                <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={!model} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
-                              </div>}
-                            </div>
+                            <TaskActionsPopover label={`More actions for ${channel.channel}`}
+                              panelLabel={`${channel.channel} actions`} open={channelActionsOpen === channel.id}
+                              onOpenChange={open => {
+                                if (open) setSelectedChannelId(channel.id)
+                                setChannelActionsOpen(current => open ? channel.id : current === channel.id ? null : current)
+                              }}>
+                              <button disabled={approvalDisabled} onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
+                              <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={approvalDisabled || !model} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
+                            </TaskActionsPopover>
                           </fieldset>
                         </article>
                       )
@@ -2950,6 +2915,30 @@ function Tag({ children }: { children: ReactNode }) {
     <span className="rounded-md bg-slate-100 px-1.5 py-0.5 ui-type-meta font-medium text-slate-500">
       {children}
     </span>
+  )
+}
+
+function TaskActionsPopover({ label, panelLabel, open, onOpenChange, children }: {
+  label: string
+  panelLabel: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <Popover.Root modal={false} open={open} onOpenChange={onOpenChange}>
+      <Popover.Trigger render={<button type="button" aria-label={label} title={label}
+        className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" />}>
+        <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner align="end" sideOffset={6} collisionPadding={8}>
+          <Popover.Popup aria-label={panelLabel} className="eb-task-popover" onClick={event => event.stopPropagation()}>
+            {children}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 

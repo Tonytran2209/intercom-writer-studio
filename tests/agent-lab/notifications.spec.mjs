@@ -303,7 +303,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   };
   const module = { exports:{} };
   const dependencies = {
-    'twenty-ui/primitives/navigation':{},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},
+    'twenty-ui/primitives/navigation':{},'twenty-ui/primitives/surfaces':{Popover:{Root:'div',Trigger:'button',Portal:'div',Positioner:'div',Popup:'div'}},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},
     'react':hooks, 'react/jsx-runtime':jsx, 'lucide-react':{}, '../lib/db':api,
     '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},
     './workspace/WorkspaceNotification':{
@@ -409,7 +409,7 @@ test('operation errors enter notification details once and survive refresh', asy
   await assertEvent(/Synthetic approval/,1);
   const card = page.locator('article').filter({has:page.getByRole('button',{name:'Open task: Synthetic review',exact:true})});
   await card.getByRole('button',{name:'More item actions',exact:true}).click();
-  await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+  await page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true}).click();
   await assertEvent(/1\/2 review action\(s\) confirmed/,2);
   await expect(card).toContainText('1 Done');
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
@@ -461,7 +461,7 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     },
   };
   const noticeStore = await loadNoticeStore();
-  const dependencies = {'twenty-ui/primitives/navigation':{},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
+  const dependencies = {'twenty-ui/primitives/navigation':{},'twenty-ui/primitives/surfaces':{Popover:{Root:'div',Trigger:'button',Portal:'div',Positioner:'div',Popup:'div'}},'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
   const module = {exports:{}};
   new Function('require','exports',compiled)(name => {
     assert.ok(name in dependencies, `Unexpected module ${name}`);

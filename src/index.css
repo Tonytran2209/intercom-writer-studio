@@ -2965,10 +2965,6 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .eb-task-status[data-status="Rejected"] { background: var(--t-background-danger); }
 .eb-workspace .eb-inspector-tabs { border-bottom: 1px solid var(--t-border-color-light); }
 
-@container (min-width: 640px) {
-  .eb-board-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @container (min-width: 760px) {
   .eb-list-columns { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, .8fr) minmax(8.5rem, .9fr) minmax(8.5rem, auto); }
   .eb-list-labels {
@@ -2986,16 +2982,45 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   .eb-task-row .eb-task-actions { grid-column: auto; grid-row: auto; }
 }
 
-@container (min-width: 1080px) {
-  .eb-board-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr);
-    align-content: stretch;
-    overflow: hidden;
-  }
-  .eb-board-grid .gate-column { display: flex; min-height: 0; flex-direction: column; }
-  .eb-gate-items { flex: 1; min-height: 0; overflow-y: auto; }
+.eb-board-grid {
+  grid-template-columns: repeat(4, minmax(min(19rem, 100%), 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
 }
+.eb-board-grid:focus-visible {
+  outline: 2px solid var(--t-accent-accent9);
+  outline-offset: -2px;
+}
+.eb-board-grid .gate-column { display: flex; min-height: 0; flex-direction: column; }
+.eb-gate-items { flex: 1; min-height: 0; overflow-y: auto; }
+
+.eb-task-popover {
+  width: 13rem;
+  max-height: var(--available-height);
+  overflow-y: auto;
+  gap: 0;
+  background: var(--t-background-primary);
+  padding: var(--t-spacing-1);
+  font-family: var(--t-font-family, Inter, sans-serif);
+  font-size: var(--ui-font-body);
+}
+.eb-task-popover button:not(:disabled):is(:hover, :focus-visible) {
+  background: var(--t-background-secondary);
+  color: var(--t-font-color-primary);
+}
+.eb-task-popover select {
+  background: var(--t-background-primary);
+  color: var(--t-font-color-primary);
+}
+.eb-task-popover label,
+.eb-task-popover button { color: var(--t-font-color-secondary); }
+.eb-task-popover button[data-danger] { color: var(--t-font-color-danger); }
+.eb-task-popover button[data-success] { color: var(--t-color-green); }
+.eb-task-popover button[aria-pressed="true"] { background: var(--t-accent-quaternary); }
+[data-anchor-hidden] > .eb-task-popover { visibility: hidden; }
+.eb-task-popover.eb-filter-popover { width: 16rem; max-height: min(24rem, var(--available-height)); }
 
 @media (min-width: 768px) {
   .eb-workspace .eb-task-inspector-panel { max-width: 34rem; }

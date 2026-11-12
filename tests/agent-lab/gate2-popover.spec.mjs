@@ -70,43 +70,10 @@ for (const theme of ['light', 'dark']) {
       const target = card(page);
       await target.scrollIntoViewIfNeeded();
       await openMenu(target);
-      const menu = target.getByRole('button', { name: 'Delete item', exact: true }).locator('..');
-      const header = page.getByRole('heading', { name: 'Adapt channel', exact: true }).locator('../../..');
-      if (layout === 'list') {
-        // Establish real overlap with the following sticky header before hit testing.
-        const a = await menu.boundingBox(), b = await header.boundingBox();
-        expect(a).not.toBeNull(); expect(b).not.toBeNull();
-        expect(Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)).toBeGreaterThan(0);
-        expect(Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)).toBeGreaterThan(0);
-        // Control: the oracle must detect the original toolbar-below-header bug.
-        const control = await menu.evaluate(element => {
-          const header = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Adapt channel').parentElement.parentElement.parentElement;
-          const h = header.getBoundingClientRect(), toolbar = element.parentElement.parentElement;
-          const points = [...element.querySelectorAll('button')].flatMap(button => {
-            const b = button.getBoundingClientRect(), top = Math.max(b.top, h.top, 0), bottom = Math.min(b.bottom, h.bottom, innerHeight);
-            return bottom > top ? [{ button, x: b.left + b.width / 2, y: (top + bottom) / 2 }] : [];
-          });
-          const previous = toolbar.style.zIndex;
-          try {
-            toolbar.style.zIndex = '10';
-            return { samples: points.length, detectsCoveredMenu: points.some(p => !p.button.contains(document.elementFromPoint(p.x, p.y))) };
-          } finally { toolbar.style.zIndex = previous; }
-        });
-        expect(control.samples).toBeGreaterThan(0);
-        expect(control.detectsCoveredMenu).toBe(true);
-        // Include the covered portion, rather than only each button's center.
-        await expect.poll(() => menu.evaluate((element) => {
-          const heading = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Adapt channel').parentElement.parentElement.parentElement;
-          const headerBox = heading.getBoundingClientRect();
-          return [...element.querySelectorAll('button')].every(button => {
-            const box = button.getBoundingClientRect();
-            const ys = [box.top + box.height / 2];
-            const top = Math.max(box.top, headerBox.top), bottom = Math.min(box.bottom, headerBox.bottom);
-            if (bottom > top) ys.push((top + bottom) / 2);
-            return ys.every(y => button.contains(document.elementFromPoint(box.left + box.width / 2, y)));
-          });
-        })).toBe(true);
-      }
+      const menu = page.getByRole('dialog', { name: 'Task actions' });
+      await expect(menu).toBeVisible();
+      await expect(menu).toBeInViewport({ ratio: 1 });
+      expect(await menu.evaluate(element => !element.closest('.eb-workspace'))).toBe(true);
       for (const button of await menu.getByRole('button').all()) {
         await expect(button).toBeVisible();
         expect(await button.evaluate(element => {
@@ -117,7 +84,8 @@ for (const theme of ['light', 'dark']) {
       }
       await page.screenshot({ path: info.outputPath(`gate2-${theme}-${layout}.png`), fullPage: true });
       await page.keyboard.press('Escape');
-      // Find the board's own scroll container (or desktop grid column).
+      await expect(menu).toBeHidden();
+      // Find the List or Gate's own vertical scroll container.
       const movement = await page.getByRole('button', { name: 'Open task: Brief filler 0', exact: true }).evaluate(button => {
         let element = button.parentElement;
         while (element && !(getComputedStyle(element).overflowY === 'auto' && element.scrollHeight > element.clientHeight)) element = element.parentElement;
@@ -138,10 +106,12 @@ for (const theme of ['light', 'dark']) {
     await view(page, 'list');
     const target = card(page);
     const toggle = await openMenu(target);
-    await expect(target.getByRole('button', { name: 'Regenerate', exact: true })).toBeVisible();
+    const menu = page.getByRole('dialog', { name: 'Task actions' });
+    await expect(menu.getByRole('button', { name: 'Regenerate', exact: true })).toBeVisible();
     await toggle.click(); await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await toggle.click(); await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
     await toggle.click();
     await page.getByRole('heading', { name: 'Adapt channel', exact: true }).click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -150,7 +120,7 @@ for (const theme of ['light', 'dark']) {
     const running = card(page, runningTitle);
     const runningToggle = await openMenu(running);
     await expect(running.getByText('Drafting', { exact: true })).toBeVisible();
-    await expect(running.getByRole('button', { name: 'Regenerate', exact: true })).toHaveCount(0);
+    await expect(menu.getByRole('button', { name: 'Regenerate', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(runningToggle).toHaveAttribute('aria-expanded', 'false');
     const open = target.getByRole('button', { name: 'Open article', exact: true });

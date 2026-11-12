@@ -129,7 +129,7 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
    for(const box of controls)expect(box.x>=dateBox.x+dateBox.width||box.x+box.width<=dateBox.x||box.y>=dateBox.y+dateBox.height||box.y+box.height<=dateBox.y).toBeTruthy();
    const menu=card.getByRole('button',{name:'More item actions'});
    await expect(menu).toBeEnabled();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','true');
-   await expect(card.getByRole('button',{name:'Delete item'})).toBeVisible();
+   await expect(page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Delete item'})).toBeVisible();
    await expect(page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})})).toHaveCount(0);
    await page.keyboard.press('Escape');await expect(menu).toHaveAttribute('aria-expanded','false');
    await menu.click();await menu.click();await expect(menu).toHaveAttribute('aria-expanded','false');

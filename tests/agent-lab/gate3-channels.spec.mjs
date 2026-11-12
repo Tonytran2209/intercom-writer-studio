@@ -151,11 +151,11 @@ test('G3_CHANNEL_ACTIONS verbatim copy/export and explicit per-ID review mutatio
  await mutation('linkedin','reject',()=>row(page,'linkedin').getByRole('button',{name:'Reject LinkedIn',exact:true}).click());
  for(const variant of ['a','b','both'])await mutation('threads','done',()=>row(page,'threads').getByLabel('Approve Threads variants').selectOption(variant),{approvedVariants:variant});
  await row(page,'facebook').getByRole('button',{name:'More actions for Facebook',exact:true}).click();
- await mutation('facebook','recheck',()=>row(page,'facebook').getByRole('button',{name:'Send to recheck',exact:true}).click());
+ await mutation('facebook','recheck',()=>page.getByRole('dialog',{name:'Facebook actions'}).getByRole('button',{name:'Send to recheck',exact:true}).click());
  await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
  const count=state.mutations.length;
- await expect(row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true})).toBeEnabled();
- await row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'LinkedIn actions'}).getByRole('button',{name:'Regenerate',exact:true})).toBeEnabled();
+ await page.getByRole('dialog',{name:'LinkedIn actions'}).getByRole('button',{name:'Regenerate',exact:true}).click();
  await expect.poll(()=>state.mutations.length).toBe(count+1);
  expect(state.mutations[count].path).toBe('/api/eb-v2/channel-outputs/one-linkedin/regenerate');
  expect(state.mutations[count].body.model).toEqual({provider:expect.any(String),id:expect.any(String)});
@@ -164,8 +164,15 @@ test('G3_CHANNEL_ACTIONS verbatim copy/export and explicit per-ID review mutatio
 
 test('G3_CHANNEL_ACTIONS missing model keeps Regenerate disabled without API calls',async({page})=>{
  const state=await setup(page);await open(page);
- await row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true}).click();
- await expect(row(page,'linkedin').getByRole('button',{name:'Regenerate',exact:true})).toBeDisabled();
+ const trigger=row(page,'linkedin').getByRole('button',{name:'More actions for LinkedIn',exact:true});
+ const menu=page.getByRole('dialog',{name:'LinkedIn actions'});
+ await trigger.click();
+ await expect(menu).toBeInViewport({ratio:1});
+ await expect(menu.getByRole('button',{name:'Regenerate',exact:true})).toBeDisabled();
+ await page.keyboard.press('Escape');
+ await expect(menu).toBeHidden();
+ await expect(panel(page)).toBeVisible();
+ await expect(trigger).toBeFocused();
  expect(state.mutations).toEqual([]);clean(state);
 });
 
@@ -225,18 +232,18 @@ test('G3_BULK persisted status, partial retry, filter isolation and refresh',asy
  await page.getByRole('button',{name:'Filter',exact:true}).click();
  await expect(card).toContainText('0 Done · 0 Rejected · 3 Chờ review');
  await card.getByRole('button',{name:'More item actions',exact:true}).click();
- await expect(card.getByRole('button',{name:'Done tất cả',exact:true})).toBeDisabled();
- await card.getByLabel('Bulk Threads variants').selectOption('both');
- await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true})).toBeDisabled();
+ await page.getByRole('dialog',{name:'Task actions'}).getByLabel('Bulk Threads variants').selectOption('both');
+ await page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true}).click();
  await expect(card).toContainText('1 Done · 0 Rejected · 2 Chờ review');
- await expect(card.getByRole('button',{name:'Done tất cả',exact:true})).toBeEnabled();
- await card.getByRole('button',{name:'Done tất cả',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true})).toBeEnabled();
+ await page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Done tất cả',exact:true}).click();
  await expect(card).toContainText('3 Done · 0 Rejected · 0 Chờ review');
  expect(state.mutations.map(m=>m.path.split('/')[4])).toEqual(['one-threads','one-facebook','one-facebook','one-linkedin']);
  expect(state.data.channels.find(r=>r.id==='one-threads').content.approvedVariants).toBe('both');
  await page.reload();await expect(card).toContainText('3 Done · 0 Rejected · 0 Chờ review');
  await card.getByRole('button',{name:'More item actions',exact:true}).click();
- await card.getByRole('button',{name:'Reject tất cả',exact:true}).click();
+ await page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Reject tất cả',exact:true}).click();
  await expect(card).toContainText('0 Done · 3 Rejected · 0 Chờ review');
  expect(state.data.channels.filter(r=>r.package_id==='two').every(r=>r.status==='ready_for_review')).toBe(true);
  clean(state);
