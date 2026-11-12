@@ -21,23 +21,24 @@ Use semantic theme tokens for surfaces, text, borders, accent, spacing and radiu
 
 ## Typography
 
-Use Twenty's Inter family and the scale below on all product screens. The role utilities in src/index.css make the same scale available to both native and Twenty components. Set size by role and use spacing or weight to establish hierarchy.
+Use Twenty's Inter family and weights. Choose component size through Twenty's API first. For app-specific markup, use the compact roles below. The rem sizes follow the browser's text-size preference. Use weight and spacing for hierarchy before increasing type size.
 
-| Role | Utility | Twenty token | Where to use |
+| Role | Utility | Size at default zoom | Where to use |
 | --- | --- | --- | --- |
-| Page title | ui-type-page | font.size.lg | Workspace, Settings or guide title |
-| Section title | ui-type-title | font.size.md | Gate heading, inspector title, settings section |
-| Body and control label | ui-type-body | font.size.sm | Navigation, actions, forms, task titles and content |
-| Metadata and help | ui-type-meta | font.size.xs | Dates, column headings, status, hints and descriptions |
-| Compact count | ui-type-count | font.size.xxs | Numeric counters in small badges only |
+| Page or record title | ui-type-page | 16 px | Workspace, Settings or record title |
+| Section title | ui-type-title | 14 px | Gate heading and settings sections |
+| UI body and controls | ui-type-body | 13 px | Navigation, actions, forms and task titles |
+| Metadata and small labels | ui-type-meta | 12 px | Dates, status, help and mobile navigation |
+| Reading content | ui-type-reading | 14 px | Briefs and evidence excerpts with relaxed line height |
+| Compact count | ui-type-count | Twenty xxs | Counters inside controls |
 
-Use regular, medium and semibold weights from Twenty's scale. Use the compact count only where a counter sits inside another control. For long output, use body text and a relaxed line height. Readable line lengths, wrapping and visible focus take priority over density. Font-size literals and Tailwind text-size utilities are reserved for content outside the product UI, such as authored document previews.
+Use regular, medium and semibold weights. Give rows and sections room through spacing while maintaining readable line lengths, wrapping and visible focus. Keep authored document previews on their own content scale.
 
 ## Layout and interaction
 
-- Workspace lists align titles, status, source, dates and actions by column. At narrow widths, stack fields and keep all actions reachable.
+- Workspace lists align titles, status, source, dates and actions by column. Stack fields below a 760 px board width and keep all actions reachable.
 - Gate grids retain independent scrolling when four columns fit. The same board becomes a shared scroll region at narrower widths. Keep the Input Engine visible and preserve the workspace's scroll boundaries.
-- The task inspector sits beside the board when space permits and uses a full-width panel on narrow screens. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
+- Dock the task inspector from 1360 px. Overlay it on medium screens to preserve board width, and use a full-width panel on mobile. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
 - Use visible form labels or clearly associated accessible names, keyboard focus, and accessible icon-only actions. Preserve focus when dialogs and panels close.
 - Give loading, empty, error, disabled and saving states the same layout and type scale as the ready state. Provide an actionable recovery message when there is one.
 

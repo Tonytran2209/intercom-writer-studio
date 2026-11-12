@@ -17,20 +17,9 @@ for (const theme of ['light', 'dark']) {
     const analyze = engine.getByRole('button', { name: 'Kiểm tra thông tin và chạy Gate 1', exact: true });
     await expect(upload).toBeEnabled();
     await expect(analyze).toBeDisabled();
-    const sizes = await engine.evaluate(element => {
-      const probe = document.createElement('span');
-      element.append(probe);
-      const size = token => {
-        probe.style.fontSize = `var(--t-font-size-${token})`;
-        return getComputedStyle(probe).fontSize;
-      };
-      const sizes = { body: size('sm'), page: size('lg') };
-      probe.remove();
-      return sizes;
-    });
-    await expect(topic).toHaveCSS('font-size', sizes.body);
-    await expect(analyze.getByText('Analyze', { exact: true })).toHaveCSS('font-size', sizes.body);
-    await expect(page.getByRole('heading', { name: 'EB Content Packages' })).toHaveCSS('font-size', sizes.page);
+    await expect(topic).toHaveCSS('font-size', '13px');
+    await expect(analyze.getByText('Analyze', { exact: true })).toHaveCSS('font-size', '13px');
+    await expect(page.getByRole('heading', { name: 'EB Content Packages' })).toHaveCSS('font-size', '16px');
     await expect(topic).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     async function expectNoStroke() {
       await expect(topic).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');

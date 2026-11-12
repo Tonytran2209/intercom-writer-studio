@@ -1111,7 +1111,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           </button>
         </div>
       </header>
-      {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
+      {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:items-center sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h1 className="mr-1 ui-type-page font-semibold text-slate-900">EB Content Packages</h1>
           <div ref={filterRef} className="relative">
@@ -1126,7 +1126,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               startIcon={<IconFilter size={16} aria-hidden="true" />}
               endIcon={<ChevronDown className="size-3" aria-hidden="true" />}
             >
-              Filter
+              <span className="ui-type-body">Filter</span>
             </LightButton>
             <span className="ml-2 ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
             {filterOpen && (
@@ -1181,11 +1181,11 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       <>
         {page === "board" ? (
           <div className="eb-board-body flex min-h-0 flex-1 flex-col overflow-hidden">
-            <section className="eb-board-surface min-h-0 flex-1 overflow-hidden p-3">
+            <section className="eb-board-surface min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
               <div
                 className={
                   view === "grid"
-                    ? "eb-board-grid eb-grid-scroll grid h-full content-start gap-3 overflow-y-auto"
+                    ? "eb-board-grid eb-grid-scroll grid h-full content-start gap-4 overflow-y-auto"
                     : "h-full overflow-y-auto space-y-4 pr-1"
                 }
               >
@@ -1572,7 +1572,7 @@ function GateGroup({
     >
       <div
         className={`flex shrink-0 items-center justify-between gap-2 ${
-          isList ? "eb-list-heading sticky top-0 z-20 px-3 py-2" : "mb-3"
+          isList ? "eb-list-heading sticky top-0 z-20 px-4 py-2.5" : "mb-3"
         }`}
       >
         <div>
@@ -1694,7 +1694,7 @@ function TaskCard({
           className={`block w-full min-w-0 text-left focus-visible:outline-2 focus-visible:outline-offset-2 ${isList ? "" : "after:absolute after:inset-0 after:rounded-lg after:content-['']"}`}>
           {!isList && <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="eb-task-status" data-status={status}>{status}</span>
-            {source !== "—" && <span className="ui-type-body text-slate-500">{source}</span>}
+            {source !== "—" && <span className="ui-type-meta text-slate-500">{source}</span>}
           </div>}
           <h3 className="ui-type-body font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{task.title}</h3>
           {!isList && <p className="eb-task-date mt-1 ui-type-meta text-slate-500">Ngày tạo: {formatTaskCreatedAt(task.createdAt)}</p>}
@@ -2255,7 +2255,7 @@ function InlineMarkdown({ value }: { value: string }) {
 }
 function MarkdownContent({ value }: { value: string }) {
   return (
-    <div className="mt-2 space-y-2 ui-type-meta leading-6 text-slate-700">
+    <div className="mt-3 space-y-2 ui-type-reading text-slate-700">
       {String(value)
         .split("\n")
         .map((line, index) => {
@@ -2268,7 +2268,7 @@ function MarkdownContent({ value }: { value: string }) {
                 key={index}
                 className={
                   heading[1].length <= 2
-                    ? "pt-2 ui-type-body font-semibold text-slate-800"
+                    ? "pt-2 font-semibold text-slate-800"
                     : "pt-1 font-semibold text-slate-800"
                 }
               >
@@ -2503,19 +2503,19 @@ function TaskDetail({
         onClick={(event) => event.stopPropagation()}
         className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col border bg-white"
       >
-        <header className="shrink-0 border-b border-slate-200/80 px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-          <div>
+        <header className="shrink-0 border-b border-slate-200/80 px-4 py-4 sm:px-5">
+          <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <p className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
               {gateConfig[task.gate].title}
             </p>
-            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-title font-semibold text-slate-900 [overflow-wrap:anywhere]">
+            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-page font-semibold text-slate-900 [overflow-wrap:anywhere]">
               {task.title}
             </h2>
           </div>
           <LightButton ref={closeButton} type="button" size="sm" variant="ghost" aria-label="Close task details"
             onClick={onClose}
-            className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </LightButton>
@@ -2527,20 +2527,20 @@ function TaskDetail({
                 onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
               >
                 {approvalPending && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
-                {task.gate === "brief" ? "Approve brief" : "Approve article"}
+                <span className="ui-type-body">{task.gate === "brief" ? "Approve brief" : "Approve article"}</span>
               </MainButton>
             </div>
           )}
           {approvalPending && <p role="status" className="mt-2 ui-type-meta text-slate-500">Saving approval and starting the next step…</p>}
         </header>
         <Tabs.Root defaultValue={task.discoveryNeedsEvidence ? "evidence" : "output"} className="min-h-0 flex flex-1 flex-col">
-          <Tabs.List className="eb-inspector-tabs shrink-0 px-3" aria-label="Task details" activateOnFocus>
-            <Tabs.Tab value="output">{task.gate === "brief" ? "Brief" : task.gate === "article" ? "Article" : "Output"}</Tabs.Tab>
-            <Tabs.Tab value="evidence">Dẫn chứng</Tabs.Tab>
-            <Tabs.Tab value="history">Lịch sử</Tabs.Tab>
+          <Tabs.List className="eb-inspector-tabs shrink-0 px-3 sm:px-4" aria-label="Task details" activateOnFocus>
+            <Tabs.Tab value="output" size="sm"><span className="ui-type-body">{task.gate === "brief" ? "Brief" : task.gate === "article" ? "Article" : "Output"}</span></Tabs.Tab>
+            <Tabs.Tab value="evidence" size="sm"><span className="ui-type-body">Dẫn chứng</span></Tabs.Tab>
+            <Tabs.Tab value="history" size="sm"><span className="ui-type-body">Lịch sử</span></Tabs.Tab>
             <Tabs.Indicator />
           </Tabs.List>
-        <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
+        <div className="eb-task-inspector-content min-h-0 flex-1 select-text overflow-y-auto p-4 sm:p-5">
           {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 ui-type-meta text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
           {loading ? (
             <p className="ui-type-meta text-slate-500">
@@ -2591,18 +2591,8 @@ function TaskDetail({
                   </div>
                 </section>
               )}
-              <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="ui-type-title font-semibold text-slate-800">{task.gate === "brief" ? "Brief · Gate 1" : task.gate === "article" ? "Website article · Gate 2" : "Channel output"}</h3>
-                  <button
-                    onClick={() => void copyResult()}
-                    title="Copy result as formatted Markdown"
-                    className="inline-flex select-none items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 ui-type-body font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                </div>
+              <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
+                <h3 className="ui-type-title font-semibold text-slate-800">{task.gate === "brief" ? "Brief · Gate 1" : task.gate === "article" ? "Website article · Gate 2" : "Channel output"}</h3>
                 <MarkdownContent value={output} />
               </section>
               {feedbackEnabled && (
@@ -2649,7 +2639,7 @@ function TaskDetail({
                   </div>
                   {task.gate === "article" && <label className="mt-3 block ui-type-meta text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
                   <div className="mt-3 flex items-end gap-2">
-                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
+                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 min-w-0 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
                     <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
                       {feedbackSending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArrowUp className="h-3.5 w-3.5" />}
                     </button>
@@ -2660,7 +2650,7 @@ function TaskDetail({
               )}
               </Tabs.Panel>
               <Tabs.Panel value="evidence">
-              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
+              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
                 <h3 className="ui-type-title font-semibold text-slate-800">
                   Source & evidence
                 </h3>
@@ -2675,7 +2665,7 @@ function TaskDetail({
                     className="rounded border border-indigo-200 px-3 py-2 ui-type-body text-indigo-700 disabled:opacity-50">Tìm lại dẫn chứng F</button>
                 </div>}
                 {task.gate === "brief" && sources[0]?.raw_snapshot?.briefValidation?.evidence &&
-                  <p className="mt-2 whitespace-pre-wrap break-words ui-type-meta text-slate-600">
+                  <p className="mt-2 whitespace-pre-wrap break-words ui-type-reading text-slate-600">
                     {sources[0].raw_snapshot.briefValidation.evidence}
                   </p>}
                 <details key={task.id} open={task.gate === "brief" ? undefined : true} className="mt-2">
@@ -2703,7 +2693,7 @@ function TaskDetail({
               </section>
               </Tabs.Panel>
               <Tabs.Panel value="history">
-              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
+              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
                 <h3 className="ui-type-title font-semibold text-slate-800">
                   AI activity log
                 </h3>
@@ -2737,7 +2727,7 @@ function TaskDetail({
                   </p>
                 )}
               </section>
-              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
+              <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
                 <h3 className="ui-type-title font-semibold text-slate-800">
                   Review activity
                 </h3>
@@ -2765,9 +2755,10 @@ function TaskDetail({
           )}
         </div>
         </Tabs.Root>
-        <footer className="flex justify-end gap-2 border-t border-slate-200/80 p-3">
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200/80 px-4 py-3 sm:px-5">
           <button
             onClick={() => void copyResult()}
+            title="Copy result as formatted Markdown"
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -2865,7 +2856,7 @@ function DiscoveryDetail({
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
+          <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
             <h3 className="ui-type-title font-semibold text-slate-800">
               Suggestion context
             </h3>
@@ -2883,7 +2874,7 @@ function DiscoveryDetail({
               <Tag>{emerging ? "Early signal — review before use" : discoveryTag(savedItem) === "Source lead" ? "Source lead — validate before use" : item.status ?? "suggested"}</Tag>
             </div>
           </section>
-          <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
+          <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
             <h3 className="ui-type-title font-semibold text-slate-800">Sources used</h3>
             {sources.length ? (
               <div className="mt-2 space-y-2">
@@ -2914,7 +2905,7 @@ function DiscoveryDetail({
               </p>
             )}
           </section>
-          <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
+          <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
             <h3 className="ui-type-title font-semibold text-slate-800">
               AI activity log
             </h3>

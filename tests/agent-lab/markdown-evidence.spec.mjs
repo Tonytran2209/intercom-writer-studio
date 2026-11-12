@@ -37,7 +37,13 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  await expect(page.locator('#eb-input')).toHaveValue('Unrelated draft');
  const detail = page.locator('aside');
  if (page.viewportSize().width >= 1024) {
-  const board = await page.getByRole('group',{name:'Workspace view'}).boundingBox();
+  const viewSwitch = page.getByRole('group',{name:'Workspace view'});
+  const overlay = page.locator('.eb-task-inspector');
+  await expect(overlay).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+  const beforeDocking = await viewSwitch.boundingBox();
+  await page.setViewportSize({width:1440,height:900});
+  const board = await viewSwitch.boundingBox();
+  expect(beforeDocking.x).toBeGreaterThan(board.x);
   const panel = await detail.boundingBox();
   expect(board.x + board.width).toBeLessThan(panel.x);
   await expect(page.locator('.eb-task-inspector')).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
@@ -48,13 +54,15 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toBeEnabled();
  await expect(detail.getByText('workshop.md Verified workshop quote',{exact:true})).toBeVisible();
  const evidenceTab=detail.getByRole('tab',{name:'Dẫn chứng',exact:true});
+ await expect(evidenceTab.getByText('Dẫn chứng',{exact:true})).toHaveCSS('font-size','13px');
  await expect(evidenceTab).toHaveAttribute('aria-selected','true');
  await evidenceTab.focus();
  await page.keyboard.press('ArrowRight');
  await expect(detail.getByRole('tab',{name:'Lịch sử',exact:true})).toHaveAttribute('aria-selected','true');
  await expect(detail.getByRole('heading',{name:'AI activity log',exact:true})).toBeVisible();
  await detail.getByRole('tab',{name:'Brief',exact:true}).click();
- await expect(detail.getByText('Validated brief',{exact:true})).toBeVisible();
+ await expect(detail.getByText('Validated brief',{exact:true})).toHaveCSS('font-size','14px');
+ expect(await detail.locator('.eb-task-inspector-content').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
  await expect(detail.getByRole('button',{name:'Approve brief',exact:true})).toBeEnabled();
  await expect(detail.getByLabel('Dẫn chứng / nguồn xác nhận tại F')).toHaveCount(0);
  await expect(page.getByLabel('Ảnh dẫn chứng')).toHaveCount(0);

@@ -2085,7 +2085,7 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
   .workspace-notification, .workspace-notification.is-collapsing { animation: none; transition: none; transform: none; }
 }
-.workspace-notification p { margin: 0; font-size: var(--t-font-size-sm); line-height: 1.45; }
+.workspace-notification p { margin: 0; font-size: var(--ui-font-body); line-height: 1.45; }
 .workspace-notification-status,
 .workspace-notification > button { display: inline-flex; width: 1.75rem; height: 1.75rem; align-items: center; justify-content: center; border-radius: 0.45rem; }
 .workspace-notification-status { color: #555550; background: #e8e8e3; }
@@ -2923,9 +2923,9 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: var(--t-spacing-2);
+  column-gap: var(--t-spacing-3);
   row-gap: var(--t-spacing-1);
-  padding: var(--t-spacing-2) var(--t-spacing-3);
+  padding: var(--t-spacing-3) var(--t-spacing-4);
 }
 .eb-list-labels {
   position: absolute;
@@ -2954,7 +2954,7 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   background: var(--t-background-tertiary);
   color: var(--t-font-color-secondary);
   padding: 2px var(--t-spacing-1_5);
-  font-size: var(--t-font-size-xs);
+  font-size: var(--ui-font-meta);
   font-weight: var(--t-font-weight-medium);
 }
 .eb-task-status[data-status="Needs evidence"],
@@ -2967,16 +2967,19 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 
 @container (min-width: 640px) {
   .eb-board-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (min-width: 760px) {
   .eb-list-columns { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, .8fr) minmax(8.5rem, .9fr) minmax(8.5rem, auto); }
   .eb-list-labels {
     position: static;
     width: auto;
     height: auto;
-    padding: var(--t-spacing-2) var(--t-spacing-3);
+    padding: var(--t-spacing-2) var(--t-spacing-4);
     clip-path: none;
     border-bottom: 1px solid var(--t-border-color-light);
     color: var(--t-font-color-secondary);
-    font-size: var(--t-font-size-xs);
+    font-size: var(--ui-font-meta);
   }
   .eb-task-row > :first-child,
   .eb-task-row-updated,
@@ -2994,8 +2997,12 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   .eb-gate-items { flex: 1; min-height: 0; overflow-y: auto; }
 }
 
-@media (min-width: 1024px) {
-  .eb-workspace { --eb-inspector-width: clamp(23rem, 37vw, 34rem); }
+@media (min-width: 768px) {
+  .eb-workspace .eb-task-inspector-panel { max-width: 34rem; }
+}
+
+@media (min-width: 1360px) {
+  .eb-workspace { --eb-inspector-width: clamp(24rem, 33vw, 32rem); }
   .eb-workspace:has(.eb-task-inspector) > :is(.eb-board-body, .eb-workspace-header, .eb-workspace-toolbar) {
     margin-inline-end: var(--eb-inspector-width);
   }
@@ -3016,21 +3023,22 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   }
 }
 
-/* Product typography roles use Twenty's installed theme in both color schemes. */
+/* Keep app chrome compact while preserving a separate size for long-form reading. */
+:root {
+  --ui-font-page: 1rem;
+  --ui-font-title: .875rem;
+  --ui-font-body: .8125rem;
+  --ui-font-meta: .75rem;
+}
 :where(.writer-app-shell, .eb-workspace, .eb-sidebar, .eb-mobile-nav, .minimal-settings, .onboarding-dialog) {
   font-family: var(--t-font-family, Inter, sans-serif);
-  font-size: var(--t-font-size-sm);
+  font-size: var(--ui-font-body);
   line-height: 1.4;
 }
-:where(.eb-workspace, .eb-sidebar, .minimal-settings, .onboarding-dialog)
-  :where(button, input, textarea, select) {
-  font-size: var(--t-font-size-sm);
-  line-height: 1.4;
-}
-.ui-type-page { --ui-type-size: var(--t-font-size-lg); }
-.ui-type-title { --ui-type-size: var(--t-font-size-md); }
-.ui-type-body { --ui-type-size: var(--t-font-size-sm); }
-.ui-type-meta { --ui-type-size: var(--t-font-size-xs); }
+.ui-type-page { --ui-type-size: var(--ui-font-page); }
+.ui-type-title { --ui-type-size: var(--ui-font-title); }
+.ui-type-body { --ui-type-size: var(--ui-font-body); }
+.ui-type-meta { --ui-type-size: var(--ui-font-meta); }
 .ui-type-count { --ui-type-size: var(--t-font-size-xxs); }
 :is(.ui-type-page, .ui-type-title, .ui-type-body, .ui-type-meta, .ui-type-count) {
   font-size: var(--ui-type-size);
@@ -3046,3 +3054,13 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .codex-dark :is(.eb-workspace, .minimal-settings) :is(input, textarea)::placeholder {
   font-size: inherit;
 }
+
+.eb-task-inspector-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ui-type-reading {
+  font-size: var(--ui-font-title);
+  line-height: 1.6;
+}
+.eb-mobile-tools { grid-column: 1 / -1; }

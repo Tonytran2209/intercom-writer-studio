@@ -181,7 +181,7 @@
   border-radius: .5rem !important;
   background: #4f46e5 !important;
   color: #ffffff !important;
-  font-size: var(--t-font-size-sm) !important;
+  font-size: var(--ui-font-body) !important;
   font-weight: var(--t-font-weight-semi-bold) !important;
   line-height: 1.4 !important;
   box-shadow: 0 1px 2px rgb(79 70 229 / 20%) !important;

@@ -299,7 +299,7 @@
 .codex-dark .settings-content button:not(.bg-slate-900):hover { box-shadow: none !important; }
 
 .codex-dark .settings-footer { min-height: 4.5rem; padding: .75rem 1.25rem !important; background: var(--cx-bg) !important; border-color: #222 !important; }
-.codex-dark .settings-footer button { min-height: 2.25rem; border-radius: .75rem !important; font-size: var(--t-font-size-sm); font-weight: var(--t-font-weight-medium) !important; }
+.codex-dark .settings-footer button { min-height: 2.25rem; border-radius: .75rem !important; font-size: var(--ui-font-body); font-weight: var(--t-font-weight-medium) !important; }
 .codex-dark .settings-footer button:first-child { background: var(--cx-card) !important; border: 1px solid var(--cx-border) !important; color: var(--cx-secondary) !important; }
 .codex-dark .settings-footer button:last-child { background: var(--cx-primary-button) !important; border: 1px solid var(--cx-primary-button) !important; color: var(--cx-primary-button-text) !important; }
 
