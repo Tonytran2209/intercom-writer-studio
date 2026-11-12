@@ -1,3 +1,4 @@
+import { Tabs } from "twenty-ui/primitives/navigation"
 import { LightButton, MainButton } from "twenty-ui/components/input"
 import { IconFilter, IconLayoutKanban, IconList, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
@@ -43,6 +44,7 @@ type Task = {
   id: string
   packageId?: string
   createdAt?: string
+  updatedAt?: string
   gate: Gate
   title: string
   status: "ready" | "checking" | "drafting" | "adapting" | "review"
@@ -54,7 +56,7 @@ type Task = {
   channels?: ReviewChannel[]
   approvedVariants?: ApprovedVariants
   decision?: Decision
-  source?: "input" | "discovery"
+  source?: "input" | "discovery" | "upload"
   discoveryNeedsEvidence?: boolean
 }
 type DiscoveryIdea = {
@@ -227,17 +229,19 @@ function workspaceTasks(
       .filter((run: any) => run.gate === "article" && run.status === "running")
       .map((run: any) => run.package_id),
   )
+  const packageSource = (item: any): Task["source"] => item.source_type === "discovery" || item.source_type === "upload" ? item.source_type : "input"
   const tasks: Task[] = packageRows
     .filter((item) => item.state === "brief")
     .map((item) => ({
       id: item.id,
       packageId: item.id,
       createdAt: item.created_at,
+      updatedAt: item.updated_at,
       gate: "brief",
       title: item.title,
       status: briefIsRunning(item.id) ? "checking" : "ready",
       discoveryNeedsEvidence: promoted.has(item.id) && latestBrief.get(item.id)?.status !== "completed",
-      source: item.source_type === "discovery" ? "discovery" : "input",
+      source: packageSource(item),
     }))
   for (const item of packageRows.filter(
     (item) => item.state === "article" && !articleByPackage.has(item.id),
@@ -245,7 +249,8 @@ function workspaceTasks(
     tasks.push({
       id: item.id,
       packageId: item.id,
-      createdAt: undefined,
+      updatedAt: item.updated_at,
+      source: packageSource(item),
       gate: "article",
       title: item.title,
       status: "drafting",
@@ -257,6 +262,8 @@ function workspaceTasks(
       id: packageId,
       packageId,
       createdAt: article.created_at,
+      updatedAt: article.updated_at ?? item.updated_at,
+      source: packageSource(item),
       gate: "article",
       title: item.title,
       status: runningArticle.has(packageId) ? "drafting" : "ready",
@@ -267,6 +274,13 @@ function workspaceTasks(
     })
   }
   const reviewCreatedAtByPackage = new Map<string, string>()
+  const reviewUpdatedAtByPackage = new Map<string, string>()
+  const recordLatestReviewDate = (dates: Map<string, string>, packageId: string, timestamp: unknown) => {
+    const previous = dates.get(packageId)
+    if (typeof timestamp === "string" && Number.isFinite(Date.parse(timestamp)) &&
+        (!previous || Date.parse(timestamp) > Date.parse(previous)))
+      dates.set(packageId, timestamp)
+  }
   const reviewChannelsByPackage = new Map<string, ReviewChannel[]>()
   for (const item of packageRows) {
     if (item.state === "review") reviewChannelsByPackage.set(item.id, [])
@@ -281,14 +295,10 @@ function workspaceTasks(
     const channel = output.channel === "threads" ? "Threads" : output.channel === "facebook" ? "Facebook" : "LinkedIn"
     const decision = output.status === "done" ? "done" : output.status === "rejected" ? "reject" : output.status === "recheck" ? "recheck" : null
     if (state === "adapting") {
-      tasks.push({ id: output.id, packageId: output.package_id, createdAt: output.created_at, gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
+      tasks.push({ id: output.id, packageId: output.package_id, createdAt: output.created_at, updatedAt: output.updated_at ?? item.updated_at, source: packageSource(item), gate: "adapt", title: item.title, status: state, channel, decision, approvedVariants: output.content?.approvedVariants })
     } else {
-      const timestamp = output.created_at
-      const previous = reviewCreatedAtByPackage.get(output.package_id)
-      if (typeof timestamp === "string" && timestamp.trim() &&
-          Number.isFinite(new Date(timestamp).getTime()) &&
-          (!previous || new Date(timestamp).getTime() > new Date(previous).getTime()))
-        reviewCreatedAtByPackage.set(output.package_id, timestamp)
+      recordLatestReviewDate(reviewCreatedAtByPackage, output.package_id, output.created_at)
+      recordLatestReviewDate(reviewUpdatedAtByPackage, output.package_id, output.updated_at)
       const current = reviewChannelsByPackage.get(output.package_id) ?? []
       current.push({ id: output.id, channel, decision, approvedVariants: output.content?.approvedVariants })
       reviewChannelsByPackage.set(output.package_id, current)
@@ -297,7 +307,8 @@ function workspaceTasks(
   for (const [packageId, channels] of reviewChannelsByPackage) {
     const item = packages.get(packageId)
     if (!item) continue
-    tasks.push({ id: packageId, packageId, createdAt: reviewCreatedAtByPackage.get(packageId), gate: "review", title: item.title, status: "review", channels })
+    recordLatestReviewDate(reviewUpdatedAtByPackage, packageId, item.updated_at)
+    tasks.push({ id: packageId, packageId, createdAt: reviewCreatedAtByPackage.get(packageId), updatedAt: reviewUpdatedAtByPackage.get(packageId), source: packageSource(item), gate: "review", title: item.title, status: "review", channels })
   }
   return tasks
 }
@@ -1068,14 +1079,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       <header className="eb-workspace-header flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span className="font-semibold text-slate-800">Content Engine</span>
-          <span>/</span>
-          <span>
-            {page === "board"
-              ? "EB Content Packages"
-              : page === "discovery"
-                ? "Discovery archive"
-                : "Library Article"}
-          </span>
+          {page !== "board" && <>
+            <span aria-hidden="true">/</span>
+            <span>{page === "discovery" ? "Discovery archive" : "Library Article"}</span>
+          </>}
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -1106,6 +1113,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </header>
       {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 className="mr-1 text-sm font-semibold text-slate-900">EB Content Packages</h1>
           <div ref={filterRef} className="relative">
             <LightButton
               type="button"
@@ -1120,6 +1128,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             >
               Filter
             </LightButton>
+            <span className="ml-2 text-xs text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
             {filterOpen && (
               <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-xl">
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1171,12 +1180,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </div>}
       <>
         {page === "board" ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="eb-board-body flex min-h-0 flex-1 flex-col overflow-hidden">
             <section className="eb-board-surface min-h-0 flex-1 overflow-hidden p-3">
               <div
                 className={
                   view === "grid"
-                    ? "eb-grid-scroll grid h-full content-start gap-3 overflow-y-auto md:grid-cols-2 xl:grid-cols-4 xl:grid-rows-1 xl:content-stretch xl:overflow-hidden"
+                    ? "eb-board-grid eb-grid-scroll grid h-full content-start gap-3 overflow-y-auto"
                     : "h-full overflow-y-auto space-y-4 pr-1"
                 }
               >
@@ -1186,6 +1195,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                     gate={gate}
                     tasks={filteredTasks.filter((task) => task.gate === gate)}
                     view={view}
+                    selectedId={selectedId}
                     approvalDisabled={syncing || approvalPending}
                     onBrief={approveBrief}
                     onArticle={approveArticle}
@@ -1526,6 +1536,7 @@ function GateGroup({
   gate,
   tasks,
   view,
+  selectedId,
   approvalDisabled,
   onBrief,
   onArticle,
@@ -1539,6 +1550,7 @@ function GateGroup({
   tasks: Task[]
   approvalDisabled: boolean
   view: View
+  selectedId: string | null
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
   onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
@@ -1554,13 +1566,13 @@ function GateGroup({
     <section
       className={
         isList
-          ? "relative scroll-mt-2"
-          : `gate-column gate-${config.tone} min-w-0 rounded-2xl border p-3 xl:flex xl:min-h-0 xl:flex-col`
+          ? "eb-list-group relative scroll-mt-2 rounded-lg border"
+          : `gate-column gate-${config.tone} min-w-0 rounded-2xl border p-3`
       }
     >
       <div
-        className={`mb-3 flex shrink-0 items-center justify-between gap-2 ${
-          isList ? "sticky top-0 z-20 -mx-1 bg-white px-1 py-2" : ""
+        className={`flex shrink-0 items-center justify-between gap-2 ${
+          isList ? "eb-list-heading sticky top-0 z-20 px-3 py-2" : "mb-3"
         }`}
       >
         <div>
@@ -1570,17 +1582,26 @@ function GateGroup({
             </span>
             <h2 className="text-xs font-bold text-slate-800">{config.title}</h2>
           </div>
-          <p className="mt-1 text-[10px] text-slate-500">{config.subtitle}</p>
+          {!isList && <p className="mt-1 text-[10px] text-slate-500">{config.subtitle}</p>}
         </div>
         <span className="text-xs text-slate-400">{tasks.length}</span>
       </div>
-      <div className={isList ? "space-y-2" : "eb-grid-scroll space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"}>
+      <div role={isList && tasks.length ? "table" : undefined} aria-label={isList && tasks.length ? config.title : undefined}
+        className={isList ? undefined : "eb-gate-items eb-grid-scroll space-y-2"}>
+        {isList && tasks.length > 0 && <div className="eb-list-columns eb-list-labels" role="row">
+          <span role="columnheader">Title</span>
+          <span role="columnheader">Status</span>
+          <span role="columnheader">Source</span>
+          <span role="columnheader">Updated</span>
+          <span role="columnheader" className="text-right">Actions</span>
+        </div>}
         {tasks.length ? (
           tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
               view={view}
+              selected={task.id === selectedId}
               approvalDisabled={approvalDisabled}
               onBrief={onBrief}
               onArticle={onArticle}
@@ -1603,6 +1624,7 @@ function GateGroup({
 function TaskCard({
   task,
   view,
+  selected,
   approvalDisabled,
   onBrief,
   onArticle,
@@ -1615,6 +1637,7 @@ function TaskCard({
   task: Task
   approvalDisabled: boolean
   view: View
+  selected: boolean
   onBrief: (task: Task) => void
   onArticle: (task: Task) => void
   onDecision: (id: string, decision: Exclude<Decision, null>, approvedVariants?: ApprovedVariants) => void
@@ -1628,6 +1651,19 @@ function TaskCard({
   const needsThreads = fullChannels.some((channel) => channel.channel === "Threads" && channel.decision !== "done")
   const [bulkVariants, setBulkVariants] = useState<ApprovedVariants | "">("")
   const isWorking = ["checking", "drafting", "adapting"].includes(task.status)
+  const isList = view === "list"
+  const status = task.discoveryNeedsEvidence && !isWorking ? "Needs evidence"
+    : task.status === "checking" ? "Extract & check"
+    : task.status === "drafting" ? "Drafting"
+    : task.status === "adapting" ? "Adapting"
+    : task.channels ? summary.label
+    : task.decision === "done" ? "Done"
+    : task.decision === "reject" ? "Rejected"
+    : task.decision === "recheck" ? "Needs recheck"
+    : task.status === "review" ? "Needs review"
+    : task.type === "Approved website article" ? "Approved"
+    : "Ready"
+  const source = task.source === "discovery" ? "Discovery" : task.source === "upload" ? "Upload" : task.source === "input" ? "Input Engine" : "—"
   const canRegenerate = !isWorking && !task.channels?.length
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
@@ -1648,66 +1684,32 @@ function TaskCard({
     }
   }, [actionsOpen])
   return (
-    <article
-      className={`eb-task-card relative border bg-white p-3 ${
-        view === "list" ? "flex items-center justify-between gap-4" : ""
-      }`}
-    >
-      {/* Stretch the native open button over the card; sibling controls stay above it. */}
-      <button
-        type="button"
-        onClick={() => onOpen(task.id)}
-        aria-label={`Open task: ${task.title}`}
-        className="min-w-0 text-left after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-indigo-500"
-      >
-        <div className="flex flex-wrap gap-1">
-          {task.channel && <Tag>{task.channel}</Tag>}
-          {task.channels && <>
-            <Tag>{fullChannels.length} channels</Tag>
-            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${summary.label === "Done" ? "bg-emerald-50 text-emerald-700" : summary.label === "Rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{summary.label}</span>
-            <Tag>{summary.done} Done · {summary.rejected} Rejected · {summary.pending} Chờ review</Tag>
-          </>}
-          {task.type && <Tag>{task.type}</Tag>}
-          {task.source === "discovery" && <Tag>Discovery suggestion</Tag>}
-          {isWorking && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              {task.status === "adapting"
-                ? "Adapting"
-                : task.status === "drafting"
-                  ? "Drafting"
-                  : "Extract & check"}
-            </span>
-          )}
-        </div>
-        <h3 className="mt-2 text-xs font-bold leading-snug text-slate-900 [overflow-wrap:anywhere]">
-          {task.title}
-        </h3>
-        <p className="mt-1 text-[10px] text-slate-500">
-          Ngày tạo: {formatTaskCreatedAt(task.createdAt)}
-        </p>
-        {task.discoveryNeedsEvidence && <p className="mt-1 text-xs text-amber-700">
-          {task.status === "checking" ? "Đang tìm dẫn chứng F và chuẩn bị brief" : "Cần kiểm tra dẫn chứng F"}
-        </p>}
-        {task.gate === "brief" && (
-          <p className="mt-1 text-[10px] text-slate-500">
-            Pillar: {task.pillar ?? "awaiting input"} · Persona:{" "}
-            {task.persona ?? "awaiting mapping"}
-          </p>
-        )}
-        {task.gate === "review" && (
-          <p className="mt-1 text-[10px] text-slate-500">
-            {task.channels
-              ? `${summary.pending} channel(s) await reviewer action.`
-              : "Ready for repetition check and reviewer action."}
-          </p>
-        )}
-      </button>
-      <div
-        className={`pointer-events-none relative ${actionsOpen ? "z-30" : "z-10"} mt-3 flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${
-          view === "list" ? "mt-0 shrink-0" : ""
-        }`}
-      >
+    <article role={isList ? "row" : undefined} data-selected={selected || undefined}
+      onClick={isList ? event => {
+        if (!(event.target as HTMLElement).closest("button, select, label")) onOpen(task.id)
+      } : undefined}
+      className={isList ? "eb-task-row eb-list-columns relative" : "eb-task-card relative border bg-white p-3"}>
+      <div role={isList ? "cell" : undefined} className="min-w-0">
+        <button type="button" onClick={() => onOpen(task.id)} aria-label={`Open task: ${task.title}`}
+          className={`block w-full min-w-0 text-left focus-visible:outline-2 focus-visible:outline-offset-2 ${isList ? "" : "after:absolute after:inset-0 after:rounded-lg after:content-['']"}`}>
+          {!isList && <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <span className="eb-task-status" data-status={status}>{status}</span>
+            {source !== "—" && <span className="text-xs text-slate-500">{source}</span>}
+          </div>}
+          <h3 className="text-xs font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{task.title}</h3>
+          {!isList && <p className="eb-task-date mt-1 text-[10px] text-slate-500">Ngày tạo: {formatTaskCreatedAt(task.createdAt)}</p>}
+          {(task.channel || task.channels) && <p className="mt-1 text-[10px] text-slate-500">
+            {task.channel ?? `${fullChannels.length} channels · ${summary.done} Done · ${summary.rejected} Rejected · ${summary.pending} Chờ review`}
+          </p>}
+        </button>
+      </div>
+      {isList && <>
+        <div role="cell" className="eb-task-row-status"><span className="eb-task-status" data-status={status}>{status}</span></div>
+        <div role="cell" className="eb-task-row-source text-xs text-slate-500">{source}</div>
+        <div role="cell" className="eb-task-date eb-task-row-updated whitespace-nowrap text-xs tabular-nums text-slate-500">{formatTaskCreatedAt(task.updatedAt ?? task.createdAt)}</div>
+      </>}
+      <div role={isList ? "cell" : undefined}
+        className={`eb-task-actions pointer-events-none relative ${actionsOpen ? "z-30" : "z-10"} flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${isList ? "justify-end" : "mt-2"}`}>
         {task.gate === "brief" && canApproveTask(task) && (
           <button
             disabled={approvalDisabled}
@@ -1938,7 +1940,7 @@ function InputEngine({
   analyze: (event: { timeStamp: number }) => void
 }) {
   return (
-    <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 pb-3 pt-3">
+    <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 py-2">
       <div className="mx-auto max-w-4xl">
         <div className="space-y-2">
           {inputError && <InputValidationFeedback message={inputError} />}
@@ -2328,6 +2330,15 @@ function TaskDetail({
   onRegenerate: (task: Task) => Promise<boolean | undefined>
   onClose: () => void
 }) {
+  const closeButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!closeButton.current) return
+    const trigger = document.activeElement
+    closeButton.current.focus()
+    return () => {
+      if (trigger instanceof HTMLElement && trigger.isConnected && document.activeElement === document.body) trigger.focus()
+    }
+  }, [task?.id])
   const [activity, setActivity] = useState<any>(null)
   const activityItem = useRef<string | null>(null)
   const feedbackActionLock = useRef(false)
@@ -2484,43 +2495,53 @@ function TaskDetail({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
-      className="eb-overlay absolute inset-0 z-40 flex justify-end p-3"
+      className="eb-overlay eb-task-inspector absolute inset-0 z-40 flex justify-end"
     >
       <aside
+        aria-labelledby="eb-task-inspector-title"
+        onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented) onClose() }}
         onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel flex h-full w-full max-w-xl flex-col border bg-white"
+        className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col border bg-white"
       >
-        <header className="flex items-center justify-between border-b border-slate-200/80 p-4">
+        <header className="shrink-0 border-b border-slate-200/80 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               {gateConfig[task.gate].title}
             </p>
-            <h2 className="mt-1 text-sm font-bold text-slate-900">
+            <h2 id="eb-task-inspector-title" className="mt-1 text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
               {task.title}
             </h2>
           </div>
-          <button
+          <LightButton ref={closeButton} type="button" size="sm" variant="ghost" aria-label="Close task details"
             onClick={onClose}
             className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
-          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
+          </LightButton>
+          </div>
           {canApproveTask(task) && (
-            <div className="mb-3">
-              <button
+            <div className="mt-3">
+              <MainButton size="sm" color="accent"
                 disabled={approvalDisabled || loading || Boolean(error)}
                 onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
-                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
               >
                 {approvalPending && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
                 {task.gate === "brief" ? "Approve brief" : "Approve article"}
-              </button>
+              </MainButton>
             </div>
           )}
-          {approvalPending && <p role="status" className="mb-3 text-xs text-slate-500">Saving approval and starting the next step…</p>}
+          {approvalPending && <p role="status" className="mt-2 text-xs text-slate-500">Saving approval and starting the next step…</p>}
+        </header>
+        <Tabs.Root defaultValue={task.discoveryNeedsEvidence ? "evidence" : "output"} className="min-h-0 flex flex-1 flex-col">
+          <Tabs.List className="eb-inspector-tabs shrink-0 px-3" aria-label="Task details" activateOnFocus>
+            <Tabs.Tab value="output">{task.gate === "brief" ? "Brief" : task.gate === "article" ? "Article" : "Output"}</Tabs.Tab>
+            <Tabs.Tab value="evidence">Dẫn chứng</Tabs.Tab>
+            <Tabs.Tab value="history">Lịch sử</Tabs.Tab>
+            <Tabs.Indicator />
+          </Tabs.List>
+        <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
+          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
           {loading ? (
             <p className="text-xs text-slate-500">
               Loading source and AI activity…
@@ -2529,6 +2550,7 @@ function TaskDetail({
             <p className="text-xs text-red-600">{error}</p>
           ) : (
             <>
+              <Tabs.Panel value="output">
               {task.channels && (
                 <section className="mb-3">
                   <div className="mb-2 flex items-center justify-between">
@@ -2636,6 +2658,8 @@ function TaskDetail({
                   {feedbackError && <p className="mt-2 text-[10px] text-red-600">{feedbackError}</p>}
                 </section>
               )}
+              </Tabs.Panel>
+              <Tabs.Panel value="evidence">
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
                 <h3 className="text-xs font-bold text-slate-800">
                   Source & evidence
@@ -2677,6 +2701,8 @@ function TaskDetail({
                 )}
                 </details>
               </section>
+              </Tabs.Panel>
+              <Tabs.Panel value="history">
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
                 <h3 className="text-xs font-bold text-slate-800">
                   AI activity log
@@ -2734,9 +2760,11 @@ function TaskDetail({
                   </p>
                 )}
               </section>
+              </Tabs.Panel>
             </>
           )}
         </div>
+        </Tabs.Root>
         <footer className="flex justify-end gap-2 border-t border-slate-200/80 p-3">
           <button
             onClick={() => void copyResult()}

@@ -68,8 +68,7 @@ async function isolateCreation(page) {
  return unexpected;
 }
 async function creationView(page,view) {
- // Existing view controls contain Lucide SVGs and have no accessible names.
- const control=page.locator(`button:has(svg.lucide-${view==='grid'?'grid2x2':'list'})`);
+ const control=page.getByRole('button',{name:view==='grid'?'Grid view':'List view',exact:true});
  await expect(control).toBeEnabled();await control.click();
 }
 for (const timezoneId of ['UTC','Asia/Ho_Chi_Minh']) {
@@ -82,13 +81,19 @@ for (const timezoneId of ['UTC','Asia/Ho_Chi_Minh']) {
     await creationView(page,view);
     for(const branch of branches)for(const variant of ['valid','missing','invalid']) {
      const card=page.locator('article').filter({has:page.getByRole('button',{name:`Open task: CREATED_${branch}-${variant}`,exact:true})});
-     await expect(card.getByText(`Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`,{exact:true})).toBeVisible();
+     const date = view === 'grid'
+      ? `Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`
+      : timezoneId === 'UTC' ? '07/06/2030 08:09' : '07/06/2030 15:09';
+     await expect(card.locator('.eb-task-date')).toHaveText(date);
     }
     const response=page.waitForResponse(r=>r.url().endsWith('/api/eb-v2/workspace'));
     await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();await response;
     for(const branch of branches)for(const variant of ['valid','missing','invalid']) {
      const card=page.locator('article').filter({has:page.getByRole('button',{name:`Open task: CREATED_${branch}-${variant}`,exact:true})});
-     await expect(card.getByText(`Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`,{exact:true})).toBeVisible();
+     const date = view === 'grid'
+      ? `Ngày tạo: ${expectedDate(branch,variant,timezoneId)}`
+      : timezoneId === 'UTC' ? '07/06/2030 08:09' : '07/06/2030 15:09';
+     await expect(card.locator('.eb-task-date')).toHaveText(date);
     }
    }
    expect(unexpected).toEqual([]);
@@ -101,7 +106,7 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
   const unexpected=await isolateCreation(page);await page.goto('/?screen=eb');
   await setTheme(page,theme);
   await creationView(page,view);
-  const dateValues=()=>page.locator('article').evaluateAll(cards=>cards.map(card=>({title:card.querySelector('[aria-label^="Open task:"]')?.getAttribute('aria-label'),date:[...card.querySelectorAll('p')].find(span=>span.textContent.trim().startsWith('Ngày tạo:'))?.textContent})).sort((a,b)=>a.title.localeCompare(b.title)));
+  const dateValues=()=>page.locator('article').evaluateAll(cards=>cards.map(card=>({title:card.querySelector('[aria-label^="Open task:"]')?.getAttribute('aria-label'),date:card.querySelector('.eb-task-date')?.textContent})).sort((a,b)=>a.title.localeCompare(b.title)));
   await expect(page.getByRole('button',{name:'Open task: CREATED_brief-valid',exact:true})).toBeVisible();
   const dates=await dateValues();
   const response=page.waitForResponse(r=>r.url().endsWith('/api/eb-v2/workspace'));
@@ -111,11 +116,11 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
   for(const branch of branches) {
    const title=`CREATED_${branch}-valid`;
    const open=page.getByRole('button',{name:`Open task: ${title}`,exact:true});
-   const card=page.locator('article').filter({has:open}),metadata=card.getByText(/^Ngày tạo:/);
+   const card=page.locator('article').filter({has:open}),metadata=card.locator('.eb-task-date');
    await metadata.scrollIntoViewIfNeeded();
    const {dateBox,cardBox,controls}=await card.evaluate((el,title)=>{
     const box=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
-    return {cardBox:box(el),dateBox:box([...el.querySelectorAll('p')].find(p=>p.textContent.trim().startsWith('Ngày tạo:'))),controls:[...el.querySelectorAll('button')].filter(b=>b.getAttribute('aria-label')!==`Open task: ${title}`).map(box)};
+    return {cardBox:box(el),dateBox:box(el.querySelector('.eb-task-date')),controls:[...el.querySelectorAll('button')].filter(b=>b.getAttribute('aria-label')!==`Open task: ${title}`).map(box)};
    },title);
    expect(dateBox.width).toBeGreaterThan(0);
    expect(dateBox.x).toBeGreaterThanOrEqual(cardBox.x);
@@ -133,7 +138,7 @@ for(const theme of ['light','dark'])for(const view of ['list','grid']) {
     if(action==='click')await metadata.click();else {await open.focus();await expect(open).toBeFocused();await open.press(action);}
     const detail=page.locator('aside').filter({has:page.getByRole('heading',{name:title,exact:true})});
     await expect(detail).toBeVisible();
-    await detail.locator('header button').click();await expect(detail).toHaveCount(0);
+    await detail.getByRole('button',{name:'Close task details',exact:true}).click();await expect(detail).toHaveCount(0);
    }
   }
   expect(errors).toEqual([]);expect(unexpected).toEqual([]);

@@ -43,7 +43,7 @@ async function setup(page, theme) {
   return { unexpected, mutations, activities, errors };
 }
 async function view(page, name) {
-  const control = page.locator(`button:has(svg.lucide-${name === 'grid' ? 'grid2x2' : 'list'})`);
+  const control = page.getByRole('button',{name:name==='grid'?'Grid view':'List view',exact:true});
   await expect(control).toBeEnabled();
   await control.click();
 }
