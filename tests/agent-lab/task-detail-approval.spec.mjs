@@ -144,6 +144,7 @@ function regenerationHarness() {
   tableUpdate:async(...args)=>state.writes.push(args),stages:{brief:'brief'},libraryContext:async()=>[],
   runGate:async(...args)=>{state.generation=args;if(state.pause)await state.pause;if(state.aiError)throw new Error('AI failed');state.runs=[{status:'completed',output_snapshot:{content:'Fresh brief'},rule_snapshot:args[6]}];},
   workspace:async()=>({packages:[]}),hasUnresolvedValue:value=>!value,
+  validatedBriefInput:(input,v)=>input+'\n\nCONNECTION TO F / F EVENT:\n'+v.connection+'\n\nF SOURCE REFERENCE:\n'+v.evidence,
  };
  const make=path=>new Function(...Object.keys(deps),backendRoute(path))(...Object.values(deps));
  const invoke=async(body={},path='regenerate')=>{const res={code:200,status(code){this.code=code;return this;},json(data){this.data=data;return this;}};await make(`/api/eb-v2/packages/:id/${path}`)({params:{id:'pkg'},body:{stage:'brief',model:{id:'gate-one'},...body}},res);return res;};
@@ -192,9 +193,9 @@ test('Discovery promotion persists one pending card and retries evidence before 
    return inserted;
   },
   tableUpdate:async(table,key,fields)=>Object.assign(tables[table].find(row=>row.id===key),fields),
-  preflightBrief:async(input)=>{
+  preflightBrief:async(input,_model,_id,stored)=>{
    if(!evidence) throw new BriefInputError('Markdown evidence missing');
-   validation={input,evidence};
+   validation={input,evidence,stored};
    return evidence;
   },
   runGate:async(...args)=>{
@@ -202,6 +203,8 @@ test('Discovery promotion persists one pending card and retries evidence before 
    tables.eb_v2_gate_runs.unshift({status:'completed'});
   },
   libraryContext:async()=>[],stages:{brief:'extract_mapping'},
+  validatedBriefInput:(input,v)=>input+'\n\nCONNECTION TO F / F EVENT:\n'+v.connection+'\n\nF SOURCE REFERENCE:\n'+v.evidence,
+  discoveryTopic:item=>item.title,storedFEvidence:item=>item.evidence.find(entry=>entry.kind==='f_evidence')??null,
  };
  const route = new Function(...Object.keys(deps),backendRoute('/api/eb-v2/discovery/:id/promote'))(...Object.values(deps));
  async function promote() {
@@ -216,8 +219,10 @@ test('Discovery promotion persists one pending card and retries evidence before 
  assert.equal(tables.eb_v2_gate_runs[0].status,'failed');
  assert.equal(generation,undefined);
  evidence={evidence:'workshop.md · Workshop quote',connection:'F hosted a workshop'};
+ idea.evidence.push({kind:'f_evidence',status:'found',connection:'F hosted a workshop',reference:'workshop.md · Workshop quote'});
  assert.equal((await promote()).code,201);
  assert.match(validation.input,/example\.test\/trend/);
+ assert.equal(validation.stored.reference,'workshop.md · Workshop quote');
  assert.match(validation.evidence.evidence,/Workshop quote/);
  assert.match(generation[3],/workshop\.md/);
  assert.equal((await promote()).code,200);

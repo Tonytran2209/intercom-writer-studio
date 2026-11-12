@@ -61,6 +61,8 @@ Hướng dẫn này mô tả EB V2 đang được `src/App.tsx` mở mặc đị
 ## 8. Discovery: tìm ý tưởng có nguồn
 - Chọn **Discovery**, bấm **Scan sources** để quét các nguồn đã cấu hình; có thể thêm link nguồn tham khảo.
 - Đọc **Details** trước khi dùng. Các nhóm **Verified trend**, **Emerging signal**, **Source lead** có mức bằng chứng khác nhau; nhãn xu hướng không tự xác nhận liên hệ với F.
+- Nếu đã tải tài liệu dẫn chứng F (Settings → EB Library), mỗi gợi ý được gắn nhãn **Có dẫn chứng F**, **Chưa có dẫn chứng F** hoặc **Chưa kiểm tra được dẫn chứng F**; **Details** hiện mục dẫn chứng, link nguồn và câu trích. Viết tài liệu theo từng mục `## ` có dòng `Nguồn: <link>` để dẫn chứng luôn kèm link.
+- Gate 1 chỉ chặn khi thiếu field must-have của rule **Input validation**; field nice-to-have còn thiếu được ghi vào phần Evidence & gaps của brief.
 - Chọn **Run Gate 1** để mở phần chuẩn bị. Bổ sung liên hệ với F và nguồn xác nhận, có thể quét ảnh để hỗ trợ nhập dẫn chứng, rồi gửi qua validation.
 - Discovery archive giữ gợi ý đã lưu. Xóa riêng hoặc Clear all có xác nhận; Clear all giữ các gợi ý đã sử dụng/package theo hành vi hiện tại.
 

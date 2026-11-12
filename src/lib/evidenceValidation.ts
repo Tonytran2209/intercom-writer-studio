@@ -1,17 +1,6 @@
 import type { EvidenceRef } from "../types";
 import type { DocBundle, DocRef } from "./docContext";
-
-function canonical(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/\u00ad/g, "")
-    .replace(/[“”„‟]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+import { canonical } from "./canonicalText";
 
 function quoteExists(content: string, quote: string): boolean {
   const source = canonical(content);

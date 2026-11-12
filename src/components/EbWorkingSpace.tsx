@@ -101,6 +101,13 @@ function discoveryTag(item: DiscoveryIdea) {
   const confidence = Array.isArray(item.evidence) ? item.evidence.find((entry: any) => entry?.kind === "research_topic")?.confidence : undefined
   return confidence === "source_lead" ? "Source lead" : confidence === "emerging" ? "Emerging signal" : "Verified trend"
 }
+function fEvidenceEntry(item: DiscoveryIdea): any {
+  return Array.isArray(item.evidence) ? item.evidence.find((entry: any) => entry?.kind === "f_evidence") : undefined
+}
+function fEvidenceTag(item: DiscoveryIdea) {
+  const status = fEvidenceEntry(item)?.status
+  return status === "found" ? "Có dẫn chứng F" : status === "missing" ? "Chưa có dẫn chứng F" : status === "failed" ? "Chưa kiểm tra được dẫn chứng F" : null
+}
 function normalizedDiscoveryTitle(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
 }
@@ -2134,7 +2141,7 @@ function DiscoveryArchive({
                 <div className="mt-2 space-y-2">{group.items.map((item) => (
                   <article key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
                     <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
-                      <Tag>{discoveryTag(item)}</Tag>
+                      <span className="flex flex-wrap gap-1.5"><Tag>{discoveryTag(item)}</Tag>{fEvidenceTag(item) && <Tag>{fEvidenceTag(item)}</Tag>}</span>
                       <h2 className="mt-2 ui-type-title font-semibold text-slate-800">{item.title}</h2>
                       <p className="mt-1 ui-type-body text-slate-500">{item.source_summary ?? "Source trace available in Details."}</p>
                     </button>
@@ -2870,6 +2877,14 @@ function DiscoveryDetail({
             </div>
           </section>
           <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-4">
+            {fEvidenceTag(savedItem) && (
+              <div className="mb-3 border-b border-slate-100 pb-3">
+                <h3 className="ui-type-title font-semibold text-slate-800">{fEvidenceTag(savedItem)}</h3>
+                <p className="mt-1 whitespace-pre-wrap ui-type-meta leading-5 text-slate-600">
+                  {fEvidenceEntry(savedItem)?.reference ?? "Gate 1 sẽ tìm lại trong tài liệu dẫn chứng F khi bạn chuyển ý tưởng này."}
+                </p>
+              </div>
+            )}
             <h3 className="ui-type-title font-semibold text-slate-800">Sources used</h3>
             {sources.length ? (
               <div className="mt-2 space-y-2">

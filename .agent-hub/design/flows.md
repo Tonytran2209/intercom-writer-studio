@@ -40,6 +40,9 @@ Chat activation and approval share the card/detail review lock. Each attempt rea
 2. UI receives NDJSON progress events from `POST /api/eb-v2/discovery`.
 3. Saved items render live and are grouped by evidence tag.
 4. User opens details to audit sources or sends a selected item to Gate 1.
+5. When a Gate 1 Markdown evidence document is uploaded, Discovery lists its `## ` entry headings in the topic prompt, then looks up F evidence for every saved suggestion (one logged "Tìm dẫn chứng Markdown" run each, keyed by the suggestion id) and re-emits the card with an `f_evidence` entry: found (connection + reference with entry heading, source URL and verbatim quote), missing or failed. Sending a suggestion to Gate 1 reuses found evidence; otherwise it looks up again. "Tìm lại dẫn chứng F" always looks up again.
+
+The evidence document is split per `## ` heading (long entries split on line breaks); documents without `## ` headings keep 2,200-character chunks. Quotes are compared in the shared canonical form (`src/lib/canonicalText.ts`). Input validation checks the named must-have and nice-to-have fields from the input-validation rule (defaults in `backend/briefValidation.ts`); only a missing must-have field blocks Gate 1, and nice-to-have gaps and questions are passed to the brief as non-blocking gaps.
 
 Never represent an emerging/source lead as a verified trend. Earlier archive suggestions remain unless the user deletes/clears them.
 
