@@ -303,6 +303,7 @@ offlineTest('NOTIFICATIONS_OFFLINE operation failures preserve review results an
   };
   const module = { exports:{} };
   const dependencies = {
+    'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},
     'react':hooks, 'react/jsx-runtime':jsx, 'lucide-react':{}, '../lib/db':api,
     '../lib/appMode':{isShellMode:false}, '../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},
     './workspace/WorkspaceNotification':{
@@ -460,7 +461,7 @@ offlineTest('NOTIFICATIONS_OFFLINE banner queue, content updates, timers and cle
     },
   };
   const noticeStore = await loadNoticeStore();
-  const dependencies = {'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
+  const dependencies = {'twenty-ui/components/input':{LightButton:'button',MainButton:'button'},'twenty-ui/icon':{},'react':hooks,'react/jsx-runtime':jsx,'lucide-react':{Bell:()=>null,X:()=>null},'../lib/db':{},'../lib/appMode':{},'../lib/ebGateContent':{},'../lib/performanceTelemetry':{sendPerformanceSample() {}},'./workspace/WorkspaceNotification':noticeStore};
   const module = {exports:{}};
   new Function('require','exports',compiled)(name => {
     assert.ok(name in dependencies, `Unexpected module ${name}`);

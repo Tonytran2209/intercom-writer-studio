@@ -760,7 +760,7 @@ export default function App() {
   }
 
   return (
-    <div className="writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden bg-[#e9ecef] p-3 md:flex-row text-slate-900">
+    <div className="writer-app-shell writer-light h-dvh select-none flex flex-col gap-2 overflow-hidden p-2 md:flex-row text-slate-900">
       {useEbWorkspace ? <SoftOnboarding>{openGuide => <EbSidebar
         onOpenGuide={openGuide}
         onNewPackage={() => { setActiveId(null); setShowBatchOverview(true); setLauncherHistoryOpen(false) }}

@@ -1,3 +1,5 @@
+import { LightButton, MainButton } from "twenty-ui/components/input"
+import { IconFilter, IconLayoutKanban, IconList, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowLeft,
@@ -8,16 +10,12 @@ import {
   Copy,
   Download,
   FileText,
-  Grid2X2,
   Lightbulb,
-  List,
   LoaderCircle,
   MoreHorizontal,
   RefreshCw,
   RotateCcw,
   ScanSearch,
-  SlidersHorizontal,
-  Sparkles,
   Trash2,
   Upload,
   X,
@@ -1065,9 +1063,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     }
   }
   return (
-    <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
+    <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden border">
       <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
+      <header className="eb-workspace-header flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span className="font-semibold text-slate-800">Content Engine</span>
           <span>/</span>
@@ -1106,22 +1104,22 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           </button>
         </div>
       </header>
-      {page === "board" && <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
+      {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div ref={filterRef} className="relative">
-            <button
+            <LightButton
               type="button"
               aria-expanded={filterOpen}
               onClick={(event) => {
                 event.stopPropagation()
                 setFilterOpen((value) => !value)
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700"
+              size="sm" variant={filterOpen ? "soft" : "ghost"}
+              startIcon={<IconFilter size={16} aria-hidden="true" />}
+              endIcon={<ChevronDown className="size-3" aria-hidden="true" />}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
               Filter
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            </LightButton>
             {filterOpen && (
               <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-xl">
                 <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1162,35 +1160,19 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             </button>
           ))}
         </div>
-        <div role="group" aria-label="Workspace view" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
-          <button
-            type="button"
-            aria-label="List view"
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
-            className={`grid min-h-9 min-w-9 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 ${
-              view === "list" ? "bg-white shadow-2xs" : ""
-            }`}
-          >
-            <List className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Grid view"
-            aria-pressed={view === "grid"}
-            onClick={() => setView("grid")}
-            className={`grid min-h-9 min-w-9 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 ${
-              view === "grid" ? "bg-white shadow-2xs" : ""
-            }`}
-          >
-            <Grid2X2 className="h-3.5 w-3.5" />
-          </button>
+        <div role="group" aria-label="Workspace view" className="eb-view-switch flex shrink-0 gap-1 rounded-lg border p-0.5">
+          <LightButton type="button" size="sm" variant={view === "list" ? "soft" : "ghost"}
+            aria-label="List view" aria-pressed={view === "list"} onClick={() => setView("list")}
+            className="min-h-9 min-w-9" startIcon={<IconList size={16} aria-hidden="true" />} />
+          <LightButton type="button" size="sm" variant={view === "grid" ? "soft" : "ghost"}
+            aria-label="Grid view" aria-pressed={view === "grid"} onClick={() => setView("grid")}
+            className="min-h-9 min-w-9" startIcon={<IconLayoutKanban size={16} aria-hidden="true" />} />
         </div>
       </div>}
       <>
         {page === "board" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <section className="min-h-0 flex-1 overflow-hidden bg-slate-50/30 p-3">
+            <section className="eb-board-surface min-h-0 flex-1 overflow-hidden p-3">
               <div
                 className={
                   view === "grid"
@@ -1446,7 +1428,7 @@ function NotificationPanel({
           }
         }}
         onClick={(event) => event.stopPropagation()}
-        className="flex h-full w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="eb-detail-panel flex h-full w-full max-w-sm flex-col border bg-white"
       >
         <header className="flex items-center justify-between border-b border-slate-200 p-4">
           <div>
@@ -1667,7 +1649,7 @@ function TaskCard({
   }, [actionsOpen])
   return (
     <article
-      className={`relative rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs ${
+      className={`eb-task-card relative border bg-white p-3 ${
         view === "list" ? "flex items-center justify-between gap-4" : ""
       }`}
     >
@@ -1995,16 +1977,17 @@ function InputEngine({
               className="eb-input-topic min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 placeholder:text-slate-400"
             />
             <div className="eb-input-actions">
-            <button
+            <MainButton
+              type="button" variant="soft" color="neutral"
+              startIcon={<IconSparkles size={16} aria-hidden="true" />}
               disabled={syncing || (!input.trim() && !fileName)}
               onClick={analyze}
               title="Kiểm tra thông tin và chạy Gate 1"
               aria-label="Kiểm tra thông tin và chạy Gate 1"
               className="eb-input-analyze flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40"
             >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
               <span>Analyze</span>
-            </button>
+            </MainButton>
             </div>
           </div>
           </div>
@@ -2505,7 +2488,7 @@ function TaskDetail({
     >
       <aside
         onClick={(event) => event.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col rounded-2xl border border-slate-200/80 bg-white shadow-2xl"
+        className="eb-detail-panel flex h-full w-full max-w-xl flex-col border bg-white"
       >
         <header className="flex items-center justify-between border-b border-slate-200/80 p-4">
           <div>
@@ -2829,7 +2812,7 @@ function DiscoveryDetail({
     >
       <aside
         onClick={(event) => event.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col rounded-2xl border border-slate-200/80 bg-white shadow-2xl"
+        className="eb-detail-panel flex h-full w-full max-w-xl flex-col border bg-white"
       >
         <header className="flex items-start justify-between gap-3 border-b border-slate-200/80 p-4">
           <div>

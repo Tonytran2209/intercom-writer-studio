@@ -34,7 +34,7 @@ for (const theme of ['light', 'dark']) {
     await expect(topic).toHaveValue('Topic with F source');
     await expect(analyze).toBeEnabled();
     const analyzeBounds = await analyze.boundingBox();
-    const analyzeLabel = await analyze.locator('span').boundingBox();
+    const analyzeLabel = await analyze.getByText('Analyze', { exact: true }).boundingBox();
     expect(analyzeLabel.x + analyzeLabel.width).toBeLessThan(analyzeBounds.x + analyzeBounds.width);
     await expectNoStroke();
     await expect(topic).toHaveCSS('resize', 'vertical');

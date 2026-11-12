@@ -2,8 +2,8 @@ import {test as base,expect} from '@playwright/test';
 export {expect};
 export async function setTheme(page,theme){
  await page.locator('body').evaluate((body,theme)=>{
-  body.classList.remove('codex-dark','writer-light');
-  body.classList.add(theme==='dark'?'codex-dark':'writer-light');
+  body.classList.remove('codex-dark','writer-light','dark','light');
+  body.classList.add(...(theme==='dark'?['codex-dark','dark']:['writer-light','light']));
  },theme);
 }
 export const test=base.extend({

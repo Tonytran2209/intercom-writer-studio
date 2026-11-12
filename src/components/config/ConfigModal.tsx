@@ -1,3 +1,4 @@
+import { LightButton, MainButton } from 'twenty-ui/components/input';
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Bot, Cpu, Library, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -99,8 +100,8 @@ export default function ConfigModal({ config, files, articles, onSave, onClose }
           </div>
 
           <footer className="settings-footer flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3 md:px-8">
-            <button onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">{tr('Huỷ', 'Cancel')}</button>
-            <button onClick={handleSave} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700">{tr('Lưu thay đổi', 'Save changes')}</button>
+            <LightButton type="button" onClick={onClose}>{tr('Huỷ', 'Cancel')}</LightButton>
+            <MainButton type="button" color="accent" onClick={handleSave}>{tr('Lưu thay đổi', 'Save changes')}</MainButton>
           </footer>
         </main>
       </div>

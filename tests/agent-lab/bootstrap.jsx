@@ -7,6 +7,6 @@ import '../../src/codex-theme.css';
 export function mountFixture(children){
  const theme=new URLSearchParams(location.search).get('theme')||'light';
  document.body.classList.remove('codex-dark','writer-light');
- document.body.classList.add(theme==='dark'?'codex-dark':'writer-light');
+ document.body.classList.add(...(theme==='dark'?['codex-dark','dark']:['writer-light','light']));
  createRoot(document.getElementById('root')).render(<LanguageProvider>{children}</LanguageProvider>);
 }

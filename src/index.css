@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@layer theme, base, twenty-ui, components, utilities;
 @import 'tailwindcss';
+@import 'twenty-ui/style.css';
+@import 'twenty-ui/theme-light.css';
+@import 'twenty-ui/theme-dark.css';
 
 @theme {
   --font-sans: "Inter", sans-serif;
@@ -2840,4 +2844,67 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   .eb-input-engine .eb-input-row { flex-wrap: wrap; gap: .375rem; padding: .5rem; }
   .eb-input-engine .eb-input-topic { flex-basis: calc(100% - 3.5rem); }
   .eb-input-engine .eb-input-actions { margin-left: auto; }
+}
+
+/* Twenty UI tokens for the standalone Writer Studio surfaces. */
+.writer-app-shell { background: var(--t-background-tertiary); }
+.writer-light .eb-workspace,
+.codex-dark .eb-workspace {
+  min-width: 0;
+  border-radius: var(--t-border-radius-md);
+  border-color: var(--t-border-color-medium) !important;
+  background: var(--t-background-primary) !important;
+  color: var(--t-font-color-primary) !important;
+  box-shadow: none;
+}
+.eb-sidebar,
+.eb-mobile-nav {
+  background: var(--t-background-secondary) !important;
+  border-color: var(--t-border-color-medium) !important;
+}
+.eb-sidebar-count { background: var(--t-background-tertiary); color: var(--t-font-color-secondary); }
+.eb-workspace .eb-workspace-header,
+.eb-workspace .eb-workspace-toolbar {
+  background: var(--t-background-primary) !important;
+  border-color: var(--t-border-color-light);
+}
+.eb-board-surface,
+.eb-view-switch {
+  background: var(--t-background-secondary);
+  border-color: var(--t-border-color-medium);
+}
+.eb-workspace .eb-view-switch [aria-pressed="true"] {
+  background: var(--t-background-tertiary);
+  color: var(--t-font-color-primary);
+}
+.writer-light .eb-workspace .gate-column,
+.codex-dark .eb-workspace .gate-column {
+  border-radius: var(--t-border-radius-md);
+  border-color: var(--t-border-color-light) !important;
+  background: var(--t-background-secondary) !important;
+}
+.eb-workspace .eb-task-card,
+.eb-workspace .eb-detail-panel {
+  border-radius: var(--t-border-radius-md);
+  border-color: var(--t-border-color-medium) !important;
+  background: var(--t-background-primary) !important;
+}
+.eb-workspace .eb-task-card { box-shadow: var(--t-box-shadow-light); }
+.eb-workspace .eb-detail-panel { box-shadow: var(--t-box-shadow-strong); }
+.eb-workspace .eb-input-row {
+  border-color: var(--t-border-color-medium);
+  background: var(--t-background-primary) !important;
+  box-shadow: var(--t-box-shadow-light);
+}
+.eb-workspace .eb-input-analyze { background: var(--t-background-tertiary); color: var(--t-font-color-primary); }
+.eb-workspace .eb-input-analyze:hover:not(:disabled) { background: var(--t-background-quaternary); }
+.writer-app-shell .minimal-settings {
+  --settings-bg: var(--t-background-primary);
+  --settings-sidebar: var(--t-background-secondary);
+  --settings-card: var(--t-background-primary);
+  --settings-card-subtle: var(--t-background-secondary);
+  --settings-control: var(--t-background-tertiary);
+  --settings-border: var(--t-border-color-medium);
+  --settings-text: var(--t-font-color-primary);
+  --settings-muted: var(--t-font-color-secondary);
 }
