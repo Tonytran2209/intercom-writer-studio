@@ -2764,14 +2764,34 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   background: var(--t-background-primary) !important;
   border-color: var(--t-border-color-light);
 }
-.eb-board-surface,
+.eb-board-surface { background: var(--t-background-secondary); }
 .eb-view-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--t-spacing-0_5);
+  padding: var(--t-spacing-0_5);
+  border: 1px solid var(--t-border-color-medium);
+  border-radius: var(--t-border-radius-md);
   background: var(--t-background-secondary);
-  border-color: var(--t-border-color-medium);
 }
-.eb-workspace .eb-view-switch [aria-pressed="true"] {
-  background: var(--t-background-tertiary);
-  color: var(--t-font-color-primary);
+.eb-view-switch button {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  place-items: center;
+  border-radius: var(--t-border-radius-sm);
+  color: var(--t-font-color-secondary);
+}
+.eb-view-switch button:hover { background: var(--t-background-tertiary); }
+.eb-view-switch button[aria-pressed="true"] {
+  background: var(--t-accent-accent3);
+  color: var(--t-accent-accent11);
+}
+.eb-view-switch button:focus-visible {
+  outline: 2px solid var(--t-accent-accent9);
+  outline-offset: -2px;
 }
 .writer-light .eb-workspace .gate-column,
 .codex-dark .eb-workspace .gate-column {

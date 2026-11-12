@@ -1,7 +1,7 @@
 import { AppDropdown, AppSelect } from "./AppDropdown"
 import { Tabs } from "twenty-ui/primitives/navigation"
 import { LightButton, MainButton } from "twenty-ui/components/input"
-import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
+import { IconFilter, IconLayoutGrid, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowDownUp,
@@ -1172,13 +1172,13 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             </button>
           ))}
         </div>
-        <div role="group" aria-label="Workspace view" className="eb-view-switch flex shrink-0 gap-1 rounded-lg border p-0.5">
-          <LightButton type="button" size="sm" variant={view === "list" ? "soft" : "ghost"}
-            aria-label="List view" aria-pressed={view === "list"} onClick={() => setView("list")}
-            className="min-h-9 min-w-9" startIcon={<IconList size={16} aria-hidden="true" />} />
-          <LightButton type="button" size="sm" variant={view === "grid" ? "soft" : "ghost"}
-            aria-label="Grid view" aria-pressed={view === "grid"} onClick={() => setView("grid")}
-            className="min-h-9 min-w-9" startIcon={<IconLayoutKanban size={16} aria-hidden="true" />} />
+        <div role="group" aria-label="Workspace view" className="eb-view-switch">
+          <LightButton type="button" size="sm" variant="ghost"
+            aria-label="List view" title="List view" aria-pressed={view === "list"} onClick={() => setView("list")}
+            startIcon={<IconList size={16} aria-hidden="true" />} />
+          <LightButton type="button" size="sm" variant="ghost"
+            aria-label="Grid view" title="Grid view" aria-pressed={view === "grid"} onClick={() => setView("grid")}
+            startIcon={<IconLayoutGrid size={16} aria-hidden="true" />} />
         </div>
       </div>}
       <>

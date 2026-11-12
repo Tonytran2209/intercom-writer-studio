@@ -77,8 +77,16 @@ test('Gate Grid scrolls without tracks and keeps card actions reachable', async 
   // This fixture mounts the workspace directly. Match the app shell's viewport constraint.
   await page.locator('.eb-workspace').evaluate(element => { element.style.height = 'calc(100dvh - 24px)'; });
   const gridToggle = page.getByRole('button',{name:'Grid view',exact:true});
-  await gridToggle.click();
+  const listToggle = page.getByRole('button',{name:'List view',exact:true});
+  await expect(listToggle).toHaveAttribute('aria-pressed','true');
+  await expect(gridToggle).toHaveCSS('width','36px');
+  await expect(gridToggle).toHaveCSS('height','36px');
+  await expect(listToggle).toHaveCSS('width','36px');
+  await expect(listToggle).toHaveCSS('height','36px');
+  await gridToggle.focus();
+  await gridToggle.press('Enter');
   await expect(gridToggle).toHaveAttribute('aria-pressed','true');
+  await expect(listToggle).toHaveAttribute('aria-pressed','false');
   const grid = page.locator('.eb-grid-scroll').first();
   const columns = grid.locator('.gate-column');
   await expect(columns).toHaveCount(4);
