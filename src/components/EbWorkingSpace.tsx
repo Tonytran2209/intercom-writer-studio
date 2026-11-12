@@ -1,6 +1,6 @@
 import { Tabs } from "twenty-ui/primitives/navigation"
 import { LightButton, MainButton } from "twenty-ui/components/input"
-import { IconFilter, IconLayoutKanban, IconList, IconSparkles } from "twenty-ui/icon"
+import { IconFilter, IconLayoutKanban, IconList, IconPlus, IconSparkles } from "twenty-ui/icon"
 import { interactionStart, measureAfterPaint, postPerformanceSample, sendPerformanceSample } from "../lib/performanceTelemetry"
 import {
   ArrowLeft,
@@ -1077,7 +1077,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden border">
       <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
       <header className="eb-workspace-header flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 ui-type-meta text-slate-500">
           <span className="font-semibold text-slate-800">Content Engine</span>
           {page !== "board" && <>
             <span aria-hidden="true">/</span>
@@ -1094,7 +1094,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           >
             <Bell className="h-3.5 w-3.5" />
             {notices.length > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
+              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-red-500 px-0.5 ui-type-body font-semibold text-white">
                 {notices.length}
               </span>
             )}
@@ -1113,7 +1113,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </header>
       {page === "board" && <div className="eb-workspace-toolbar flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:items-center sm:px-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="mr-1 text-sm font-semibold text-slate-900">EB Content Packages</h1>
+          <h1 className="mr-1 ui-type-page font-semibold text-slate-900">EB Content Packages</h1>
           <div ref={filterRef} className="relative">
             <LightButton
               type="button"
@@ -1128,15 +1128,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             >
               Filter
             </LightButton>
-            <span className="ml-2 text-xs text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
+            <span className="ml-2 ui-type-meta text-slate-500 tabular-nums">{filteredTasks.length} {filteredTasks.length === 1 ? "item" : "items"}</span>
             {filterOpen && (
-              <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-xl">
-                <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <div className="absolute left-0 top-[calc(100%+8px)] z-50 max-h-[min(24rem,55dvh)] w-64 max-w-[calc(100dvw-3rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 ui-type-meta shadow-xl">
+                <p className="px-2 py-1.5 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
                   Filter packages
                 </p>
                 {filterGroups.map((group) => (
                   <div key={group.label} className="mb-2 last:mb-0">
-                    <p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+                    <p className="px-2 py-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
                     <div className="space-y-1">
                       {group.options.map((label) => (
                         <button key={label} onClick={() => toggleFilter(label)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left ${activeFilters.includes(label) ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}>
@@ -1150,7 +1150,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 {activeFilters.length > 0 && (
                   <button
                     onClick={() => setActiveFilters([])}
-                    className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+                    className="mt-1 w-full rounded-lg border-t border-slate-100 px-2.5 py-2 text-left ui-type-body font-semibold text-slate-500 hover:bg-slate-50"
                   >
                     Clear filters
                   </button>
@@ -1162,7 +1162,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             <button
               key={filter}
               onClick={() => toggleFilter(filter)}
-              className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-200"
+              className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2.5 py-1 ui-type-body font-medium text-slate-600 hover:bg-slate-200"
             >
               {filter}
               <X className="h-3 w-3 text-slate-400" />
@@ -1442,10 +1442,10 @@ function NotificationPanel({
       >
         <header className="flex items-center justify-between border-b border-slate-200 p-4">
           <div>
-            <p className="text-sm font-bold text-slate-900">
+            <p className="ui-type-body font-semibold text-slate-900">
               Notification center
             </p>
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 ui-type-meta text-slate-500">
               Connection, workflow, AI runs and saved-data status
             </p>
           </div>
@@ -1470,11 +1470,11 @@ function NotificationPanel({
               setTab(next === 0 ? "notices" : "system")
               tabRefs.current[next]?.focus()
             }}
-            className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
+            className={`min-h-10 flex-1 rounded-lg px-2 ui-type-meta font-semibold focus-visible:outline focus-visible:outline-2 ${tab === value ? "bg-slate-200 text-slate-900" : "text-slate-500"}`}
           >{value === "notices" ? "Thông báo" : "Trạng thái hệ thống"}</button>)}
         </div>
         <div role="tabpanel" id={`notification-panel-${tab}`} aria-labelledby={`notification-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto p-3">
-          {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 text-xs text-slate-700">
+          {tab === "system" ? <section aria-label="Workspace status" className="space-y-3 ui-type-meta text-slate-700">
             <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h2 className="font-semibold">{syncing ? "Synchronising V2 workspace…" : runtimeError ? "Workspace connection error" : "V2 workspace is live."}</h2>
               <p className="mt-2">Live describes the workspace connection only.</p>
@@ -1482,14 +1482,14 @@ function NotificationPanel({
               <p className="mt-2">{syncing || runtimeError ? "Workspace counts are unconfirmed. Refresh successfully to confirm current data." : "Counts from the current workspace, across all board filters."}</p>
             </div>
             <dl className="grid grid-cols-2 gap-2">
-              {counts.map(item => <div key={item.label} className="rounded-xl border border-slate-200 p-3"><dt>{item.label}</dt><dd className="mt-1 text-lg font-semibold">{syncing || runtimeError ? "—" : item.count}</dd></div>)}
+              {counts.map(item => <div key={item.label} className="rounded-xl border border-slate-200 p-3"><dt>{item.label}</dt><dd className="mt-1 ui-type-title font-semibold">{syncing || runtimeError ? "—" : item.count}</dd></div>)}
             </dl>
             <button onClick={onRetry} disabled={syncing} aria-label={runtimeError ? "Retry" : "Refresh"} className="min-h-10 rounded-lg border border-slate-200 px-4 font-semibold focus-visible:outline focus-visible:outline-2 disabled:opacity-50">{syncing ? "Synchronising…" : runtimeError ? "Retry" : "Refresh"}</button>
           </section> : notices.length && selectedNoticeId ? (
-            <section className="space-y-3 text-xs text-slate-700" aria-label="Notification details">
+            <section className="space-y-3 ui-type-meta text-slate-700" aria-label="Notification details">
               <button ref={backRef} onClick={returnToList} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold focus-visible:outline focus-visible:outline-2">← Back to notifications</button>
               {selectedNotice ? <>
-                <h2 className="whitespace-pre-wrap break-words text-sm font-semibold">{selectedNotice.text}</h2>
+                <h2 className="whitespace-pre-wrap break-words ui-type-title font-semibold">{selectedNotice.text}</h2>
                 {selectedNotice.kind && <p className="capitalize">{selectedNotice.kind}</p>}
                 {selectedNotice.details.map(detail => <article key={detail.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <h3 className="whitespace-pre-wrap break-words font-semibold">{detail.title}</h3>
@@ -1500,33 +1500,33 @@ function NotificationPanel({
             </section>
           ) : notices.length ? (
             notices.map((notice) => (
-              <article key={notice.id} className={`mb-2 rounded-xl border text-xs ${notice.error ? "border-red-100 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+              <article key={notice.id} className={`mb-2 rounded-xl border ui-type-meta ${notice.error ? "border-red-100 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
                 <button
                   ref={node => { if (node) rowRefs.current.set(notice.id, node); else rowRefs.current.delete(notice.id) }}
                   onClick={() => setSelectedNoticeId(notice.id)}
                   className="w-full rounded-xl p-3 text-left focus-visible:outline focus-visible:outline-2"
                 >
                   <span className="block whitespace-pre-wrap break-words font-semibold">{notice.text}</span>
-                  {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="mt-2 block break-words">{detail.title}<span className="mt-0.5 block text-[10px]">{detail.context}</span></span>)}
+                  {notice.details.slice(0, 2).map(detail => <span key={detail.id} className="mt-2 block break-words">{detail.title}<span className="mt-0.5 block ui-type-body">{detail.context}</span></span>)}
                   {notice.details.length > 2 && <span className="mt-2 block">+{notice.details.length - 2} more</span>}
-                  <span className="mt-2 block text-[10px] font-semibold">View details →</span>
+                  <span className="mt-2 block ui-type-meta font-semibold">View details →</span>
                 </button>
                 <button aria-label={`Xoá thông báo: ${notice.text}`} onClick={async () => {
                   const index = notices.findIndex(item => item.id === notice.id)
                   const next = notices[index + 1] ?? notices[index - 1]
                   if (!await onDismiss([notice])) return
                   requestAnimationFrame(() => (rowRefs.current.get(next?.id ?? "") ?? tabRefs.current[0])?.focus())
-                }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
+                }} className="min-h-10 rounded-lg px-3 ui-type-body font-semibold focus-visible:outline focus-visible:outline-2">Xoá</button>
               </article>
             ))
-          ) : <p className="p-4 text-center text-xs text-slate-500">Không có thông báo mới</p>}
+          ) : <p className="p-4 text-center ui-type-meta text-slate-500">Không có thông báo mới</p>}
         </div>
         {tab === "notices" && notices.length > 0 && <footer className="shrink-0 border-t border-slate-200 p-2">
           <button onClick={async () => {
             if (!await onDismiss(notices)) return
             setSelectedNoticeId(null)
             tabRefs.current[0]?.focus()
-          }} className="min-h-10 rounded-lg px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2">Xoá tất cả</button>
+          }} className="min-h-10 rounded-lg px-3 ui-type-body font-semibold focus-visible:outline focus-visible:outline-2">Xoá tất cả</button>
         </footer>}
       </aside>
     </div>
@@ -1580,11 +1580,11 @@ function GateGroup({
             <span className={`gate-dot gate-dot-${config.tone}`}>
               <Check className="h-2.5 w-2.5" />
             </span>
-            <h2 className="text-xs font-bold text-slate-800">{config.title}</h2>
+            <h2 className="ui-type-title font-semibold text-slate-800">{config.title}</h2>
           </div>
-          {!isList && <p className="mt-1 text-[10px] text-slate-500">{config.subtitle}</p>}
+          {!isList && <p className="mt-1 ui-type-meta text-slate-500">{config.subtitle}</p>}
         </div>
-        <span className="text-xs text-slate-400">{tasks.length}</span>
+        <span className="ui-type-meta text-slate-400">{tasks.length}</span>
       </div>
       <div role={isList && tasks.length ? "table" : undefined} aria-label={isList && tasks.length ? config.title : undefined}
         className={isList ? undefined : "eb-gate-items eb-grid-scroll space-y-2"}>
@@ -1613,7 +1613,7 @@ function GateGroup({
             />
           ))
         ) : (
-          <p className="py-5 text-center text-[10px] text-slate-400">
+          <p className="py-5 text-center ui-type-meta text-slate-400">
             No tasks
           </p>
         )}
@@ -1694,19 +1694,19 @@ function TaskCard({
           className={`block w-full min-w-0 text-left focus-visible:outline-2 focus-visible:outline-offset-2 ${isList ? "" : "after:absolute after:inset-0 after:rounded-lg after:content-['']"}`}>
           {!isList && <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="eb-task-status" data-status={status}>{status}</span>
-            {source !== "—" && <span className="text-xs text-slate-500">{source}</span>}
+            {source !== "—" && <span className="ui-type-body text-slate-500">{source}</span>}
           </div>}
-          <h3 className="text-xs font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{task.title}</h3>
-          {!isList && <p className="eb-task-date mt-1 text-[10px] text-slate-500">Ngày tạo: {formatTaskCreatedAt(task.createdAt)}</p>}
-          {(task.channel || task.channels) && <p className="mt-1 text-[10px] text-slate-500">
+          <h3 className="ui-type-body font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{task.title}</h3>
+          {!isList && <p className="eb-task-date mt-1 ui-type-meta text-slate-500">Ngày tạo: {formatTaskCreatedAt(task.createdAt)}</p>}
+          {(task.channel || task.channels) && <p className="mt-1 ui-type-meta text-slate-500">
             {task.channel ?? `${fullChannels.length} channels · ${summary.done} Done · ${summary.rejected} Rejected · ${summary.pending} Chờ review`}
           </p>}
         </button>
       </div>
       {isList && <>
         <div role="cell" className="eb-task-row-status"><span className="eb-task-status" data-status={status}>{status}</span></div>
-        <div role="cell" className="eb-task-row-source text-xs text-slate-500">{source}</div>
-        <div role="cell" className="eb-task-date eb-task-row-updated whitespace-nowrap text-xs tabular-nums text-slate-500">{formatTaskCreatedAt(task.updatedAt ?? task.createdAt)}</div>
+        <div role="cell" className="eb-task-row-source ui-type-meta text-slate-500">{source}</div>
+        <div role="cell" className="eb-task-date eb-task-row-updated whitespace-nowrap ui-type-meta tabular-nums text-slate-500">{formatTaskCreatedAt(task.updatedAt ?? task.createdAt)}</div>
       </>}
       <div role={isList ? "cell" : undefined}
         className={`eb-task-actions pointer-events-none relative ${actionsOpen ? "z-30" : "z-10"} flex flex-wrap items-center gap-1.5 [&_button]:pointer-events-auto [&_select]:pointer-events-auto ${isList ? "justify-end" : "mt-2"}`}>
@@ -1714,7 +1714,7 @@ function TaskCard({
           <button
             disabled={approvalDisabled}
             onClick={() => onBrief(task)}
-            className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white"
+            className="rounded-lg bg-indigo-600 px-2 py-1 ui-type-body font-semibold text-white"
           >
             Approve brief
           </button>
@@ -1724,7 +1724,7 @@ function TaskCard({
             <button
               disabled={approvalDisabled}
               onClick={() => onArticle(task)}
-              className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white"
+              className="rounded-lg bg-indigo-600 px-2 py-1 ui-type-body font-semibold text-white"
             >
               Approve article
             </button>
@@ -1733,7 +1733,7 @@ function TaskCard({
           task.type === "Approved website article" && (
             <button
               onClick={() => onOpen(task.id)}
-              className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 ui-type-body font-semibold text-amber-700"
             >
               Open article
             </button>
@@ -1781,35 +1781,35 @@ function TaskCard({
           {actionsOpen && (
             <div className={`pointer-events-auto z-30 w-44 max-w-full rounded-xl border border-slate-200 bg-white p-1 shadow-lg ${view === "grid" ? "mt-1" : "absolute right-0 top-[calc(100%+6px)]"}`}>
               {task.gate === "review" && task.channels && <>
-                {needsThreads && <label className="block px-2 py-1 text-[10px] text-slate-600">Threads variants
+                {needsThreads && <label className="block px-2 py-1 ui-type-meta text-slate-600">Threads variants
                   <select aria-label="Bulk Threads variants" disabled={approvalDisabled} value={bulkVariants} onChange={(event) => setBulkVariants(event.target.value as ApprovedVariants | "")} className="mt-1 w-full rounded border border-slate-200 p-1">
                     <option value="">Choose A / B / both</option><option value="a">Variant A</option><option value="b">Variant B</option><option value="both">A + B</option>
                   </select>
                 </label>}
-                <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} className="w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
-                <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} className="w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
+                <button disabled={approvalDisabled || !fullChannels.length || summary.done === fullChannels.length || (needsThreads && !bulkVariants)} onClick={() => onDecision(task.id, "done", needsThreads ? bulkVariants || undefined : undefined)} className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-emerald-700 disabled:opacity-40">Done tất cả</button>
+                <button disabled={approvalDisabled || !fullChannels.length || summary.rejected === fullChannels.length} onClick={() => onDecision(task.id, "reject")} className="w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 disabled:opacity-40">Reject tất cả</button>
               </>}
               {canRegenerate && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onRegenerate(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
                   <RotateCcw className="h-3.5 w-3.5" /> Regenerate
                 </button>
               )}
               {task.gate === "article" && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
               )}
               {(task.gate === "adapt" || task.gate === "review") && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "article") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Article · Gate 2
                 </button>
               )}
               {(task.gate === "adapt" || task.gate === "review") && (
-                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">
+                <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onMove(task, "brief") }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">
                   <ArrowLeft className="h-3.5 w-3.5" /> Move to Brief · Gate 1
                 </button>
               )}
-              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-red-600 hover:bg-red-50">
+              <button disabled={approvalDisabled} onClick={() => { setActionsOpen(false); onDelete(task) }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-red-600 hover:bg-red-50">
                 <Trash2 className="h-3.5 w-3.5" /> Delete item
               </button>
             </div>
@@ -1842,14 +1842,14 @@ function Discovery({
           : "border-purple-100 bg-purple-50 text-purple-700"
   return (
     <div className="mt-2 w-full border-t border-purple-100 pt-2">
-      <p className="text-[10px] text-slate-500">
+      <p className="ui-type-meta text-slate-500">
         Scans configured public sources and the links in the input above.
         Suggestions are never auto-approved.
       </p>
       {status.state !== "idle" && (
         <div
           role="status"
-          className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] leading-relaxed ${statusClass}`}
+          className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2 py-1.5 ui-type-meta leading-relaxed ${statusClass}`}
         >
           {running && (
             <LoaderCircle className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
@@ -1864,7 +1864,7 @@ function Discovery({
               disabled={running}
               key={idea.id}
               onClick={() => onPick(idea)}
-              className="rounded-lg bg-purple-50 px-2 py-1.5 text-left text-[10px] text-slate-700 hover:bg-purple-100 disabled:opacity-50"
+              className="rounded-lg bg-purple-50 px-2 py-1.5 text-left ui-type-body text-slate-700 hover:bg-purple-100 disabled:opacity-50"
             >
               <span className="mr-1 text-purple-500">{index + 1}.</span>
               {idea.title}
@@ -1894,7 +1894,7 @@ function gateOneRequirements(message: string): string[] | null {
 function InputValidationFeedback({ message }: { message: string }) {
   const requirements = gateOneRequirements(message)
   return (
-    <div role="alert" className="mb-2 max-h-64 overflow-y-auto rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100 in-[.writer-dark]:text-slate-100 in-[.codex-dark]:text-slate-100">
+    <div role="alert" className="mb-2 max-h-64 overflow-y-auto rounded border border-amber-500/40 bg-amber-500/10 p-3 ui-type-meta text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100 in-[.writer-dark]:text-slate-100 in-[.codex-dark]:text-slate-100">
       {requirements ? (
         <>
           <h3 className="font-semibold">Cần bổ sung</h3>
@@ -1954,7 +1954,7 @@ function InputEngine({
                   : "border-slate-200 text-slate-500"
               }`}
             >
-              <span aria-hidden="true" className="text-2xl leading-none">+</span>
+              <IconPlus size={20} aria-hidden="true" />
               <input
                 type="file"
                 disabled={syncing}
@@ -1976,7 +1976,7 @@ function InputEngine({
               aria-label="Nội dung ý tưởng"
               rows={1}
               placeholder="Nhập chủ đề hoặc câu chuyện…"
-              className="eb-input-topic min-w-0 flex-1 resize-y bg-transparent text-sm text-slate-800 placeholder:text-slate-400"
+              className="eb-input-topic min-w-0 flex-1 resize-y bg-transparent ui-type-body text-slate-800 placeholder:text-slate-400"
             />
             <div className="eb-input-actions">
             <MainButton
@@ -1986,14 +1986,14 @@ function InputEngine({
               onClick={analyze}
               title="Kiểm tra thông tin và chạy Gate 1"
               aria-label="Kiểm tra thông tin và chạy Gate 1"
-              className="eb-input-analyze flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40"
+              className="eb-input-analyze flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 ui-type-body font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-40"
             >
               <span>Analyze</span>
             </MainButton>
             </div>
           </div>
           </div>
-          {(syncing || fileName) && <p className="mt-1 break-all px-3 text-[10px] text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
+          {(syncing || fileName) && <p className="mt-1 break-all px-3 ui-type-body text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
         </div>
       </div>
     </div>
@@ -2027,11 +2027,11 @@ function DiscoveryResearch({
           <div>
             <div className="flex items-center gap-2">
               <Lightbulb className="h-4 w-4 text-indigo-600" />
-              <h2 className="text-xs font-bold text-slate-800">
+              <h2 className="ui-type-title font-semibold text-slate-800">
                 Discovery research
               </h2>
             </div>
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 ui-type-meta text-slate-500">
               Scan configured daily sources, or add social links as extra
               research evidence.
             </p>
@@ -2062,12 +2062,12 @@ function DiscoveryResearch({
           onChange={(event) => setSourceInput(event.target.value)}
           rows={2}
           placeholder="Optional: paste Facebook, Instagram or Threads links…"
-          className="mt-3 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-purple-300"
+          className="mt-3 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-purple-300"
         />
         {status.state !== "idle" && (
           <div
             role="status"
-            className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed ${statusClass}`}
+            className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 ui-type-meta leading-relaxed ${statusClass}`}
           >
             {running && (
               <LoaderCircle className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
@@ -2106,10 +2106,10 @@ function DiscoveryArchive({
       <div className="mx-auto max-w-4xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-sm font-bold text-slate-900">
+            <h1 className="ui-type-page font-semibold text-slate-900">
               Discovery archive
             </h1>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 ui-type-meta text-slate-500">
               Saved, source-backed topic suggestions awaiting selection.
             </p>
           </div>
@@ -2125,7 +2125,7 @@ function DiscoveryArchive({
             {ideas.length > 0 && (
               <button
                 onClick={onClear}
-                className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-red-200 px-2.5 py-1.5 ui-type-body font-medium text-red-600 hover:bg-red-50"
               >
                 Clear all
               </button>
@@ -2136,18 +2136,18 @@ function DiscoveryArchive({
           {ideas.length ? (
             groups.map((group) => (
               <section key={group.key}>
-                <h2 className="text-xs font-bold text-slate-800">{group.title}</h2>
-                <p className="mt-0.5 text-[10px] text-slate-500">{group.description}</p>
+                <h2 className="ui-type-title font-semibold text-slate-800">{group.title}</h2>
+                <p className="mt-0.5 ui-type-meta text-slate-500">{group.description}</p>
                 <div className="mt-2 space-y-2">{group.items.map((item) => (
                   <article key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
                     <button onClick={() => onOpen(item)} className="min-w-0 flex-1 text-left">
                       <Tag>{discoveryTag(item)}</Tag>
-                      <h2 className="mt-2 text-xs font-bold text-slate-800">{item.title}</h2>
-                      <p className="mt-1 text-[10px] text-slate-500">{item.source_summary ?? "Source trace available in Details."}</p>
+                      <h2 className="mt-2 ui-type-title font-semibold text-slate-800">{item.title}</h2>
+                      <p className="mt-1 ui-type-body text-slate-500">{item.source_summary ?? "Source trace available in Details."}</p>
                     </button>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">Details</button>
-                      <button disabled={promoting} onClick={event => onPick(item, event)} className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white">Chuyển sang Gate 1</button>
+                      <button onClick={() => onOpen(item)} className="rounded-lg border border-slate-200 px-2 py-1 ui-type-body font-semibold text-slate-600">Details</button>
+                      <button disabled={promoting} onClick={event => onPick(item, event)} className="rounded-lg bg-indigo-600 px-2 py-1 ui-type-body font-semibold text-white">Chuyển sang Gate 1</button>
                       <button onClick={() => onDelete(item)} title="Delete suggestion" aria-label="Delete suggestion" className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </article>
@@ -2155,7 +2155,7 @@ function DiscoveryArchive({
               </section>
             ))
           ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
+            <p className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center ui-type-meta text-slate-400">
               No pending Discovery suggestions.
             </p>
           )}
@@ -2194,18 +2194,18 @@ function ArticleLibrary({
                     <Tag>{task.channel ?? "fab.careers"}</Tag>
                     <Tag>{task.decision ?? "Awaiting final action"}</Tag>
                   </div>
-                  <h2 className="mt-2 text-xs font-bold text-slate-800">
+                  <h2 className="mt-2 ui-type-title font-semibold text-slate-800">
                     {task.title}
                   </h2>
                 </div>
-                <button className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                <button className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 ui-type-body font-semibold text-slate-600">
                   <Download className="h-3 w-3" />
                   Export
                 </button>
               </article>
             ))
           ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-xs text-slate-400">
+            <p className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center ui-type-meta text-slate-400">
               No approved packages in this shell session yet.
             </p>
           )}
@@ -2226,12 +2226,12 @@ function PageHeader({
   return (
     <div className="flex items-start justify-between">
       <div>
-        <h1 className="text-sm font-bold text-slate-900">{title}</h1>
-        <p className="mt-1 text-xs text-slate-500">{description}</p>
+        <h1 className="ui-type-page font-semibold text-slate-900">{title}</h1>
+        <p className="mt-1 ui-type-meta text-slate-500">{description}</p>
       </div>
       <button
         onClick={onBack}
-        className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600"
+        className="rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
       >
         Back to workspace
       </button>
@@ -2255,7 +2255,7 @@ function InlineMarkdown({ value }: { value: string }) {
 }
 function MarkdownContent({ value }: { value: string }) {
   return (
-    <div className="mt-2 space-y-2 text-xs leading-6 text-slate-700">
+    <div className="mt-2 space-y-2 ui-type-meta leading-6 text-slate-700">
       {String(value)
         .split("\n")
         .map((line, index) => {
@@ -2268,7 +2268,7 @@ function MarkdownContent({ value }: { value: string }) {
                 key={index}
                 className={
                   heading[1].length <= 2
-                    ? "pt-2 text-sm font-bold text-slate-800"
+                    ? "pt-2 ui-type-body font-semibold text-slate-800"
                     : "pt-1 font-semibold text-slate-800"
                 }
               >
@@ -2506,10 +2506,10 @@ function TaskDetail({
         <header className="shrink-0 border-b border-slate-200/80 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <p className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">
               {gateConfig[task.gate].title}
             </p>
-            <h2 id="eb-task-inspector-title" className="mt-1 text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
+            <h2 id="eb-task-inspector-title" className="mt-1 ui-type-title font-semibold text-slate-900 [overflow-wrap:anywhere]">
               {task.title}
             </h2>
           </div>
@@ -2531,7 +2531,7 @@ function TaskDetail({
               </MainButton>
             </div>
           )}
-          {approvalPending && <p role="status" className="mt-2 text-xs text-slate-500">Saving approval and starting the next step…</p>}
+          {approvalPending && <p role="status" className="mt-2 ui-type-meta text-slate-500">Saving approval and starting the next step…</p>}
         </header>
         <Tabs.Root defaultValue={task.discoveryNeedsEvidence ? "evidence" : "output"} className="min-h-0 flex flex-1 flex-col">
           <Tabs.List className="eb-inspector-tabs shrink-0 px-3" aria-label="Task details" activateOnFocus>
@@ -2541,13 +2541,13 @@ function TaskDetail({
             <Tabs.Indicator />
           </Tabs.List>
         <div className="min-h-0 flex-1 select-text overflow-y-auto p-4">
-          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
+          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 ui-type-meta text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
           {loading ? (
-            <p className="text-xs text-slate-500">
+            <p className="ui-type-meta text-slate-500">
               Loading source and AI activity…
             </p>
           ) : error ? (
-            <p className="text-xs text-red-600">{error}</p>
+            <p className="ui-type-meta text-red-600">{error}</p>
           ) : (
             <>
               <Tabs.Panel value="output">
@@ -2555,10 +2555,10 @@ function TaskDetail({
                 <section className="mb-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-800">Channel outputs</h3>
-                      <p className="mt-0.5 text-[10px] text-slate-500">Choose an output to inspect. Actions always apply to its channel only.</p>
+                      <h3 className="ui-type-title font-semibold text-slate-800">Channel outputs</h3>
+                      <p className="mt-0.5 ui-type-meta text-slate-500">Choose an output to inspect. Actions always apply to its channel only.</p>
                     </div>
-                    <span className="text-[10px] text-slate-400">{task.channels.length} outputs</span>
+                    <span className="ui-type-meta text-slate-400">{task.channels.length} outputs</span>
                   </div>
                   <div className="space-y-2">
                     {task.channels.map((channel) => {
@@ -2568,7 +2568,7 @@ function TaskDetail({
                         <article key={channel.id} className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-2xs ${isActive ? "border-slate-400" : "border-slate-200/80"}`}>
                           <button disabled={approvalDisabled || !!acceptingFeedbackId} onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen(null) }} className="min-w-0 flex-1 text-left">
                             <div className="flex flex-wrap gap-1"><Tag>{channel.channel}</Tag><Tag>{status}</Tag>{channel.approvedVariants && <Tag>Approved: {channel.approvedVariants === "both" ? "A + B" : channel.approvedVariants.toUpperCase()}</Tag>}</div>
-                            <p className="mt-1 text-[10px] text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
+                            <p className="mt-1 ui-type-body text-slate-500">{isActive ? "Open in the review panel below." : "Select to review this channel output."}</p>
                           </button>
                           <fieldset disabled={approvalDisabled} className="flex shrink-0 items-center gap-1.5">
                             {!channel.decision && <>
@@ -2580,8 +2580,8 @@ function TaskDetail({
                             <div className="relative">
                               <button onClick={() => { setSelectedChannelId(channel.id); setChannelActionsOpen((current) => current === channel.id ? null : channel.id) }} title={`More actions for ${channel.channel}`} aria-label={`More actions for ${channel.channel}`} aria-expanded={channelActionsOpen === channel.id} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><MoreHorizontal className="h-3.5 w-3.5" /></button>
                               {channelActionsOpen === channel.id && <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                                <button onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
-                                <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={!model} className="flex w-full rounded-lg px-2.5 py-2 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
+                                <button onClick={() => { setChannelActionsOpen(null); onDecision(channel.id, "recheck") }} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50">Send to recheck</button>
+                                <button onClick={() => { setChannelActionsOpen(null); onRegenerate({ ...task, id: channel.id, channel: channel.channel, channels: undefined }) }} disabled={!model} className="flex w-full rounded-lg px-2.5 py-2 text-left ui-type-body font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">Regenerate</button>
                               </div>}
                             </div>
                           </fieldset>
@@ -2593,11 +2593,11 @@ function TaskDetail({
               )}
               <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold text-slate-800">{task.gate === "brief" ? "Brief · Gate 1" : task.gate === "article" ? "Website article · Gate 2" : "Channel output"}</h3>
+                  <h3 className="ui-type-title font-semibold text-slate-800">{task.gate === "brief" ? "Brief · Gate 1" : task.gate === "article" ? "Website article · Gate 2" : "Channel output"}</h3>
                   <button
                     onClick={() => void copyResult()}
                     title="Copy result as formatted Markdown"
-                    className="inline-flex select-none items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                    className="inline-flex select-none items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 ui-type-body font-semibold text-slate-600 hover:bg-slate-50"
                   >
                     {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                     {copied ? "Copied" : "Copy"}
@@ -2609,8 +2609,8 @@ function TaskDetail({
                 <section className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/30 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-800">Refine with AI</h3>
-                      <p className="mt-0.5 text-[10px] text-slate-500">
+                      <h3 className="ui-type-title font-semibold text-slate-800">Refine with AI</h3>
+                      <p className="mt-0.5 ui-type-meta text-slate-500">
                         Your request and each AI revision are saved to this item.
                       </p>
                     </div>
@@ -2618,13 +2618,13 @@ function TaskDetail({
                   </div>
                   <div className="mt-3 space-y-2">
                     {feedbackThread.map((entry: any) => (
-                      <div key={entry.id} className={`max-w-[92%] rounded-xl px-3 py-2 text-[11px] leading-relaxed ${entry.role === "user" ? "ml-auto bg-indigo-600 text-white" : entry.status === "failed" ? "border border-red-100 bg-red-50 text-red-700" : "bg-white text-slate-700 shadow-2xs"}`}>
-                        {entry.role === "assistant" && <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">AI revision {entry.status === "running" ? "· generating" : ""}</p>}
+                      <div key={entry.id} className={`max-w-[92%] rounded-xl px-3 py-2 ui-type-meta leading-relaxed ${entry.role === "user" ? "ml-auto bg-indigo-600 text-white" : entry.status === "failed" ? "border border-red-100 bg-red-50 text-red-700" : "bg-white text-slate-700 shadow-2xs"}`}>
+                        {entry.role === "assistant" && <p className="mb-1 ui-type-meta font-semibold uppercase tracking-wide text-slate-400">AI revision {entry.status === "running" ? "· generating" : ""}</p>}
                         {entry.status === "running" ? <div><span className="inline-flex items-center gap-1.5 text-slate-500"><LoaderCircle className="h-3 w-3 animate-spin" />{entry.live?.phase ?? "Writing revision…"}</span>{entry.live?.text && <div className="mt-2 whitespace-pre-wrap">{entry.live.text}</div>}</div> : entry.status === "failed" ? <span>{entry.error_message || "The revision could not be generated."}</span> : <div className="whitespace-pre-wrap">{entry.message_markdown}</div>}
                         {entry.prompt_snapshot?.warnings?.map((warning: string) => <p key={warning} className="mt-2 text-amber-700">{warning}</p>)}
-                        {entry.prompt_snapshot?.durationMs && <p className="mt-1 text-[9px] text-slate-400">{Math.round(entry.prompt_snapshot.durationMs / 1000)}s</p>}
+                        {entry.prompt_snapshot?.durationMs && <p className="mt-1 ui-type-meta text-slate-400">{Math.round(entry.prompt_snapshot.durationMs / 1000)}s</p>}
                         {entry.role === "assistant" && entry.status === "completed" && (
-                          <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[9px] text-slate-400">
+                          <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 ui-type-meta text-slate-400">
                             <span>{entry.model_provider}/{entry.model_id} · {entry.total_tokens ?? 0} tokens</span>
                             <button onClick={() => void acceptFeedback(entry.id)} disabled={!!acceptingFeedbackId || approvalDisabled} className="rounded-md bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                               {acceptingFeedbackId === entry.id ? "Using…" : "Use this version"}
@@ -2642,49 +2642,49 @@ function TaskDetail({
                             </button>)}
                           </fieldset>
                         )}
-                        {entry.status === "accepted" && <p className="mt-2 text-[9px] font-semibold text-emerald-600">Accepted as the active revision and editorial learning.</p>}
+                        {entry.status === "accepted" && <p className="mt-2 ui-type-meta font-semibold text-emerald-600">Accepted as the active revision and editorial learning.</p>}
                       </div>
                     ))}
-                    {!feedbackThread.length && <p className="rounded-lg border border-dashed border-indigo-100 bg-white/70 px-2.5 py-2 text-[10px] text-slate-500">Request a focused rewrite. The current version remains unchanged until you choose a new revision.</p>}
+                    {!feedbackThread.length && <p className="rounded-lg border border-dashed border-indigo-100 bg-white/70 px-2.5 py-2 ui-type-meta text-slate-500">Request a focused rewrite. The current version remains unchanged until you choose a new revision.</p>}
                   </div>
-                  {task.gate === "article" && <label className="mt-3 block text-[10px] text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
+                  {task.gate === "article" && <label className="mt-3 block ui-type-meta text-slate-500">Edit scope<select value={sectionHeading} onChange={event => setSectionHeading(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2"><option value="">Whole article</option>{Array.from(new Set((String(output).match(/^#{1,6} .+$/gm) ?? []).map(heading => heading.replace(/^#+\s+/, "")))).map(heading => <option key={heading} value={heading}>{heading}</option>)}</select></label>}
                   <div className="mt-3 flex items-end gap-2">
-                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 text-[11px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
+                    <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} placeholder={task.gate === "article" ? "E.g. Tighten the introduction, keep all headings, and make the tone more practical…" : task.channels?.find(channel => channel.id === activeChannelId)?.channel === "Threads" ? "Keep Tiếng Việt and English in both variants, with a stronger hook; max 500 characters per language…" : "E.g. Rewrite in Vietnamese with a stronger hook and keep it under 500 characters…"} className="min-h-16 flex-1 resize-y rounded-lg border border-indigo-100 bg-white px-2.5 py-2 ui-type-body text-slate-700 outline-none placeholder:text-slate-400 focus:border-indigo-300" />
                     <button onClick={() => void submitFeedback()} disabled={!feedback.trim() || feedbackSending || !!acceptingFeedbackId || approvalDisabled || !model} title={model ? "Send feedback" : "Configure an AI model first"} className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">
                       {feedbackSending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ArrowUp className="h-3.5 w-3.5" />}
                     </button>
                   </div>
-                  {!model && <p className="mt-2 text-[10px] text-amber-700">Configure the Gate AI model in Workflow AI to use feedback.</p>}
-                  {feedbackError && <p className="mt-2 text-[10px] text-red-600">{feedbackError}</p>}
+                  {!model && <p className="mt-2 ui-type-meta text-amber-700">Configure the Gate AI model in Workflow AI to use feedback.</p>}
+                  {feedbackError && <p className="mt-2 ui-type-meta text-red-600">{feedbackError}</p>}
                 </section>
               )}
               </Tabs.Panel>
               <Tabs.Panel value="evidence">
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
-                <h3 className="text-xs font-bold text-slate-800">
+                <h3 className="ui-type-title font-semibold text-slate-800">
                   Source & evidence
                 </h3>
                 {task.discoveryNeedsEvidence && task.status !== "checking" && <div className="mt-2 space-y-2">
-                  <p className="whitespace-pre-wrap text-xs text-amber-700">
+                  <p className="whitespace-pre-wrap ui-type-body text-amber-700">
                     {model
                       ? runs.find((run: any) => run.stage === "discovery-evidence")?.error_message ?? "Cần kiểm tra dẫn chứng F trước khi duyệt brief."
                       : "Chọn model Gate 1 trong Workflow AI để tìm dẫn chứng F."}
                   </p>
                   <button type="button" disabled={approvalDisabled || !model}
                     onClick={event => onRetryDiscovery(task.id, event)}
-                    className="rounded border border-indigo-200 px-3 py-2 text-xs text-indigo-700 disabled:opacity-50">Tìm lại dẫn chứng F</button>
+                    className="rounded border border-indigo-200 px-3 py-2 ui-type-body text-indigo-700 disabled:opacity-50">Tìm lại dẫn chứng F</button>
                 </div>}
                 {task.gate === "brief" && sources[0]?.raw_snapshot?.briefValidation?.evidence &&
-                  <p className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-600">
+                  <p className="mt-2 whitespace-pre-wrap break-words ui-type-meta text-slate-600">
                     {sources[0].raw_snapshot.briefValidation.evidence}
                   </p>}
                 <details key={task.id} open={task.gate === "brief" ? undefined : true} className="mt-2">
-                  <summary className="cursor-pointer rounded text-[10px] text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Source snapshots ({sources.length})</summary>
+                  <summary className="cursor-pointer rounded ui-type-meta text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Source snapshots ({sources.length})</summary>
                 {sources.length ? (
                   sources.map((source: any) => (
                     <div
                       key={source.id}
-                      className="mt-2 rounded-lg bg-slate-50 p-2 text-[10px] text-slate-600"
+                      className="mt-2 rounded-lg bg-slate-50 p-2 ui-type-meta text-slate-600"
                     >
                       <b className="text-slate-700">
                         {source.upload_name ?? "Text input"}
@@ -2695,7 +2695,7 @@ function TaskDetail({
                     </div>
                   ))
                 ) : (
-                  <p className="mt-2 text-[10px] text-slate-400">
+                  <p className="mt-2 ui-type-meta text-slate-400">
                     No source snapshot has been saved yet.
                   </p>
                 )}
@@ -2704,13 +2704,13 @@ function TaskDetail({
               </Tabs.Panel>
               <Tabs.Panel value="history">
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
-                <h3 className="text-xs font-bold text-slate-800">
+                <h3 className="ui-type-title font-semibold text-slate-800">
                   AI activity log
                 </h3>
                 {runs.length ? (
                   <ol className="mt-3 space-y-3 border-l border-slate-200 pl-3">
                     {runs.map((run: any) => (
-                      <li key={run.id} className="text-[10px] text-slate-500">
+                      <li key={run.id} className="ui-type-meta text-slate-500">
                         <b className="text-slate-700">
                           {run.gate} · {run.stage}
                         </b>
@@ -2732,20 +2732,20 @@ function TaskDetail({
                     ))}
                   </ol>
                 ) : (
-                  <p className="mt-2 text-[10px] text-slate-400">
+                  <p className="mt-2 ui-type-meta text-slate-400">
                     No AI run has been recorded yet.
                   </p>
                 )}
               </section>
               <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
-                <h3 className="text-xs font-bold text-slate-800">
+                <h3 className="ui-type-title font-semibold text-slate-800">
                   Review activity
                 </h3>
                 {actions.length ? (
                   actions.map((action: any) => (
                     <p
                       key={action.id}
-                      className="mt-2 text-[10px] text-slate-600"
+                      className="mt-2 ui-type-meta text-slate-600"
                     >
                       <b>{action.action}{action.approved_variants ? ` · Approved ${action.approved_variants === "both" ? "A + B" : action.approved_variants.toUpperCase()}` : ""}</b> ·{" "}
                       {action.created_at
@@ -2755,7 +2755,7 @@ function TaskDetail({
                     </p>
                   ))
                 ) : (
-                  <p className="mt-2 text-[10px] text-slate-400">
+                  <p className="mt-2 ui-type-meta text-slate-400">
                     Waiting for reviewer action.
                   </p>
                 )}
@@ -2768,7 +2768,7 @@ function TaskDetail({
         <footer className="flex justify-end gap-2 border-t border-slate-200/80 p-3">
           <button
             onClick={() => void copyResult()}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy result"}
@@ -2783,7 +2783,7 @@ function TaskDetail({
               link.click()
               URL.revokeObjectURL(link.href)
             }}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 ui-type-body font-medium text-slate-600"
           >
             <Download className="h-3.5 w-3.5" />
             Export .md
@@ -2844,13 +2844,13 @@ function DiscoveryDetail({
       >
         <header className="flex items-start justify-between gap-3 border-b border-slate-200/80 p-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-500">
+            <p className="ui-type-meta font-semibold uppercase tracking-wide text-purple-500">
               {discoveryTag(savedItem)}
             </p>
-            <h2 className="mt-1 text-sm font-bold text-slate-900">
+            <h2 className="mt-1 ui-type-title font-semibold text-slate-900">
               {item.title}
             </h2>
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 ui-type-meta text-slate-500">
               {item.created_at
                 ? `Generated ${new Date(item.created_at).toLocaleString()}`
                 : "Saved Discovery record"}
@@ -2866,10 +2866,10 @@ function DiscoveryDetail({
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3">
-            <h3 className="text-xs font-bold text-slate-800">
+            <h3 className="ui-type-title font-semibold text-slate-800">
               Suggestion context
             </h3>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
+            <p className="mt-2 ui-type-meta leading-5 text-slate-600">
               {item.source_summary ??
                 "No source summary was saved for this suggestion."}
             </p>
@@ -2884,13 +2884,13 @@ function DiscoveryDetail({
             </div>
           </section>
           <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
-            <h3 className="text-xs font-bold text-slate-800">Sources used</h3>
+            <h3 className="ui-type-title font-semibold text-slate-800">Sources used</h3>
             {sources.length ? (
               <div className="mt-2 space-y-2">
                 {sources.map((source: any, index: number) => (
                   <div
                     key={`${source.slug ?? source.name ?? index}`}
-                    className="rounded-lg bg-slate-50 p-2 text-[10px] text-slate-600"
+                    className="rounded-lg bg-slate-50 p-2 ui-type-meta text-slate-600"
                   >
                     <b className="text-slate-700">
                       {source.source_name ??
@@ -2908,18 +2908,18 @@ function DiscoveryDetail({
                 ))}
               </div>
             ) : (
-              <p className="mt-2 text-[10px] text-slate-400">
+              <p className="mt-2 ui-type-meta text-slate-400">
                 This older Discovery record does not include a saved source
                 trace.
               </p>
             )}
           </section>
           <section className="mt-3 rounded-xl border border-slate-200/80 bg-white p-3">
-            <h3 className="text-xs font-bold text-slate-800">
+            <h3 className="ui-type-title font-semibold text-slate-800">
               AI activity log
             </h3>
             {run ? (
-              <div className="mt-2 rounded-lg bg-slate-50 p-2 text-[10px] leading-5 text-slate-600">
+              <div className="mt-2 rounded-lg bg-slate-50 p-2 ui-type-meta leading-5 text-slate-600">
                 <p>
                   <b className="text-slate-700">
                     {run.provider}/{run.modelId}
@@ -2937,13 +2937,13 @@ function DiscoveryDetail({
                   <summary className="cursor-pointer font-medium text-slate-700">
                     View prompt & generated batch
                   </summary>
-                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[9px] text-slate-600">
+                  <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 ui-type-meta text-slate-600">
                     {run.prompt}\n\n--- Output ---\n{run.output}
                   </pre>
                 </details>
               </div>
             ) : (
-              <p className="mt-2 text-[10px] text-slate-400">
+              <p className="mt-2 ui-type-meta text-slate-400">
                 This older Discovery record does not include a saved AI
                 execution log.
               </p>
@@ -2956,7 +2956,7 @@ function DiscoveryDetail({
 }
 function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 ui-type-meta font-medium text-slate-500">
       {children}
     </span>
   )
@@ -2967,7 +2967,7 @@ function VariantApproval({ onApprove }: { onApprove: (variants: ApprovedVariants
     const value = event.target.value as ApprovedVariants
     event.target.value = ""
     if (value) onApprove(value)
-  }} className="h-8 max-w-44 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700">
+  }} className="h-8 max-w-44 rounded-lg border border-emerald-200 bg-emerald-50 px-2 ui-type-body font-semibold text-emerald-700">
     <option value="" disabled>Approve variants…</option>
     <option value="a">Approve Variant A</option>
     <option value="b">Approve Variant B</option>

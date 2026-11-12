@@ -2085,7 +2085,7 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
   .workspace-notification, .workspace-notification.is-collapsing { animation: none; transition: none; transform: none; }
 }
-.workspace-notification p { margin: 0; font-size: 0.75rem; line-height: 1.45; }
+.workspace-notification p { margin: 0; font-size: var(--t-font-size-sm); line-height: 1.45; }
 .workspace-notification-status,
 .workspace-notification > button { display: inline-flex; width: 1.75rem; height: 1.75rem; align-items: center; justify-content: center; border-radius: 0.45rem; }
 .workspace-notification-status { color: #555550; background: #e8e8e3; }
@@ -2954,8 +2954,8 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   background: var(--t-background-tertiary);
   color: var(--t-font-color-secondary);
   padding: 2px var(--t-spacing-1_5);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--t-font-size-xs);
+  font-weight: var(--t-font-weight-medium);
 }
 .eb-task-status[data-status="Needs evidence"],
 .eb-task-status[data-status="Needs recheck"] {
@@ -2976,7 +2976,7 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
     clip-path: none;
     border-bottom: 1px solid var(--t-border-color-light);
     color: var(--t-font-color-secondary);
-    font-size: 11px;
+    font-size: var(--t-font-size-xs);
   }
   .eb-task-row > :first-child,
   .eb-task-row-updated,
@@ -3014,4 +3014,35 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
     border-block: 0;
     border-inline-end: 0;
   }
+}
+
+/* Product typography roles use Twenty's installed theme in both color schemes. */
+:where(.writer-app-shell, .eb-workspace, .eb-sidebar, .eb-mobile-nav, .minimal-settings, .onboarding-dialog) {
+  font-family: var(--t-font-family, Inter, sans-serif);
+  font-size: var(--t-font-size-sm);
+  line-height: 1.4;
+}
+:where(.eb-workspace, .eb-sidebar, .minimal-settings, .onboarding-dialog)
+  :where(button, input, textarea, select) {
+  font-size: var(--t-font-size-sm);
+  line-height: 1.4;
+}
+.ui-type-page { --ui-type-size: var(--t-font-size-lg); }
+.ui-type-title { --ui-type-size: var(--t-font-size-md); }
+.ui-type-body { --ui-type-size: var(--t-font-size-sm); }
+.ui-type-meta { --ui-type-size: var(--t-font-size-xs); }
+.ui-type-count { --ui-type-size: var(--t-font-size-xxs); }
+:is(.ui-type-page, .ui-type-title, .ui-type-body, .ui-type-meta, .ui-type-count) {
+  font-size: var(--ui-type-size);
+  line-height: 1.4;
+}
+.ui-type-page { line-height: 1.25; }
+.ui-type-count { line-height: 1; }
+.codex-dark :is(.eb-workspace, .eb-sidebar, .eb-mobile-nav, .minimal-settings, .onboarding-dialog)
+  :is(h1, h2, h3, h4)[class*="ui-type-"] {
+  font-size: var(--ui-type-size) !important;
+  font-weight: var(--t-font-weight-semi-bold) !important;
+}
+.codex-dark :is(.eb-workspace, .minimal-settings) :is(input, textarea)::placeholder {
+  font-size: inherit;
 }

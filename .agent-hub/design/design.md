@@ -2,32 +2,45 @@
 id: agent-hub-design
 layer: design
 status: canonical
-source_paths: [src/index.css, src/codex-theme.css, src/settings-interactions.css]
+source_paths: [src/main.tsx, src/index.css, src/codex-theme.css, src/settings-interactions.css]
 ---
-# Design system
 
-## Visual language
+# Twenty UI standard for Intercom Writer Studio
 
-The product uses Inter (400/500/600/700), antialiased, with Tailwind utility classes. The default surface is light, compact, card-based, and uses subtle slate borders/shadows. `src/index.css` defines `--font-sans` and `--font-mono`; it is the token entrypoint. `src/codex-theme.css` is the dark-mode override layer.
+Use the Twenty develop-app skill's front-component UI guide for every UI change, from layout to small visual fixes. Intercom runs as a standalone React app and loads the published Twenty UI library and theme styles through its existing Vite entry point.
 
-- Surfaces: white or slate-50; borders generally slate-200; compact rounded-lg/xl/2xl controls.
-- Status colors are semantic: blue (brief/input), amber (article), purple (adapt/research), emerald (review/success), red (error/destructive). Do not use a status color as decoration.
-- EB workflow columns use `kanban-blue`, `kanban-amber`, `kanban-purple`, and `kanban-emerald` in `src/index.css`.
-- Headings use tight negative tracking in light UI; supporting text is small slate text.
+- [Twenty develop-app UI guide](https://github.com/twentyhq/twenty/blob/agent-skills/skills/develop-app/references/design/front-component-ui.md)
+- [Standalone React integration](https://docs.twenty.com/ui/getting-started)
+- [Design tokens](https://docs.twenty.com/ui/tokens) and [typography primitives](https://docs.twenty.com/ui/primitives/typography/text)
 
-## Density, responsive, accessibility
+## Components and tokens
 
-- Desktop workspace has a collapsible side rail; mobile uses a compact navigation surface (`EbSidebar.tsx`).
-- Preserve touch targets, visible focus styles supplied by component classes, icon `title`/`aria-label`, and semantic status text. Never convey a decision only by color.
-- Keep long archive/workspace lists scrollable within their own flex containers. Avoid page-level overflow regressions.
-- Loading, empty, error, and success states are product states, not optional polish; follow `EbWorkingSpace.tsx` patterns.
+Use the public Twenty UI family entry points. Prefer MainButton for primary actions, LightButton for secondary actions, Tabs for related panels, Dropdown for menus and pickers, Field for form composition, and individual Twenty icons for visible controls. Use Twenty typography, feedback and data-display primitives where they fit. Use native HTML for application-specific structure such as the package board and Markdown content.
 
-## Main Input Engine
+Use semantic theme tokens for surfaces, text, borders, accent, spacing and radius. Component variants handle emphasis and state. Use semantic status colors with a text label. Retain the app's CSS only for layout, existing product interactions and scoped integration with the host theme.
 
-`InputEngine` in `src/components/EbWorkingSpace.tsx` uses a white pill with a thin gray border and subtle shadow. Document upload is the accessible plus control on the left, topic input is in the middle, and image evidence and the neutral Analyze pill sit on the right. On narrow screens the actions wrap below the input. Long input remains vertically resizable and scrollable; attachment names wrap.
+## Typography
 
-The existing gradient colors, blur, opacity and hover/focus-within transitions are preserved, with the glow radius following the pill. Topic input has no individual border, outline or focus shadow on hover, click, typing or keyboard focus in either theme. The textarea background stays transparent at rest, on hover, click, typing and keyboard focus (including `:focus-visible`) in both themes, showing the same surface as the surrounding pill. The pill glow provides the focus-within indication. Document upload retains its gray keyboard-focus outline on its visible label only when the nested file input matches `:focus-visible`, suppressing the hidden input's own outline in both themes. Discovery preparation, validation and image scan/review panels expand outside the pill; their locks, callbacks and evidence workflow are unchanged. Styles are scoped to `.eb-input-engine` in `src/index.css`.
+Use Twenty's Inter family and the scale below on all product screens. The role utilities in src/index.css make the same scale available to both native and Twenty components. Set size by role and use spacing or weight to establish hierarchy.
 
-## Change rule
+| Role | Utility | Twenty token | Where to use |
+| --- | --- | --- | --- |
+| Page title | ui-type-page | font.size.lg | Workspace, Settings or guide title |
+| Section title | ui-type-title | font.size.md | Gate heading, inspector title, settings section |
+| Body and control label | ui-type-body | font.size.sm | Navigation, actions, forms, task titles and content |
+| Metadata and help | ui-type-meta | font.size.xs | Dates, column headings, status, hints and descriptions |
+| Compact count | ui-type-count | font.size.xxs | Numeric counters in small badges only |
 
-Before changing visual treatment, inspect the active component plus global light/dark overrides. Do not infer a design token from a screenshot alone.
+Use regular, medium and semibold weights from Twenty's scale. Use the compact count only where a counter sits inside another control. For long output, use body text and a relaxed line height. Readable line lengths, wrapping and visible focus take priority over density. Font-size literals and Tailwind text-size utilities are reserved for content outside the product UI, such as authored document previews.
+
+## Layout and interaction
+
+- Workspace lists align titles, status, source, dates and actions by column. At narrow widths, stack fields and keep all actions reachable.
+- Gate grids retain independent scrolling when four columns fit. The same board becomes a shared scroll region at narrower widths. Keep the Input Engine visible and preserve the workspace's scroll boundaries.
+- The task inspector sits beside the board when space permits and uses a full-width panel on narrow screens. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
+- Use visible form labels or clearly associated accessible names, keyboard focus, and accessible icon-only actions. Preserve focus when dialogs and panels close.
+- Give loading, empty, error, disabled and saving states the same layout and type scale as the ready state. Provide an actionable recovery message when there is one.
+
+## Review before shipping
+
+Check the actual app in light and dark themes, wide and narrow viewports, and with long Vietnamese labels and file names. Verify the table, inspector, menus and inputs with a keyboard. Inspect computed typography on equivalent controls across surfaces and check that headers, actions and metadata do not overlap. Verify the primary workflow as well as loading and empty states.

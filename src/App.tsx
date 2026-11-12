@@ -103,7 +103,7 @@ function SoftOnboarding({ children }: { children: (openGuide: () => void) => imp
       detail: tr("Mở lại bằng Hướng dẫn cạnh Search bất cứ lúc nào. Nội dung đang nhập vẫn được giữ; đọc hướng dẫn không chạy AI hay duyệt bài.", "Reopen Guide beside Search anytime. Your current input stays in place; reading the guide does not run AI or approve work."),
     },
   ]
-  const buttonClass = "rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+  const buttonClass = "rounded-xl border border-slate-200 px-4 py-2 ui-type-body font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
   return <>
     {children(() => { setStep(0); setOpen(true) })}
     <dialog ref={dialogRef} aria-labelledby="onboarding-title" aria-describedby="onboarding-description" onCancel={(event) => { event.preventDefault(); close() }} onKeyDown={(event) => {
@@ -115,16 +115,16 @@ function SoftOnboarding({ children }: { children: (openGuide: () => void) => imp
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }} className="onboarding-dialog fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-900/30 sm:p-7">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-medium text-slate-500">{tr("Làm quen Writer Studio", "Meet Writer Studio")} · {step + 1}/3</p>
+        <p className="ui-type-meta font-medium text-slate-500">{tr("Làm quen Writer Studio", "Meet Writer Studio")} · {step + 1}/3</p>
         <button type="button" autoFocus onClick={close} aria-label={tr("Đóng hướng dẫn", "Close guide")} className={buttonClass}>×</button>
       </div>
       <div aria-live="polite" className="onboarding-content py-6">
-        <h2 id="onboarding-title" className="text-xl font-semibold tracking-tight">{steps[step].title}</h2>
-        <p id="onboarding-description" className="mt-4 text-sm leading-6 text-slate-600">{steps[step].text}</p>
-        <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-6 text-slate-600">
+        <h2 id="onboarding-title" className="ui-type-page font-semibold tracking-tight">{steps[step].title}</h2>
+        <p id="onboarding-description" className="mt-4 ui-type-body leading-6 text-slate-600">{steps[step].text}</p>
+        <ul className="mt-4 list-disc space-y-3 pl-5 ui-type-body leading-6 text-slate-600">
           {steps[step].items.map(item => <li key={item.label}><strong className="font-semibold">{item.label}</strong><span> — {item.text}</span></li>)}
         </ul>
-        <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{steps[step].detail}</p>
+        <p className="mt-4 rounded-xl bg-slate-50 p-3 ui-type-body leading-6 text-slate-600">{steps[step].detail}</p>
       </div>
       <div className="onboarding-actions">
         <button type="button" onClick={close} className={buttonClass}>{tr("Bỏ qua", "Skip")}</button>
@@ -713,7 +713,7 @@ export default function App() {
       <div className="writer-light h-dvh flex items-center justify-center bg-[#f7f7f5]">
         <div className="text-center space-y-3">
           <BrandMark className="mx-auto h-10 w-10" />
-          <div className="text-sm font-medium text-[#e5e5e5]">
+          <div className="ui-type-body font-medium text-[#e5e5e5]">
             {tr("Đang tải Writer Studio...", "Loading Writer Studio...")}
           </div>
           <div className="w-40 h-1 bg-[#222] rounded-full overflow-hidden mx-auto">
@@ -728,17 +728,17 @@ export default function App() {
     return (
       <div className="writer-light h-dvh flex items-center justify-center bg-[#f7f7f5] p-4 sm:p-6">
         <div className="max-w-md w-full bg-[#1c1c1c] border border-[#2d2d2d] rounded-2xl p-6 text-center space-y-4">
-          <div className="w-12 h-12 rounded-xl border border-red-900/50 bg-red-950/30 text-red-400 flex items-center justify-center text-xl mx-auto">
+          <div className="w-12 h-12 rounded-xl border border-red-900/50 bg-red-950/30 text-red-400 flex items-center justify-center ui-type-page mx-auto">
             !
           </div>
           <div>
-            <h1 className="text-base font-medium text-[#e5e5e5]">
+            <h1 className="ui-type-title font-semibold text-[#e5e5e5]">
               {tr(
                 "Không tải được dữ liệu từ Railway / Supabase",
                 "Could not load data from Railway / Supabase",
               )}
             </h1>
-            <p className="text-xs text-[#9ca3af] mt-2 leading-relaxed">
+            <p className="ui-type-body text-[#9ca3af] mt-2 leading-relaxed">
               {tr(
                 "Ứng dụng đã khóa thao tác lưu để tránh ghi đè database bằng dữ liệu rỗng.",
                 "Saving is locked to prevent overwriting the database with empty data.",
@@ -750,7 +750,7 @@ export default function App() {
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="bg-neutral-200 hover:bg-white text-[#141414] font-medium text-sm py-2.5 px-5 rounded-xl transition-all"
+            className="bg-neutral-200 hover:bg-white text-[#141414] font-medium ui-type-body py-2.5 px-5 rounded-xl transition-all"
           >
             {tr("Thử tải lại", "Try again")}
           </button>

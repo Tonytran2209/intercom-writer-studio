@@ -83,10 +83,10 @@ function FileForm({ onAdd, railwayUrl, category }: { onAdd: (sources: ActionData
         bg-emerald-50/30 border-emerald-200 hover:border-emerald-500 ${dragging ? 'scale-[0.99] opacity-75' : ''}`}
     >
       <FolderUp className="mx-auto mb-2 h-8 w-8" aria-hidden="true" />
-      <p className="text-xs font-bold text-slate-700">{reading ? tr('Railway đang scan và lưu Supabase...', 'Railway is scanning and saving to Supabase...') : tr('Kéo thả hoặc nhấp để chọn file', 'Drop files here or click to browse')}</p>
-      <p className="text-[11px] text-slate-400 mt-1">MD · DOCX · PDF · CSV · XLSX · JSON · TXT</p>
+      <p className="ui-type-meta font-semibold text-slate-700">{reading ? tr('Railway đang scan và lưu Supabase...', 'Railway is scanning and saving to Supabase...') : tr('Kéo thả hoặc nhấp để chọn file', 'Drop files here or click to browse')}</p>
+      <p className="ui-type-meta text-slate-400 mt-1">MD · DOCX · PDF · CSV · XLSX · JSON · TXT</p>
       <input ref={ref} type="file" multiple accept=".md,.docx,.csv,.xlsx,.json,.pdf,.txt,.xml,.tsv" className="hidden" onChange={e => handle(e.target.files)} />
-      {error && <p className="text-[11px] text-red-600 mt-2">{error}</p>}
+      {error && <p className="ui-type-body text-red-600 mt-2">{error}</p>}
     </div>
   );
 }
@@ -114,7 +114,7 @@ function PasteForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
           {(['csv','json','text'] as const).map(f => (
             <button key={f} onClick={() => setFmt(f)}
-              className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${fmt === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>
+              className={`px-3 py-1 ui-type-meta font-semibold rounded-lg transition-all ${fmt === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>
               {f.toUpperCase()}
             </button>
           ))}
@@ -126,10 +126,10 @@ function PasteForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
           : fmt === 'json' ? '[{"keyword":"content marketing","volume":8100}]'
           : tr('Nhập dữ liệu văn bản thuần...', 'Enter plain text data...')}
         rows={7}
-        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-800 outline-none focus:ring-2 focus:ring-slate-800 resize-none placeholder:text-slate-300"
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 ui-type-body font-mono text-slate-800 outline-none focus:ring-2 focus:ring-slate-800 resize-none placeholder:text-slate-300"
       />
       <div className="flex justify-between items-center">
-        <span className="text-[11px] text-slate-400">{countRows(content)} {tr('dòng', 'rows')} · {content.length} {tr('ký tự', 'characters')}</span>
+        <span className="ui-type-meta text-slate-400">{countRows(content)} {tr('dòng', 'rows')} · {content.length} {tr('ký tự', 'characters')}</span>
         <button onClick={save} disabled={!content.trim()} className={btn}>{tr('Lưu nguồn dữ liệu', 'Save data source')}</button>
       </div>
     </div>
@@ -164,27 +164,27 @@ function UrlForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
     <div className="space-y-3">
       <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('Tên nguồn dữ liệu (tuỳ chọn)', 'Data source name (optional)')} className={input} />
       <div className="flex gap-2">
-        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://api.example.com/keywords" className={`${input} flex-1 font-mono text-[11px]`} />
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://api.example.com/keywords" className={`${input} flex-1 font-mono ui-type-meta`} />
       </div>
 
       {/* Custom headers */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Headers (Authorization, API-Key...)</p>
+        <p className="ui-type-body font-semibold text-slate-500 uppercase tracking-wider">Headers (Authorization, API-Key...)</p>
         <div className="flex gap-2">
-          <input value={headerKey} onChange={e => setHeaderKey(e.target.value)} placeholder="Key" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-slate-800" />
-          <input value={headerVal} onChange={e => setHeaderVal(e.target.value)} placeholder="Value" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-slate-800" />
-          <button onClick={addHeader} className="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-xl">+</button>
+          <input value={headerKey} onChange={e => setHeaderKey(e.target.value)} placeholder="Key" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 ui-type-body outline-none focus:ring-2 focus:ring-slate-800" />
+          <input value={headerVal} onChange={e => setHeaderVal(e.target.value)} placeholder="Value" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 ui-type-body outline-none focus:ring-2 focus:ring-slate-800" />
+          <button onClick={addHeader} className="px-3 py-1.5 ui-type-body font-semibold bg-slate-900 text-white rounded-xl">+</button>
         </div>
         {Object.entries(headers).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-2 text-[11px] font-mono bg-slate-100 rounded-lg px-3 py-1">
-            <span className="text-slate-600 font-bold">{k}:</span>
+          <div key={k} className="flex items-center gap-2 ui-type-meta font-mono bg-slate-100 rounded-lg px-3 py-1">
+            <span className="text-slate-600 font-semibold">{k}:</span>
             <span className="text-slate-500 flex-1 truncate">{v}</span>
             <button onClick={() => setHeaders(h => { const n={...h}; delete n[k]; return n; })} className="text-slate-400 hover:text-red-500">×</button>
           </div>
         ))}
       </div>
 
-      <p className="text-[10px] text-slate-400">Railway sẽ gọi URL, kiểm tra HTTP và chỉ lưu khi nhận được nội dung hợp lệ.</p>
+      <p className="ui-type-meta text-slate-400">Railway sẽ gọi URL, kiểm tra HTTP và chỉ lưu khi nhận được nội dung hợp lệ.</p>
       <div className="flex justify-end">
         <button onClick={save} disabled={!url} className={btn}>Import URL qua Railway</button>
       </div>
@@ -212,15 +212,15 @@ function GSheetForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-800">
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 ui-type-meta text-blue-800">
         Sheet phải được <strong>chia sẻ công khai</strong> (Anyone with the link → Viewer). <br />
         Paste link dạng: <code className="font-mono">docs.google.com/spreadsheets/d/...</code>
       </div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('Tên nguồn dữ liệu...', 'Data source name...')} className={input} />
       <div className="flex gap-2">
-        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." className={`${input} flex-1 font-mono text-[11px]`} />
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." className={`${input} flex-1 font-mono ui-type-meta`} />
       </div>
-      {sheetId && <p className="text-[10px] text-slate-400 font-mono">Sheet ID: {sheetId}</p>}
+      {sheetId && <p className="ui-type-body text-slate-400 font-mono">Sheet ID: {sheetId}</p>}
       <div className="flex justify-end">
         <button onClick={save} disabled={!sheetId} className={btn}>Import Google Sheets qua Railway</button>
       </div>
@@ -258,19 +258,19 @@ function ManualForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
     <div className="space-y-3">
       <div className="flex gap-2 items-center">
         <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('Tên bảng...', 'Table name...')} className={`${input} flex-1`} />
-        <button onClick={addCol} className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0">+ {tr('Cột', 'Column')}</button>
-        <button onClick={addRow} className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0">+ {tr('Hàng', 'Row')}</button>
+        <button onClick={addCol} className="px-3 py-2 ui-type-body font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0">+ {tr('Cột', 'Column')}</button>
+        <button onClick={addRow} className="px-3 py-2 ui-type-body font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0">+ {tr('Hàng', 'Row')}</button>
       </div>
 
       <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-xs">
+        <table className="w-full ui-type-meta">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               {columns.map((col, ci) => (
                 <th key={ci} className="p-0 min-w-[100px]">
                   <div className="flex items-center gap-1 px-2 py-1.5">
                     <input value={col} onChange={e => updateCol(ci, e.target.value)}
-                      className="flex-1 font-bold text-slate-700 bg-transparent outline-none min-w-0" />
+                      className="flex-1 font-semibold text-slate-700 bg-transparent outline-none min-w-0" />
                     {columns.length > 1 && (
                       <button onClick={() => removeCol(ci)} className="text-slate-300 hover:text-red-400 shrink-0">×</button>
                     )}
@@ -299,7 +299,7 @@ function ManualForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
         </table>
       </div>
       <div className="flex justify-between items-center">
-        <span className="text-[11px] text-slate-400">{rows.length} hàng · {columns.length} cột</span>
+        <span className="ui-type-meta text-slate-400">{rows.length} hàng · {columns.length} cột</span>
         <button onClick={save} className={btn}>{tr('Lưu bảng dữ liệu', 'Save data table')}</button>
       </div>
     </div>
@@ -323,13 +323,13 @@ function SupabaseForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-[11px] text-slate-300">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 ui-type-meta text-slate-300">
         Query sẽ được Railway backend thực thi trên Supabase project đã kết nối. Chỉ dùng <code className="text-emerald-400">SELECT</code>.
       </div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('Tên query...', 'Query name...')} className={input} />
       <textarea
         value={query} onChange={e => setQuery(e.target.value)} rows={6}
-        className="w-full bg-slate-900 text-emerald-400 border border-slate-700 rounded-xl px-4 py-3 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
+        className="w-full bg-slate-900 text-emerald-400 border border-slate-700 rounded-xl px-4 py-3 ui-type-body font-mono outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
       />
       <div className="flex justify-end">
         <button onClick={save} disabled={!query.trim()} className={btn}>{tr('Lưu Supabase Query', 'Save Supabase Query')}</button>
@@ -358,13 +358,13 @@ function AirtableForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-[11px] text-yellow-800">
+      <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 ui-type-meta text-yellow-800">
         Token chỉ được gửi một lần cho Railway để import dữ liệu và không được lưu vào Supabase.
       </div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('Tên nguồn dữ liệu...', 'Data source name...')} className={input} />
-      <input value={apiKey} onChange={e => setApiKey(e.target.value)} type="password" placeholder="Airtable Personal Access Token (pat...)" className={`${input} font-mono text-[11px]`} />
+      <input value={apiKey} onChange={e => setApiKey(e.target.value)} type="password" placeholder="Airtable Personal Access Token (pat...)" className={`${input} font-mono ui-type-meta`} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <input value={base} onChange={e => setBase(e.target.value)} placeholder="Base ID (app...)" className={`${input} font-mono text-[11px]`} />
+        <input value={base} onChange={e => setBase(e.target.value)} placeholder="Base ID (app...)" className={`${input} font-mono ui-type-meta`} />
         <input value={table} onChange={e => setTable(e.target.value)} placeholder={tr('Tên table', 'Table name')} className={input} />
       </div>
       <div className="flex justify-end">
@@ -376,8 +376,8 @@ function AirtableForm({ onAdd }: { onAdd: (s: ActionDataSource) => void }) {
 
 // ── shared styles ─────────────────────────────────────────────────────────────
 
-const input = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-slate-800 transition-all w-full placeholder:text-slate-400';
-const btn = 'px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-xs font-semibold rounded-xl transition-all';
+const input = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 ui-type-meta text-slate-800 outline-none focus:ring-2 focus:ring-slate-800 transition-all w-full placeholder:text-slate-400';
+const btn = 'px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white ui-type-meta font-semibold rounded-xl transition-all';
 const now = () => new Date().toISOString();
 const shortDate = () => new Date().toLocaleDateString('vi-VN');
 
@@ -452,10 +452,10 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
     <div className="knowledge-source-manager space-y-3">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-slate-800">{tr('Tài liệu Knowledge Base', 'Knowledge Base sources')}</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{tr('Quản lý nội dung AI có thể đọc và quyền sử dụng của từng nguồn.', 'Manage what AI can read and how each source may be used.')}</p>
+          <h3 className="ui-type-title font-medium text-slate-800">{tr('Tài liệu Knowledge Base', 'Knowledge Base sources')}</h3>
+          <p className="mt-1 ui-type-meta leading-5 text-slate-500">{tr('Quản lý nội dung AI có thể đọc và quyền sử dụng của từng nguồn.', 'Manage what AI can read and how each source may be used.')}</p>
         </div>
-        <button onClick={() => setShowImporter(value => !value)} className="settings-secondary-action inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors">
+        <button onClick={() => setShowImporter(value => !value)} className="settings-secondary-action inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 ui-type-body font-medium text-slate-700 transition-colors">
           <Plus className="app-icon" aria-hidden="true" />
           {showImporter ? tr('Đóng', 'Close') : tr('Thêm nguồn', 'Add source')}
         </button>
@@ -464,7 +464,7 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
       {showImporter && <div className="knowledge-importer rounded-xl border border-slate-200 bg-slate-50 p-3">
       {/* Mode selector */}
       <div>
-        <p className="mb-2 text-xs font-medium text-slate-600">{tr('Phương thức nhập', 'Import method')}</p>
+        <p className="mb-2 ui-type-meta font-medium text-slate-600">{tr('Phương thức nhập', 'Import method')}</p>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {MODES.map(m => { const ModeIcon = m.icon; return (
             <button
@@ -477,7 +477,7 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
               }`}
             >
               <ModeIcon className="app-icon" aria-hidden="true" />
-              <span className={`text-xs font-medium leading-tight ${mode === m.id ? 'text-white' : 'text-slate-700'}`}>{language === 'vi' ? m.label : ({ paste: 'Paste Data', manual: 'Manual Entry', file: 'File Upload', url: 'URL / API', gsheet: 'Google Sheets', supabase: 'Supabase Query', airtable: 'Airtable' } as Record<ActionSourceType, string>)[m.id]}</span>
+              <span className={`ui-type-meta font-medium leading-tight ${mode === m.id ? 'text-white' : 'text-slate-700'}`}>{language === 'vi' ? m.label : ({ paste: 'Paste Data', manual: 'Manual Entry', file: 'File Upload', url: 'URL / API', gsheet: 'Google Sheets', supabase: 'Supabase Query', airtable: 'Airtable' } as Record<ActionSourceType, string>)[m.id]}</span>
             </button>
           ); })}
         </div>
@@ -492,20 +492,20 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
         {mode === 'manual'   && <ManualForm   onAdd={addSource} />}
         {mode === 'supabase' && <SupabaseForm onAdd={addSource} />}
         {mode === 'airtable' && <AirtableForm onAdd={addSource} />}
-        {importing && <p className="mt-3 text-[11px] font-semibold text-blue-600">{tr('Railway đang lấy dữ liệu và lưu Supabase...', 'Railway is importing and saving data to Supabase...')}</p>}
-        {importError && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[11px] text-red-600">{importError}</p>}
+        {importing && <p className="mt-3 ui-type-meta font-semibold text-blue-600">{tr('Railway đang lấy dữ liệu và lưu Supabase...', 'Railway is importing and saving data to Supabase...')}</p>}
+        {importError && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 ui-type-meta text-red-600">{importError}</p>}
       </div>
       </div>}
 
       {/* Saved sources list */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h4 className="text-sm font-medium text-slate-800">
+          <h4 className="ui-type-title font-medium text-slate-800">
             {CATEGORY_LABEL[category]}
             <span className="ml-1.5 font-normal text-slate-400">{sources.length}</span>
           </h4>
           {sources.length > 0 && (
-            <span className={`rounded-md border px-2 py-1 text-xs font-medium ${
+            <span className={`rounded-md border px-2 py-1 ui-type-meta font-medium ${
               readySourceCount === sources.length
                 ? 'text-emerald-600 bg-emerald-50 border-emerald-100'
                 : 'text-red-600 bg-red-50 border-red-100'
@@ -516,15 +516,15 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
         </div>
 
         {downloadError && (
-          <p className="mb-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[11px] text-red-600">
+          <p className="mb-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 ui-type-meta text-red-600">
             {downloadError}
           </p>
         )}
 
         {sources.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-sm text-slate-500">{tr('Chưa có nguồn dữ liệu nào.', 'No data sources yet.')}</p>
-            <p className="mt-1 text-xs text-slate-400">{tr('Chọn “Thêm nguồn” để bắt đầu.', 'Choose “Add source” to begin.')}</p>
+            <p className="ui-type-body text-slate-500">{tr('Chưa có nguồn dữ liệu nào.', 'No data sources yet.')}</p>
+            <p className="mt-1 ui-type-meta text-slate-400">{tr('Chọn “Thêm nguồn” để bắt đầu.', 'Choose “Add source” to begin.')}</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
@@ -537,14 +537,14 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
                 <div className="flex min-h-16 items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium text-slate-800">{s.name}</span>
-                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                    <span className="truncate ui-type-body font-medium text-slate-800">{s.name}</span>
+                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 ui-type-meta font-medium ${
                       ready ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
                     }`}>
                       {ready ? tr('Sẵn sàng', 'Ready') : tr('Cần tải lại', 'Needs re-upload')}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 ui-type-meta text-slate-400">
                     <span>{s.sourceType.toUpperCase()}</span>
                     {s.rowCount && <span>{s.rowCount} dòng</span>}
                     {s.size && <span>{s.size}</span>}
@@ -573,7 +573,7 @@ export default function SourceImportPanel({ sources = [], onChange, railwayUrl, 
                   {knowledgeGovernance && <button onClick={() => setExpandedSourceId(expanded ? null : s.id)} aria-expanded={expanded} aria-label={tr('Chỉnh quyền sử dụng', 'Edit source governance')} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"><ChevronDown className={`app-icon transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" /></button>}
                 </div>
                 </div>
-                {knowledgeGovernance && expanded && <div className="knowledge-governance-editor border-t border-slate-200 bg-slate-50 px-4 py-4"><div className="grid gap-4 md:grid-cols-[180px_1fr_auto] md:items-end"><label className="block"><span className="mb-1.5 block text-xs font-medium text-slate-600">{tr('Loại kiến thức', 'Knowledge type')}</span><select value={knowledgeMetadata.type} onChange={event => updateKnowledgeMetadata(s.id, { type: event.target.value as KnowledgeMetadata['type'] })} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="reference">Reference</option><option value="usp">USP</option><option value="positioning">Positioning</option><option value="client_insight">Client insight</option><option value="case_study">Case study</option><option value="framework">Framework</option><option value="approved_claim">Approved claim</option><option value="production_insight">Production insight</option></select></label><label className="block"><span className="mb-1.5 block text-xs font-medium text-slate-600">Topics</span><input value={knowledgeMetadata.topics.join(', ')} onChange={event => updateKnowledgeMetadata(s.id, { topics: event.target.value.split(',').map(value => value.trim()).filter(Boolean) })} placeholder={tr('Ví dụ: healthcare, animation, training', 'For example: healthcare, animation, training')} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" /></label><label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-600"><input type="checkbox" checked={knowledgeMetadata.approvedForExternalUse} onChange={event => updateKnowledgeMetadata(s.id, { approvedForExternalUse: event.target.checked, visibility: event.target.checked ? 'public' : 'internal' })} className="h-4 w-4"/><span>{tr('Cho phép xuất hiện trong nội dung công khai', 'Allow use in public content')}</span></label></div><p className="mt-3 text-xs leading-5 text-slate-400">{knowledgeMetadata.approvedForExternalUse ? tr('AI có thể nhắc tên nguồn này trong nội dung xuất bản.', 'AI may identify this source in published content.') : tr('AI được dùng kiến thức nhưng tên file sẽ được ẩn khỏi output.', 'AI may use the knowledge, but the filename stays hidden from output.')}</p></div>}
+                {knowledgeGovernance && expanded && <div className="knowledge-governance-editor border-t border-slate-200 bg-slate-50 px-4 py-4"><div className="grid gap-4 md:grid-cols-[180px_1fr_auto] md:items-end"><label className="block"><span className="mb-1.5 block ui-type-meta font-medium text-slate-600">{tr('Loại kiến thức', 'Knowledge type')}</span><select value={knowledgeMetadata.type} onChange={event => updateKnowledgeMetadata(s.id, { type: event.target.value as KnowledgeMetadata['type'] })} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 ui-type-body"><option value="reference">Reference</option><option value="usp">USP</option><option value="positioning">Positioning</option><option value="client_insight">Client insight</option><option value="case_study">Case study</option><option value="framework">Framework</option><option value="approved_claim">Approved claim</option><option value="production_insight">Production insight</option></select></label><label className="block"><span className="mb-1.5 block ui-type-meta font-medium text-slate-600">Topics</span><input value={knowledgeMetadata.topics.join(', ')} onChange={event => updateKnowledgeMetadata(s.id, { topics: event.target.value.split(',').map(value => value.trim()).filter(Boolean) })} placeholder={tr('Ví dụ: healthcare, animation, training', 'For example: healthcare, animation, training')} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 ui-type-body" /></label><label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 ui-type-body text-slate-600"><input type="checkbox" checked={knowledgeMetadata.approvedForExternalUse} onChange={event => updateKnowledgeMetadata(s.id, { approvedForExternalUse: event.target.checked, visibility: event.target.checked ? 'public' : 'internal' })} className="h-4 w-4"/><span>{tr('Cho phép xuất hiện trong nội dung công khai', 'Allow use in public content')}</span></label></div><p className="mt-3 ui-type-body leading-5 text-slate-400">{knowledgeMetadata.approvedForExternalUse ? tr('AI có thể nhắc tên nguồn này trong nội dung xuất bản.', 'AI may identify this source in published content.') : tr('AI được dùng kiến thức nhưng tên file sẽ được ẩn khỏi output.', 'AI may use the knowledge, but the filename stays hidden from output.')}</p></div>}
               </div>
               );
             })}
