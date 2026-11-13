@@ -334,24 +334,20 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     useState<DiscoveryIdea | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
-  const [inputError, setInputError] = useState<string | null>(null)
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [activeFilters, setActiveFilters] = useState<string[]>([])
   const [discoveryIdeas, setDiscoveryIdeas] = useState<DiscoveryIdea[]>([])
-  const [discoveryStatus, setDiscoveryStatus] = useState<{
-    state: "idle" | "running" | "success" | "empty" | "error"
-    message?: string
-  }>({ state: "idle" })
+  const [discoveryRunning, setDiscoveryRunning] = useState(false)
   const reviewLock = useRef(false)
   const approvalLock = useRef(false)
   const [approvalPending, setApprovalPending] = useState(false)
-  const [approvalError, setApprovalError] = useState<{ id: string; message: string } | null>(null)
   const [syncing, setSyncing] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [newestFirst, setNewestFirst] = useState(true)
   const notificationTriggerRef = useRef<HTMLButtonElement>(null)
+  const detailNotificationTrigger = useRef<HTMLButtonElement>(null)
   const sessionNotices = useWorkspaceNotices()
   useDismissedWorkspaceNotifications()
   useEffect(() => {
@@ -361,7 +357,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       if (action === "new") {
         setPage("board")
         setInput("")
-        setInputError(null); setFile(null)
+        setFile(null)
         setFileName("")
         setSelectedId(null)
         window.setTimeout(
@@ -510,7 +506,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   ) => {
     const model = selectedModel(config, 1)
     if (!model) {
-      setInputError("Choose a Brief AI model in Workflow AI first.")
+      notifyWorkspace("Choose a Brief AI model in Workflow AI first.", "warning", true)
       return
     }
     const timing = isShellMode ? null : startAnalysis(startedAt)
@@ -525,11 +521,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       if (timing) trackBrief(result.package?.id, timing)
       await refresh()
       setInput("")
-      setInputError(null)
     } catch (error) {
-      setInputError(
-        error instanceof Error ? error.message : "Unable to analyse input.",
-      )
+      notifyWorkspace(error instanceof Error ? error.message : "Unable to analyse input.", "error", true)
     } finally {
       if (timing) finishAnalysis()
       setSyncing(false)
@@ -538,16 +531,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   const analyze = (event: { timeStamp: number }) => {
     const startedAt = interactionStart(event)
     if (syncing || (!input.trim() && !file)) return
-    setInputError(null)
     const placeholder = /(?:^|[^\p{L}])(?:n\s*\/\s*a|n\.a\.|tbd|tbc)(?=$|[^\p{L}])/iu
     if (placeholder.test(input)) {
-      setInputError("Chưa thể chạy Gate 1. Nhập nội dung ý tưởng cụ thể thay cho N/A.")
+      notifyWorkspace("Chưa thể chạy Gate 1. Nhập nội dung ý tưởng cụ thể thay cho N/A.", "warning", true)
       return
     }
     if (file && !isShellMode) {
       const model = selectedModel(config, 1)
       if (!model) {
-        setInputError("Choose a Brief AI model in Workflow AI first.")
+        notifyWorkspace("Choose a Brief AI model in Workflow AI first.", "warning", true)
         return
       }
       const timing = startAnalysis(startedAt)
@@ -557,29 +549,20 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         .then(async (result) => {
           trackBrief(result.package?.id, timing)
           await refresh()
-          setInput(""); setFileName(""); setFile(null); setInputError(null)
+          setInput(""); setFileName(""); setFile(null)
         })
         .catch((error) =>
-          setInputError(
-            error instanceof Error
-              ? error.message
-              : "Unable to analyse uploaded file.",
-          ),
+          notifyWorkspace(error instanceof Error ? error.message : "Unable to analyse uploaded file.", "error", true),
         )
         .finally(() => { finishAnalysis(); setSyncing(false) })
     } else
       void createBrief(input.trim() || `Material from ${fileName}`, startedAt)
   }
   const reportOperationError = (context: string, message: string) => {
-    notifyWorkspace(`${context}: ${message} Refresh workspace to check saved state before retrying the operation.`, "error")
+    notifyWorkspace(`${context}: ${message} Refresh workspace to check saved state before retrying the operation.`, "error", true)
   }
   const runDiscovery = (sourceUrls: string[] = []) => {
-    if (discoveryStatus.state === "running") return
-    setDiscoveryStatus({
-      state: "running",
-      message:
-        "Scanning configured sources and preparing evidence-backed topics…",
-    })
+    if (discoveryRunning) return
     if (isShellMode) {
       const ideas = [
         {
@@ -601,10 +584,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           (idea) => !current.some((saved) => saved.id === idea.id),
         ),
       ])
-      setDiscoveryStatus({
-        state: "success",
-        message: `${ideas.length} suggestions are ready to review.`,
-      })
+      notifyWorkspace(`Discovery: ${ideas.length} suggestions are ready to review.`, "success", true)
       return
     }
     const model = selectedModel(
@@ -616,18 +596,15 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       const message =
         "Choose a Discovery or Brief AI model in Workflow AI first."
       reportOperationError(`Discovery`, message)
-      setDiscoveryStatus({ state: "error", message })
       return
     }
+    setDiscoveryRunning(true)
     setSyncing(true)
     void db
       .runEbV2DiscoveryLive({ provider: model.provider, id: model.id }, sourceUrls, (event) => {
-        if (event.event === "progress" && event.message)
-          setDiscoveryStatus({ state: "running", message: event.message })
         if (event.event === "item" && event.item?.title) {
           const idea = { ...event.item, id: String(event.item.id), title: String(event.item.title) }
           setDiscoveryIdeas((current) => uniqueDiscoveryIdeas([idea, ...current.filter((saved) => saved.id !== idea.id)]))
-          setDiscoveryStatus({ state: "running", message: "A new suggestion is ready — continuing scan…" })
         }
       })
       .then((data) => {
@@ -644,32 +621,22 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             (saved) => !ideas.some((idea) => idea.id === saved.id),
           ),
         ]))
-        const emergingCount = ideas.filter(isEmergingDiscovery).length
-        const sourceLeadCount = ideas.filter((item) => discoveryTag(item) === "Source lead").length
-        const verifiedCount = ideas.length - emergingCount - sourceLeadCount
-        const failedSources = data.coverage.filter(source => source.status === "failed").length
-        setDiscoveryStatus(
-          ideas.length
-            ? {
-                state: "success",
-                message: `${verifiedCount ? `${verifiedCount} verified trend${verifiedCount === 1 ? "" : "s"}` : "No verified trends"}${emergingCount ? `${verifiedCount ? " and " : ""}${emergingCount} emerging signal${emergingCount === 1 ? "" : "s"}` : ""}${sourceLeadCount ? `${verifiedCount || emergingCount ? " and " : ""}${sourceLeadCount} source lead${sourceLeadCount === 1 ? "" : "s"}` : ""} saved. Your earlier suggestions remain in Discovery archive.`,
-              }
-            : {
-                state: "empty",
-                message: `Scan completed with no new suggestions. Sources may be outside the freshness window, lack a publication date, or duplicate saved topics.${failedSources ? ` ${failedSources} source fetch${failedSources === 1 ? " failed" : "es failed"}.` : ""} Earlier suggestions remain saved.`,
-              },
-        )
-      })
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Unable to run Discovery."
-        reportOperationError(`Discovery`, message)
-        setDiscoveryStatus({
-          state: "error",
-          message: `Scan could not finish: ${message}`,
+        const failed = data.coverage.filter(source => source.status === "failed").map(source => {
+          const name = discoverySourceUrl(source.source)?.hostname ?? source.source ?? "Unknown source"
+          return source.note ? `${name} (${source.note})` : name
         })
+        const summary = ideas.length
+          ? `${ideas.length} new suggestion(s) saved.`
+          : "Scan completed with no new suggestions."
+        const stats = data.diagnostics
+        const details = !ideas.length && stats
+          ? ` Checked ${stats.candidates} candidate(s). ${stats.fresh} were published within ${stats.freshDays} days, ${stats.undated} had no publication date, and ${stats.duplicateLeads} fresh source lead(s) matched saved topics.`
+          : ""
+        notifyWorkspace(`Discovery: ${summary}${details}${failed.length ? ` Source fetch failures: ${failed.join("; ")}.` : ""}`,
+          !ideas.length || failed.length ? "warning" : "success", true)
       })
-      .finally(() => setSyncing(false))
+      .catch((error) => reportOperationError("Discovery", error instanceof Error ? error.message : "Unable to run Discovery."))
+      .finally(() => { setDiscoveryRunning(false); setSyncing(false) })
   }
   const promotingDiscovery = useRef(false)
   async function promoteDiscovery(id: string, event: { timeStamp: number }) {
@@ -686,7 +653,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       setSelectedId(packageId)
       sendPerformanceSample("responseTime", startedAt)
     } catch (error) {
-      notifyWorkspace(error instanceof Error ? error.message : "Không chuyển được ý tưởng sang Gate 1.", "error")
+      notifyWorkspace(error instanceof Error ? error.message : "Không chuyển được ý tưởng sang Gate 1.", "error", true)
     } finally {
       promotingDiscovery.current = false
       setSyncing(false)
@@ -698,12 +665,10 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     const model = gate === "brief"
       ? selectedModel(config, 2)
       : selectedModel(config, 4, config.ebRuntimeSettings?.adaptModelId)
-    setApprovalError(null)
     if (!isShellMode && !model) {
       const message = gate === "brief"
         ? "Choose a Gate 2 AI model in Workflow AI first."
         : "Choose an Adapt channel model in Workflow AI first."
-      setApprovalError({ id: task.id, message })
       reportOperationError(`Approve ${gate} · ${task.title} (${task.id})`, message)
       return
     }
@@ -732,7 +697,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Unable to approve. Try again."
-      setApprovalError({ id: task.id, message })
       reportOperationError(`Approve ${gate} · ${task.title} (${task.id})`, message)
     } finally {
       approvalLock.current = false
@@ -854,7 +818,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       ),
     )
     approvalLock.current = true
-    setApprovalError(null)
     setSyncing(true)
     const request =
       task.gate === "brief" || task.gate === "article"
@@ -885,7 +848,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         )
         const message = error instanceof Error ? error.message : "Unable to regenerate item."
         reportOperationError(`Regenerate · ${task.title} (${task.id}) · ${task.channel ?? task.gate}`, message)
-        setApprovalError({ id: task.id, message })
         return false
       })
       .finally(() => { approvalLock.current = false; setSyncing(false) })
@@ -1060,6 +1022,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     : null
   const reviewCounts = reviewSummary(tasks.flatMap(task => task.gate === "review" ? task.channels ?? [] : []))
   const connectionLabel = syncing ? "Synchronising V2 workspace…" : runtimeError || "V2 workspace is live."
+  const centerOnlyIds = new Set(sessionNotices.filter(notice => notice.centerOnly).map(notice => `event-${notice.id}`))
   const notices = [
     { id: "brief", text: `${tasks.filter(task => task.status === "checking").length} brief(s) are being generated`, active: tasks.some(task => task.status === "checking") },
     { id: "article", text: `${tasks.filter(task => task.status === "drafting").length} website article(s) are being generated`, active: tasks.some(task => task.status === "drafting") },
@@ -1087,7 +1050,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
   }
   return (
     <main className="eb-workspace continuous-workspace relative flex min-h-0 flex-1 flex-col overflow-hidden border">
-      <WorkspaceNotificationBanner notices={notices} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
+      <WorkspaceNotificationBanner notices={notices.filter(notice => !centerOnlyIds.has(notice.id))} confirmed={!syncing && !runtimeError} onCollapseFocus={() => notificationTriggerRef.current?.focus()} />
       <header className="eb-workspace-header flex h-12 shrink-0 items-center justify-between border-b border-slate-100 px-4">
         <div className="flex items-center gap-2 ui-type-meta text-slate-500">
           <span className="font-semibold text-slate-800">Content Engine</span>
@@ -1224,13 +1187,12 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               analyze={analyze}
               syncing={syncing}
               accepted={analysisAccepted}
-              inputError={inputError}
             />
           </div>
         ) : page === "discovery" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <DiscoveryToolbar
-              status={discoveryStatus}
+              running={discoveryRunning}
               onDiscover={runDiscovery}
               onBack={() => setPage("board")}
               onClear={discoveryIdeas.length ? clearDiscovery : undefined}
@@ -1253,7 +1215,6 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             task={selectedTask}
             approvalDisabled={syncing || approvalPending}
             approvalPending={approvalPending}
-            approvalError={approvalError?.id === selectedTask?.id ? approvalError?.message : null}
             onBrief={approveBrief}
             onRetryDiscovery={(id, event) => void promoteDiscovery(id, event)}
             onArticle={approveArticle}
@@ -1271,12 +1232,18 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             onDecision={decide}
             onUseReviewFeedback={useReviewFeedback}
             onRegenerate={regenerate}
+            notificationAction={<LightButton ref={detailNotificationTrigger} type="button" size="sm" variant="ghost"
+              aria-label="Open Notification Center" title="Open Notification Center" startIcon={<Bell size={16} aria-hidden="true" />}
+              onClick={() => setNotificationOpen(true)} />}
             onClose={() => setSelectedId(null)}
           />
         )}
         {selectedDiscovery && (
           <DiscoveryDetail
             item={selectedDiscovery}
+            notificationAction={<LightButton ref={detailNotificationTrigger} type="button" size="sm" variant="ghost"
+              aria-label="Open Notification Center" title="Open Notification Center" startIcon={<Bell size={16} aria-hidden="true" />}
+              onClick={() => setNotificationOpen(true)} />}
             onClose={() => setSelectedDiscovery(null)}
           />
         )}
@@ -1290,7 +1257,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
             syncing={syncing}
             onClose={() => {
               setNotificationOpen(false)
-              notificationTriggerRef.current?.focus()
+              const trigger = detailNotificationTrigger.current ?? notificationTriggerRef.current
+              trigger?.focus()
             }}
           />
         )}
@@ -1828,103 +1796,6 @@ function TaskCard({
     </article>
   )
 }
-function Discovery({
-  ideas,
-  status,
-  onPick,
-}: {
-  ideas: Array<{ id: string; title: string }>
-  status: {
-    state: "idle" | "running" | "success" | "empty" | "error"
-    message?: string
-  }
-  onPick: (item: { id: string; title: string }) => void
-}) {
-  const running = status.state === "running"
-  const statusClass =
-    status.state === "error"
-      ? "border-red-100 bg-red-50 text-red-700"
-      : status.state === "success"
-        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-        : status.state === "empty"
-          ? "border-amber-100 bg-amber-50 text-amber-700"
-          : "border-purple-100 bg-purple-50 text-purple-700"
-  return (
-    <div className="mt-2 w-full border-t border-purple-100 pt-2">
-      <p className="ui-type-meta text-slate-500">
-        Scans configured public sources and the links in the input above.
-        Suggestions are never auto-approved.
-      </p>
-      {status.state !== "idle" && (
-        <div
-          role="status"
-          className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2 py-1.5 ui-type-meta leading-relaxed ${statusClass}`}
-        >
-          {running && (
-            <LoaderCircle className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
-          )}
-          <span>{status.message}</span>
-        </div>
-      )}
-      {ideas.length ? (
-        <div className="mt-2 grid gap-1 sm:grid-cols-2">
-          {ideas.slice(0, 5).map((idea, index) => (
-            <button
-              disabled={running}
-              key={idea.id}
-              onClick={() => onPick(idea)}
-              className="rounded-lg bg-purple-50 px-2 py-1.5 text-left ui-type-body text-slate-700 hover:bg-purple-100 disabled:opacity-50"
-            >
-              <span className="mr-1 text-purple-500">{index + 1}.</span>
-              {idea.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-// Only backend-verified validation messages may become missing-information items.
-function gateOneRequirements(message: string): string[] | null {
-  const prefix = "Chưa thể chạy Gate 1. Writer cần bổ sung:\n"
-  const normalized = message.replace(/\r\n/g, "\n")
-  if (!normalized.startsWith(prefix)) return null
-  const labels: Record<string, string> = {
-    "Nội dung topic: bổ sung thông tin thực tế, không để trống hoặc N/A.": "Bổ sung nội dung topic",
-    "Mối liên hệ với F: nêu câu chuyện, hoạt động hoặc sự kiện cụ thể của F liên quan đến topic.": "Cần mối liên hệ cụ thể trong tài liệu Markdown dẫn chứng",
-    "Nguồn xác nhận tại F: bổ sung link hoặc thông tin tham chiếu cụ thể để kiểm chứng.": "Cần nguồn xác nhận trong tài liệu Markdown dẫn chứng",
-    "connection": "Cần mối liên hệ cụ thể trong tài liệu Markdown dẫn chứng",
-    "evidence": "Cần nguồn xác nhận trong tài liệu Markdown dẫn chứng",
-  }
-  const items = normalized.slice(prefix.length).split("\n").filter((item) => item.trim())
-  return items.length ? items.map((item) => labels[item.trim()] ?? item) : null
-}
-
-function InputValidationFeedback({ message }: { message: string }) {
-  const requirements = gateOneRequirements(message)
-  return (
-    <div role="alert" className="mb-2 max-h-64 overflow-y-auto rounded border border-amber-500/40 bg-amber-500/10 p-3 ui-type-meta text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100 in-[.writer-dark]:text-slate-100 in-[.codex-dark]:text-slate-100">
-      {requirements ? (
-        <>
-          <h3 className="font-semibold">Cần bổ sung</h3>
-          <ul className="mt-2 space-y-2" aria-label="Thông tin cần bổ sung trước Gate 1">
-            {requirements.map((item, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0 rounded-sm border border-current" />
-                <span className="min-w-0 whitespace-pre-wrap">{item}</span>
-              </li>
-            ))}
-          </ul>
-          <details key={message} className="mt-3">
-            <summary className="cursor-pointer rounded font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current">Xem chi tiết</summary>
-            <p className="mt-2 whitespace-pre-wrap">{message}</p>
-          </details>
-        </>
-      ) : <p className="whitespace-pre-wrap">{message}</p>}
-    </div>
-  )
-}
-
 type AnalysisTiming = { start: number; accepted: Promise<number | null> | null }
 
 function InputEngine({
@@ -1936,9 +1807,7 @@ function InputEngine({
   analyze,
   syncing,
   accepted,
-  inputError,
 }: {
-  inputError: string | null
   syncing: boolean
   accepted: boolean
   input: string
@@ -1952,7 +1821,6 @@ function InputEngine({
     <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 py-2">
       <div className="mx-auto max-w-4xl">
         <div className="space-y-2">
-          {inputError && <InputValidationFeedback message={inputError} />}
           <div className="glow-input-container eb-input-pill">
           <div className="eb-input-row">
             <label
@@ -2008,11 +1876,8 @@ function InputEngine({
     </div>
   )
 }
-function DiscoveryToolbar({ status, onDiscover, onBack, onClear, busy }: {
-  status: {
-    state: "idle" | "running" | "success" | "empty" | "error"
-    message?: string
-  }
+function DiscoveryToolbar({ running, onDiscover, onBack, onClear, busy }: {
+  running: boolean
   onDiscover: (urls: string[]) => void
   onBack: () => void
   onClear?: () => void
@@ -2021,17 +1886,7 @@ function DiscoveryToolbar({ status, onDiscover, onBack, onClear, busy }: {
   const [sourceInput, setSourceInput] = useState("")
   const [linksOpen, setLinksOpen] = useState(false)
   const sourceUrls = sourceInput.split(/\n|,/).map(value => value.trim()).filter(Boolean)
-  const running = status.state === "running"
-  const statusClass = status.state === "error"
-    ? "border-red-100 bg-red-50 text-red-700"
-    : status.state === "success"
-      ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-      : status.state === "empty"
-        ? "border-amber-100 bg-amber-50 text-amber-800"
-        : "border-slate-200 bg-slate-50 text-slate-600"
-
   return (
-    <>
       <div className="eb-workspace-toolbar flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-3 sm:px-5"
         role="group" aria-label="Discovery actions">
         <LightButton type="button" size="sm" variant="ghost" aria-label="Back to workspace"
@@ -2066,10 +1921,6 @@ function DiscoveryToolbar({ status, onDiscover, onBack, onClear, busy }: {
           )}
         </div>
       </div>
-      {status.message && <p role="status" className={`mx-3 mt-2 shrink-0 rounded-md border px-3 py-2 ui-type-meta [overflow-wrap:anywhere] sm:mx-5 ${statusClass}`}>
-        {status.message}
-      </p>}
-    </>
   )
 }
 function DiscoveryArchive({
@@ -2266,9 +2117,9 @@ function TaskDetail({
   onUseReviewFeedback,
   task,
   model,
+  notificationAction,
   approvalDisabled,
   approvalPending,
-  approvalError,
   onBrief,
   onRetryDiscovery,
   onArticle,
@@ -2278,9 +2129,9 @@ function TaskDetail({
   onClose,
 }: {
   onUseReviewFeedback: (packageId: string, id: string, variants?: "a" | "b") => Promise<string>
+  notificationAction: ReactNode
   approvalDisabled: boolean
   approvalPending: boolean
-  approvalError: string | null | undefined
   onBrief: (task: Task) => void
   onRetryDiscovery: (id: string, event: { timeStamp: number }) => void
   onArticle: (task: Task) => void
@@ -2300,7 +2151,6 @@ function TaskDetail({
   const [feedback, setFeedback] = useState("")
   const [sectionHeading, setSectionHeading] = useState("")
   const [feedbackSending, setFeedbackSending] = useState(false)
-  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [acceptingFeedbackId, setAcceptingFeedbackId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [channelActionsOpen, setChannelActionsOpen] = useState<string | null>(null)
@@ -2319,7 +2169,12 @@ function TaskDetail({
     setError(null)
     void db.fetchEbV2Activity(task.id, task.gate === "adapt" ? "channel" : "package")
       .then((data) => { if (active) setActivity(data) })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load activity.") })
+      .catch((reason) => {
+        if (!active) return
+        const message = reason instanceof Error ? reason.message : "Unable to load activity."
+        setError(message)
+        notifyWorkspace(`Task details: ${message}`, "error", true)
+      })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [task])
@@ -2386,7 +2241,6 @@ function TaskDetail({
     const message = feedback.trim()
     if (!message || !model || feedbackActionLock.current || approvalDisabled) return
     setFeedbackSending(true)
-    setFeedbackError(null)
     try {
       const created = await db.createEbV2Feedback({
         itemId: activeChannelId ?? task.id,
@@ -2398,9 +2252,7 @@ function TaskDetail({
       setFeedback("")
       setActivity((current: any) => ({ ...current, feedback: [...(current?.feedback ?? []), created.request, created.response] }))
     } catch (reason) {
-      setFeedbackError(
-        reason instanceof Error ? reason.message : "Unable to submit feedback.",
-      )
+      notifyWorkspace(reason instanceof Error ? reason.message : "Unable to submit feedback.", "error", true)
     } finally {
       setFeedbackSending(false)
     }
@@ -2409,7 +2261,6 @@ function TaskDetail({
     if (feedbackActionLock.current || approvalDisabled) return
     feedbackActionLock.current = true
     setAcceptingFeedbackId(id)
-    setFeedbackError(null)
     try {
       if (task.gate === "review") {
         const outputId = await onUseReviewFeedback(task.packageId ?? task.id, id, variants)
@@ -2425,9 +2276,7 @@ function TaskDetail({
         ),
       )
     } catch (reason) {
-      setFeedbackError(
-        `${reason instanceof Error ? reason.message : "Unable to use this revision."} Refresh or retry; confirmed changes are preserved.`,
-      )
+      notifyWorkspace(`${reason instanceof Error ? reason.message : "Unable to use this revision."} Refresh or retry; confirmed changes are preserved.`, "error", true)
     } finally {
       if (task.gate === "review") {
         try {
@@ -2445,14 +2294,14 @@ function TaskDetail({
   return (
     <TaskDetailPanel title={task.title} badge={gateConfig[task.gate].title} onClose={onClose}
       subtitle={approvalPending ? <p role="status">Saving approval and starting the next step…</p> : undefined}
-      actions={canApproveTask(task) && (
+      actions={<>{notificationAction}{canApproveTask(task) && (
         <MainButton type="button" size="sm" color="accent" className="min-h-8"
           disabled={approvalDisabled || loading || Boolean(error)}
           startIcon={approvalPending ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : undefined}
           onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}>
           Approve
         </MainButton>
-      )}
+      )}</>}
       footer={<>
           <LightButton type="button" size="sm" variant="outline"
             onClick={() => void copyResult()}
@@ -2483,13 +2332,12 @@ function TaskDetail({
             <Tabs.Indicator />
           </Tabs.List>
         <div className="eb-task-inspector-content min-h-0 flex-1 select-text overflow-y-auto p-4 sm:p-5">
-          {approvalError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 ui-type-meta text-red-700">{approvalError} Check Workflow AI or refresh the workspace before retrying.</p>}
           {loading ? (
             <p className="ui-type-meta text-slate-500">
               Loading source and AI activity…
             </p>
           ) : error ? (
-            <p className="ui-type-meta text-red-600">{error}</p>
+            <p className="ui-type-meta text-slate-500">Details unavailable. See Notification Center.</p>
           ) : (
             <>
               <Tabs.Panel value="output">
@@ -2589,7 +2437,6 @@ function TaskDetail({
                     </button>
                   </div>
                   {!model && <p className="mt-2 ui-type-meta text-amber-700">Configure the Gate AI model in Workflow AI to use feedback.</p>}
-                  {feedbackError && <p className="mt-2 ui-type-meta text-red-600">{feedbackError}</p>}
                 </section>
               )}
               </Tabs.Panel>
@@ -2714,25 +2561,22 @@ function discoverySourceUrl(value: unknown) {
 function DiscoveryDetail({
   item,
   onClose,
+  notificationAction,
 }: {
   item: DiscoveryIdea
   onClose: () => void
+  notificationAction: ReactNode
 }) {
   const [detail, setDetail] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
+    let active = true
     setDetail(null)
-    setError(null)
-    void db
-      .fetchEbV2DiscoveryDetail(item.id)
-      .then(setDetail)
-      .catch((reason) =>
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Unable to load Discovery trace.",
-        ),
-      )
+    void db.fetchEbV2DiscoveryDetail(item.id)
+      .then(data => { if (active) setDetail(data) })
+      .catch(reason => {
+        if (active) notifyWorkspace(reason instanceof Error ? reason.message : "Unable to load Discovery trace.", "error", true)
+      })
+    return () => { active = false }
   }, [item.id])
   const savedItem = detail?.item ?? item
   const emerging = isEmergingDiscovery(savedItem)
@@ -2751,7 +2595,7 @@ function DiscoveryDetail({
   const usage = run?.usage
   return (
     <TaskDetailPanel title={item.title} badge={discoveryTag(savedItem)} onClose={onClose} closeLabel="Close"
-      className="eb-discovery-detail"
+      className="eb-discovery-detail" actions={notificationAction}
       subtitle={item.created_at ? `Generated ${new Date(item.created_at).toLocaleString()}` : "Saved Discovery record"}>
         <div className="eb-task-inspector-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">

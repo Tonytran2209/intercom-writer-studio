@@ -106,7 +106,7 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
    DEFAULT_CONFIG.models=[{...DEFAULT_MODELS[0],id:'popup-model',enabled:true}];
   });
   await page.getByRole('button',{name:`Open task: ${title}`,exact:true}).click();
-  const popup=page.locator('aside');const approve=popup.getByRole('button',{name:'Approve',exact:true});
+  const popup=page.locator('.eb-task-inspector-panel');const approve=popup.getByRole('button',{name:'Approve',exact:true});
   await expect(approve).toBeEnabled();
   await expect(approve).toHaveCSS('font-size','13px');
   await expect(popup.getByRole('tab',{name:'Lịch sử',exact:true})).toHaveCSS('font-size','13px');
@@ -121,7 +121,12 @@ if (!process.env.TASK_APPROVAL_OFFLINE) {
   expect(titleBounds.width).toBeLessThanOrEqual(416);
   expect(titleBounds.x+titleBounds.width).toBeLessThan(closeBounds.x+closeBounds.width);
   expect(titleBounds.height).toBeGreaterThan(20);
-  await approve.click();await expect(popup.getByRole('alert').filter({hasText:'Synthetic approval failure'})).toContainText('Synthetic approval failure');
+  await approve.click();
+  await expect(approve).toBeEnabled();
+  await popup.getByRole('button',{name:'Open Notification Center'}).click();
+  await expect(page.getByRole('dialog',{name:'Notification center'}).getByText(/Synthetic approval failure/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(popup.getByText(/Synthetic approval failure/)).toHaveCount(0);
   await expect(approve).toBeEnabled();fail=false;await approve.click();
   await expect.poll(()=>calls.length).toBe(2);await expect(approve).toBeDisabled();
   const cardApprove=page.getByRole('button',{name:`Approve ${gate}`,exact:true}).first();

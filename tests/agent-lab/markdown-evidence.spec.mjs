@@ -97,7 +97,7 @@ test('Discovery toolbar passes pasted links and distinguishes empty scans from i
  await page.route('**/api/eb-v2/discovery', route => {
   requests.push(route.request().postDataJSON());
   const event = requests.length === 1
-   ? {event:'complete',items:[],coverage:[{status:'failed'}]}
+   ? {event:'complete',items:[],coverage:[{source:'Reddit',status:'failed',note:'HTTP 403'}],diagnostics:{candidates:6,fresh:2,undated:3,duplicateLeads:2,freshDays:30}}
    : {event:'progress',message:'Scanning configured sources…'};
   return route.fulfill({contentType:'application/x-ndjson',body:JSON.stringify(event)+'\n'});
  });
@@ -120,11 +120,22 @@ test('Discovery toolbar passes pasted links and distinguishes empty scans from i
  await expect(toolbar.getByRole('button',{name:'Paste links (2)',exact:true})).toBeVisible();
  const scan = toolbar.getByRole('button',{name:'Scan sources',exact:true});
  await scan.click();
- await expect(page.getByRole('status').filter({hasText:'Scan completed with no new suggestions'})).toContainText('1 source fetch failed');
+ await expect(scan).toBeEnabled();
+ const bell = page.getByRole('button',{name:'Notifications',exact:true});
+ await bell.press('Enter');
+ const notifications = page.getByRole('dialog',{name:'Notification center'});
+ await expect(notifications.getByText(/Scan completed with no new suggestions/)).toContainText('Reddit (HTTP 403)');
+ await expect(notifications.getByText(/Scan completed with no new suggestions/)).toContainText('2 fresh source lead(s) matched saved topics');
+ await page.keyboard.press('Escape');
+ await expect(page.getByText(/Scan completed with no new suggestions/)).toHaveCount(0);
  await expect(page.getByRole('heading',{name:idea.title})).toBeVisible();
  expect(requests[0].sourceUrls).toEqual(links);
  await scan.click();
- await expect(page.getByRole('status').filter({hasText:'Scan could not finish'})).toContainText('before Discovery confirmed completion');
+ await expect(scan).toBeEnabled();
+ await bell.press('Enter');
+ await expect(notifications.getByText(/before Discovery confirmed completion/)).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(page.getByText(/before Discovery confirmed completion/)).toHaveCount(0);
  await expect(page.getByRole('heading',{name:idea.title})).toBeVisible();
  await toolbar.getByRole('button',{name:'Back to workspace'}).click();
  await expect(page.getByRole('heading',{name:'EB Content Packages'})).toBeVisible();

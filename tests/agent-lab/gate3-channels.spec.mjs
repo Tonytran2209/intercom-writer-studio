@@ -94,7 +94,7 @@ test('G3_SINGLE_OUTPUT G3_CHANNEL_ISOLATION exact output IDs survive response re
  for(const channel of platforms){await select(page,channel);await shows(page,'one',channel);}
  state.data.channels.reverse();await refresh(page);await shows(page,'one','linkedin');
  for(const channel of platforms){await select(page,channel);await shows(page,'one',channel);}
- await panel(page).locator('header button').click();await open(page,'two');
+ await panel(page).getByRole('button',{name:'Close task details'}).click();await open(page,'two');
  await shows(page,'two','linkedin'); // reversed response's first eligible channel
  await expect(result(page)).not.toContainText('one_');
  for(const channel of platforms){await select(page,channel);await shows(page,'two',channel);}
@@ -355,8 +355,10 @@ for(const variant of ['a','b'])for(const reviewFails of [false,true])test(`Threa
  await open(page);await select(page,'threads');
  await approve().click();
  if(reviewFails) {
-  await expect(chat).toContainText('Synthetic review failure');
-  await expect(chat).toContainText('Refresh or retry; confirmed changes are preserved.');
+  await expect(approve()).toBeEnabled();
+  await panel(page).getByRole('button',{name:'Open Notification Center'}).click();
+  await expect(page.getByRole('dialog',{name:'Notification center'}).getByText(/Synthetic review failure/)).toContainText('Refresh or retry; confirmed changes are preserved.');
+  await page.keyboard.press('Escape');
   await expect(approve()).toBeEnabled();
   await preserved();
   expect(state.feedback[0].status).toBe('accepted');

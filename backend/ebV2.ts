@@ -1545,9 +1545,10 @@ export function registerEbV2Routes(app: express.Express) {
           Date.now() - new Date(source.published_at).getTime() <=
             freshDays * 24 * 60 * 60 * 1000,
       )
+      let duplicateLeads = 0
       for (const source of fallbackCandidates) {
         if (items.length >= targetTopics) break
-        if (duplicateSuggestion(source.title)) continue
+        if (duplicateSuggestion(source.title)) { duplicateLeads++; continue }
         const item = await tableInsert<any>("eb_v2_discovery_items", {
           run_id: run.id,
           title: String(source.title).slice(0, 220),
@@ -1578,7 +1579,7 @@ export function registerEbV2Routes(app: express.Express) {
         raw_output: String(result.content),
         completed_at: new Date().toISOString(),
       })
-      emit("complete", { items, uncategorized, coverage: research.coverage, runId: run.id })
+      emit("complete", { items, uncategorized, coverage: research.coverage, diagnostics: { candidates: savedSources.length, fresh: fallbackCandidates.length, undated: savedSources.filter(source => !source.published_at).length, duplicateLeads, freshDays }, runId: run.id })
       res.end()
     } catch (error) {
       emit("error", { error: error instanceof Error ? error.message : "Unable to run Discovery." })

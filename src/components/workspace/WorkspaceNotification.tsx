@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 export type WorkspaceNoticeKind = 'success' | 'error' | 'warning';
-export type WorkspaceNotice = { id: number; message: string; kind: WorkspaceNoticeKind };
+export type WorkspaceNotice = { id: number; message: string; kind: WorkspaceNoticeKind; centerOnly?: boolean };
 // Module-owned session history survives workspace remounts and StrictMode effects.
 let notices: WorkspaceNotice[] = [];
 let nextId = 0;
@@ -36,9 +36,9 @@ const subscribe = (listener: () => void) => {
 };
 const snapshot = () => notices;
 
-export function notifyWorkspace(message: string, kind: WorkspaceNoticeKind = 'warning') {
+export function notifyWorkspace(message: string, kind: WorkspaceNoticeKind = 'warning', centerOnly = false) {
   if (!message.trim()) return;
-  const notice = { id: ++nextId, message, kind };
+  const notice = { id: ++nextId, message, kind, centerOnly };
   notices = [...notices, notice];
   listeners.forEach(listener => listener());
   window.dispatchEvent(new CustomEvent('writer:workspace-notice', { detail: notice }));
