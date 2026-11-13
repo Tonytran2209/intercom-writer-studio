@@ -28,6 +28,14 @@ test('Settings exposes current sources and preserves synthetic legacy files on s
  const nav=page.locator('.settings-subnav');
  await expect(nav.getByRole('button')).toHaveText(['EB Library','EB Workflow Rules','Website Inventory']);
  await expect(page.getByText('fixture-library.md',{exact:true})).toBeVisible();
+ const collection = page.getByRole('button',{name:/EVP Pillars/});
+ await collection.click();
+ const detail = page.getByRole('dialog',{name:'EVP Pillars',exact:true});
+ await expect(detail.locator('.eb-inspector-gate')).toHaveText('EB Library collection');
+ await expect(detail.getByRole('heading',{name:'Collection purpose'})).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(detail).toHaveCount(0);
+
  const upload = page.getByRole('button',{name:'Tải tệp Markdown',exact:true});
  await expect(upload).toBeEnabled();
  await upload.focus();

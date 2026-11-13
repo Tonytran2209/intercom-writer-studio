@@ -1,3 +1,4 @@
+import TaskDetailPanel from "../TaskDetailPanel"
 import { AppSelect } from "../AppDropdown"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { BookOpen, BookOpenCheck, Check, FolderUp, Globe2, Plus, RefreshCw, Save, ScrollText, Search, Square, Trash2, X } from "lucide-react"
@@ -191,7 +192,18 @@ function EbLibraryCollections({ files }: { files: DocumentFile[] }) {
 
 function CollectionDetail({ collection, file, onClose }: { collection: { title: string; file: string; detail: string; preview: string }; file?: DocumentFile; onClose: () => void }) {
   const content = file?.content || file?.preview || collection.preview
-  return <div className="fixed inset-0 z-[60] flex justify-end bg-slate-900/10 p-3"><aside className="flex h-full w-full max-w-xl flex-col rounded-2xl border border-slate-200/80 bg-white shadow-xl"><header className="flex items-start justify-between border-b border-slate-200/80 p-4"><div><p className="ui-type-meta font-semibold uppercase tracking-wide text-slate-400">EB Library collection</p><h2 className="mt-1 ui-type-title font-semibold text-slate-900">{collection.title}</h2><p className="mt-1 ui-type-meta text-slate-500">{collection.file} · {file ? "Loaded document" : "Required schema preview"}</p></div><button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-100" aria-label="Close detail"><X className="h-4 w-4"/></button></header><div className="min-h-0 flex-1 overflow-y-auto p-4"><section className="rounded-xl border border-slate-200/80 bg-slate-50 p-3"><h3 className="ui-type-title font-semibold text-slate-800">Collection purpose</h3><p className="mt-1 ui-type-meta leading-5 text-slate-600">{collection.detail}</p></section><pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-white p-3 ui-type-meta leading-6 text-slate-700">{content}</pre></div></aside></div>
+  return (
+    <TaskDetailPanel fixed title={collection.title} badge="EB Library collection" onClose={onClose} closeLabel="Close detail"
+      subtitle={`${collection.file} · ${file ? "Loaded document" : "Required schema preview"}`}>
+      <div className="eb-task-inspector-content min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
+          <h3 className="ui-type-title font-semibold text-slate-800">Collection purpose</h3>
+          <p className="mt-2 ui-type-body text-slate-600">{collection.detail}</p>
+        </section>
+        <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-200/80 p-4 ui-type-reading text-slate-700">{content}</pre>
+      </div>
+    </TaskDetailPanel>
+  )
 }
 
 const DEFAULT_EB_RULES: EbWorkflowRule[] = [

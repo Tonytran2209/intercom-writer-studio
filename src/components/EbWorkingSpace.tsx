@@ -1,3 +1,4 @@
+import TaskDetailPanel from "./TaskDetailPanel"
 import { AppDropdown, AppSelect } from "./AppDropdown"
 import { Tabs } from "twenty-ui/primitives/navigation"
 import { LightButton, MainButton } from "twenty-ui/components/input"
@@ -2290,15 +2291,6 @@ function TaskDetail({
   onRegenerate: (task: Task) => Promise<boolean | undefined>
   onClose: () => void
 }) {
-  const closeButton = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (!closeButton.current) return
-    const trigger = document.activeElement
-    closeButton.current.focus()
-    return () => {
-      if (trigger instanceof HTMLElement && trigger.isConnected && document.activeElement === document.body) trigger.focus()
-    }
-  }, [task?.id])
   const [activity, setActivity] = useState<any>(null)
   const activityItem = useRef<string | null>(null)
   const feedbackActionLock = useRef(false)
@@ -2451,59 +2443,38 @@ function TaskDetail({
     }
   }
   return (
-    <div
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-      className="eb-overlay eb-task-inspector absolute inset-0 z-50 flex justify-end p-2 sm:p-3"
-    >
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="eb-task-inspector-title"
-        onKeyDown={event => {
-          if (event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return
-          if (event.key === "Escape") onClose()
-          if (event.key === "Tab") {
-            const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary',
-            )).filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0)
-            const first = controls[0], last = controls.at(-1)
-            if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus() }
-            if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus() }
-          }
-        }}
-        onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel eb-task-inspector-panel flex h-full w-full min-w-0 flex-col overflow-hidden border"
-      >
-        <header className="eb-inspector-header shrink-0 border-b px-4 py-3 sm:px-5 sm:py-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="eb-inspector-gate min-w-0 truncate ui-type-meta font-medium">
-              {gateConfig[task.gate].title}
-            </p>
-            <div className="flex shrink-0 items-center gap-1">
-              {canApproveTask(task) && (
-                <MainButton type="button" size="sm" color="accent"
-                  className="min-h-8"
-                  disabled={approvalDisabled || loading || Boolean(error)}
-                  startIcon={approvalPending ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : undefined}
-                  onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}
-                >
-                  <span className="ui-type-body">Approve</span>
-                </MainButton>
-              )}
-              <LightButton ref={closeButton} type="button" size="sm" variant="ghost" aria-label="Close task details"
-                onClick={onClose}
-                className="min-h-8 min-w-8"
-                startIcon={<X size={16} aria-hidden="true" />}
-              />
-            </div>
-          </div>
-          <h2 id="eb-task-inspector-title" className="mt-4 max-w-[min(26rem,calc(100%_-_1rem))] ui-type-page font-semibold text-pretty [overflow-wrap:anywhere]">
-            {task.title}
-          </h2>
-          {approvalPending && <p role="status" className="mt-2 ui-type-meta text-slate-500">Saving approval and starting the next step…</p>}
-        </header>
+    <TaskDetailPanel title={task.title} badge={gateConfig[task.gate].title} onClose={onClose}
+      subtitle={approvalPending ? <p role="status">Saving approval and starting the next step…</p> : undefined}
+      actions={canApproveTask(task) && (
+        <MainButton type="button" size="sm" color="accent" className="min-h-8"
+          disabled={approvalDisabled || loading || Boolean(error)}
+          startIcon={approvalPending ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : undefined}
+          onClick={() => task.gate === "brief" ? onBrief(task) : onArticle(task)}>
+          Approve
+        </MainButton>
+      )}
+      footer={<>
+          <LightButton type="button" size="sm" variant="outline"
+            onClick={() => void copyResult()}
+            title="Copy result as formatted Markdown"
+            startIcon={copied ? <Check size={14} className="text-emerald-600" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+          >
+            <span className="ui-type-body">{copied ? "Copied" : "Copy result"}</span>
+          </LightButton>
+          <LightButton type="button" size="sm" variant="outline" startIcon={<Download size={14} aria-hidden="true" />}
+            onClick={() => {
+              const link = document.createElement("a")
+              link.href = URL.createObjectURL(
+                new Blob([output], { type: "text/markdown" }),
+              )
+              link.download = "website-article.md"
+              link.click()
+              URL.revokeObjectURL(link.href)
+            }}
+          >
+            <span className="ui-type-body">Export .md</span>
+          </LightButton>
+      </>}>
         <Tabs.Root defaultValue={task.discoveryNeedsEvidence ? "evidence" : "output"} className="min-h-0 flex flex-1 flex-col">
           <Tabs.List className="eb-inspector-tabs shrink-0 px-3 sm:px-4" aria-label="Task details" activateOnFocus>
             <Tabs.Tab value="output" size="sm"><span className="ui-type-body">{task.gate === "brief" ? "Brief" : task.gate === "article" ? "Article" : "Output"}</span></Tabs.Tab>
@@ -2728,30 +2699,7 @@ function TaskDetail({
           )}
         </div>
         </Tabs.Root>
-        <footer className="eb-inspector-footer flex shrink-0 flex-wrap justify-end gap-2 border-t px-4 py-3 sm:px-5">
-          <LightButton type="button" size="sm" variant="outline"
-            onClick={() => void copyResult()}
-            title="Copy result as formatted Markdown"
-            startIcon={copied ? <Check size={14} className="text-emerald-600" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-          >
-            <span className="ui-type-body">{copied ? "Copied" : "Copy result"}</span>
-          </LightButton>
-          <LightButton type="button" size="sm" variant="outline" startIcon={<Download size={14} aria-hidden="true" />}
-            onClick={() => {
-              const link = document.createElement("a")
-              link.href = URL.createObjectURL(
-                new Blob([output], { type: "text/markdown" }),
-              )
-              link.download = "website-article.md"
-              link.click()
-              URL.revokeObjectURL(link.href)
-            }}
-          >
-            <span className="ui-type-body">Export .md</span>
-          </LightButton>
-        </footer>
-      </aside>
-    </div>
+    </TaskDetailPanel>
   )
 }
 function discoverySourceUrl(value: unknown) {
@@ -2802,39 +2750,10 @@ function DiscoveryDetail({
   const run = evidence.find((entry: any) => entry?.kind === "ai_run")
   const usage = run?.usage
   return (
-    <div
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-      className="eb-overlay absolute inset-0 z-40 flex justify-end p-3"
-    >
-      <aside
-        onClick={(event) => event.stopPropagation()}
-        className="eb-detail-panel eb-discovery-detail flex h-full w-full min-w-0 max-w-xl flex-col overflow-hidden border bg-white [overflow-wrap:anywhere]"
-      >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200/80 p-4">
-          <div className="min-w-0">
-            <p className="ui-type-meta font-semibold uppercase tracking-wide text-purple-500">
-              {discoveryTag(savedItem)}
-            </p>
-            <h2 className="mt-1 ui-type-title font-semibold text-slate-900">
-              {item.title}
-            </h2>
-            <p className="mt-1 ui-type-meta text-slate-500">
-              {item.created_at
-                ? `Generated ${new Date(item.created_at).toLocaleString()}`
-                : "Saved Discovery record"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
+    <TaskDetailPanel title={item.title} badge={discoveryTag(savedItem)} onClose={onClose} closeLabel="Close"
+      className="eb-discovery-detail"
+      subtitle={item.created_at ? `Generated ${new Date(item.created_at).toLocaleString()}` : "Saved Discovery record"}>
+        <div className="eb-task-inspector-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <section className="rounded-xl border border-slate-200/80 bg-slate-50 p-4">
             <h3 className="ui-type-title font-semibold text-slate-800">
               Suggestion context
@@ -2930,8 +2849,7 @@ function DiscoveryDetail({
             )}
           </section>
         </div>
-      </aside>
-    </div>
+    </TaskDetailPanel>
   )
 }
 function Tag({ children }: { children: ReactNode }) {

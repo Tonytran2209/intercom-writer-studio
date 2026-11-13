@@ -1588,21 +1588,6 @@ html, body, #root {
   border-color: #bcbcb6;
 }
 
-.ai-log-modal {
-  background: #fff;
-  border-color: #deded9;
-  box-shadow: none;
-}
-
-.ai-log-close {
-  background: #f1f1ee !important;
-}
-
-.ai-log-close:hover {
-  color: #171717;
-  background: #e5e5e1 !important;
-}
-
 .ai-log-event,
 .ai-log-fact {
   background: #fafaf8;
@@ -1727,23 +1712,6 @@ html, body, #root {
   border-color: #3a3a3a !important;
 }
 
-.codex-dark .ai-log-modal {
-  background: #1a1a1a !important;
-  border-color: #2a2a2a !important;
-  box-shadow: none !important;
-}
-
-.codex-dark .ai-log-close {
-  color: #9ca3af !important;
-  background: #222 !important;
-}
-
-.codex-dark .ai-log-close:hover {
-  color: #fff !important;
-  background: #2a2a2a !important;
-}
-
-.codex-dark .ai-log-timeline,
 .codex-dark .ai-log-event,
 .codex-dark .ai-log-fact {
   background: #1c1c1c !important;
@@ -2986,11 +2954,19 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 }
 [data-anchor-hidden] > .app-dropdown-popup { visibility: hidden; }
 
-.codex-dark .eb-workspace > .eb-task-inspector {
+.eb-task-inspector {
+  background: rgb(255 255 255 / .38);
+  backdrop-filter: blur(6px) saturate(.9);
+}
+.codex-dark .eb-task-inspector {
   background: rgb(0 0 0 / .4);
   backdrop-filter: blur(6px);
 }
-.eb-workspace .eb-task-inspector-panel {
+.eb-task-inspector-panel {
+  font-family: var(--t-font-family);
+  border-color: var(--t-border-color-medium);
+  background: var(--t-background-primary);
+  box-shadow: var(--t-box-shadow-strong);
   max-width: 34rem;
   border-radius: var(--t-border-radius-lg);
   color: var(--t-font-color-primary);

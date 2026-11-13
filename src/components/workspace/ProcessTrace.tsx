@@ -1,5 +1,5 @@
-import { X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import TaskDetailPanel from "../TaskDetailPanel";
 import { createPortal } from "react-dom";
 import type { AIProcessTraceEvent } from "../../types";
 import { useI18n } from "../../lib/i18n";
@@ -12,6 +12,11 @@ export default function ProcessTrace({ events }: { events?: AIProcessTraceEvent[
 
 export function ProcessTraceModal({ title, events, onClose, children }: { title: string; events?: AIProcessTraceEvent[]; onClose: () => void; children?: ReactNode }) {
   const { tr } = useI18n();
-  useEffect(() => { const close = (event: KeyboardEvent) => event.key === "Escape" && onClose(); window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [onClose]);
-  return createPortal(<div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/30 p-3 backdrop-blur-sm sm:p-6" onMouseDown={event => event.target === event.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={title}><div className="writer-light contents"><div className="ai-log-modal flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white"><header className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5"><div className="min-w-0"><p className="text-[9px] font-medium uppercase tracking-wider text-slate-400">{tr("Nhật ký AI", "AI log")}</p><h3 className="mt-1 truncate text-sm font-medium text-slate-800">{title}</h3><p className="mt-1 text-[10px] text-slate-500">{tr("Hành động và dữ liệu có thể kiểm chứng.", "Verifiable actions and supporting data.")}</p></div><button onClick={onClose} className="ai-log-close flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500" aria-label={tr("Đóng", "Close")}><X size={16} aria-hidden="true" /></button></header><div className="ai-log-content flex-1 space-y-5 overflow-y-auto p-4 sm:p-5"><ProcessTrace events={events} />{children}</div></div></div></div>, document.body);
+  return createPortal(
+    <TaskDetailPanel fixed title={title} badge={tr("Nhật ký AI", "AI log")} onClose={onClose} closeLabel={tr("Đóng", "Close")}>
+      <div className="eb-task-inspector-content ai-log-content min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+        <ProcessTrace events={events} />
+        {children}
+      </div>
+    </TaskDetailPanel>, document.body);
 }

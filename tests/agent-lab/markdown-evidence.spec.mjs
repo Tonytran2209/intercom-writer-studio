@@ -74,13 +74,16 @@ test('Discovery source trace keeps long links inside the detail panel', async ({
  await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
  await page.getByRole('button',{name:'Details',exact:true}).click();
  const panel = page.locator('.eb-discovery-detail');
+ await expect(panel).toHaveAttribute('role','dialog');
+ await expect(panel.locator('.eb-inspector-gate')).toBeVisible();
+ await expect(panel.getByRole('heading',{name:idea.title,exact:true})).toHaveCSS('font-size','16px');
  await expect(panel.getByRole('heading',{name:'Sources used'})).toBeVisible();
  await expect(panel.getByRole('link',{name:'example.com',exact:true})).toHaveAttribute('href',url);
  await expect(panel.getByText('Internal evidence',{exact:true})).toBeVisible();
  expect(await panel.evaluate(node =>
   [node, ...node.querySelectorAll('section, .overflow-y-auto')].every(element => element.scrollWidth <= element.clientWidth)
  )).toBe(true);
- await panel.getByRole('button',{name:'Close',exact:true}).click();
+ await page.keyboard.press('Escape');
  await expect(panel).toHaveCount(0);
 });
 

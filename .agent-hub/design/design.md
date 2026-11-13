@@ -39,7 +39,7 @@ Buttons, dropdown triggers and tabs default to 13 px through the shared control 
 - Workspace lists align titles, status, source, dates and actions by column. Stack fields below a 760 px board width and keep all actions reachable.
 - Gate Grid keeps all four columns on one horizontally scrollable row. Give each column a 19 rem minimum when the board can fit it, and let each Gate scroll its own tasks vertically. Keep the Input Engine outside the scrolling region.
 - Use AppDropdown for action panels and multi-filter menus, and AppSelect for single-value pickers. Both use the workspace Filter styling with Twenty UI primitives and portalled popups that reposition at viewport edges.
-- Open task details as a modal side panel with a dismissible backdrop and a width that fits narrow screens. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
+- Reuse TaskDetailPanel for Gate, Discovery, library collection, idea and AI log details. Open details as a modal side panel with a dismissible backdrop and a width that fits narrow screens. Group output, evidence and history in Twenty Tabs. Keep the current Gate's primary approval action in the inspector header.
 - Use visible form labels or clearly associated accessible names, keyboard focus, and accessible icon-only actions. Preserve focus when dialogs and panels close.
 - Give loading, empty, error, disabled and saving states the same layout and type scale as the ready state. Provide an actionable recovery message when there is one.
 
