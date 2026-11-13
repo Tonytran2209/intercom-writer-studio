@@ -1826,7 +1826,6 @@ function InputEngine({
   analyze: (event: { timeStamp: number }) => void
 }) {
   const engineRef = useRef<HTMLDivElement>(null)
-  const toggleRef = useRef<HTMLButtonElement>(null)
   useLayoutEffect(() => {
     const engine = engineRef.current!
     const board = engine.parentElement!
@@ -1837,30 +1836,40 @@ function InputEngine({
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    if (!open) return
+    const engine = engineRef.current!
+    const workspace = engine.closest(".eb-workspace")!
+    const surface = workspace.querySelector(".eb-board-surface")!
+    const dismiss = () => setOpen(false)
+    const dismissOutside = (event: Event) => {
+      if (!engine.contains(event.target as Node)) dismiss()
+    }
+    workspace.addEventListener("click", dismissOutside, true)
+    surface.addEventListener("scroll", dismiss, true)
+    surface.addEventListener("wheel", dismiss, { passive: true })
+    return () => {
+      workspace.removeEventListener("click", dismissOutside, true)
+      surface.removeEventListener("scroll", dismiss, true)
+      surface.removeEventListener("wheel", dismiss)
+    }
+  }, [open, setOpen])
+
   return (
-    <div
-      ref={engineRef}
-      className="eb-input-engine pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 p-3 sm:p-4"
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || !open) return
-        event.stopPropagation()
-        setOpen(false)
-        toggleRef.current?.focus()
-      }}
-    >
-      <button
-        ref={toggleRef}
+    <div ref={engineRef} className="eb-input-engine pointer-events-none absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4">
+      {!open && <button
         type="button"
-        className="eb-input-toggle pointer-events-auto order-1 self-end"
-        aria-label={open ? "Thu gọn thanh nhập ý tưởng" : "Mở thanh nhập ý tưởng"}
+        className="eb-input-toggle pointer-events-auto ml-auto"
+        aria-label="Mở thanh nhập ý tưởng"
         aria-controls="eb-input-panel"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        aria-expanded={false}
+        onClick={() => setOpen(true)}
       >
-        {open ? <X size={22} aria-hidden="true" /> : <IconPlus size={22} aria-hidden="true" />}
-      </button>
+        <IconPlus size={22} aria-hidden="true" />
+      </button>}
       <div id="eb-input-panel" hidden={!open} className="eb-input-panel mx-auto w-full max-w-4xl">
         <div className="space-y-2">
+          {(syncing || fileName) && <p className="break-all px-3 ui-type-body text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
           <div className="glow-input-container eb-input-pill pointer-events-auto">
           <div className="eb-input-row">
             <label
@@ -1910,7 +1919,6 @@ function InputEngine({
             </div>
           </div>
           </div>
-          {(syncing || fileName) && <p className="mt-1 break-all px-3 ui-type-body text-slate-500" role="status">{syncing ? (accepted ? "Đã tiếp nhận · đang kiểm tra thông tin…" : "Đang kiểm tra thông tin…") : `Đã đính kèm: ${fileName}`}</p>}
         </div>
       </div>
     </div>
