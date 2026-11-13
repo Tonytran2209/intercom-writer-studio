@@ -394,7 +394,7 @@ test('operation errors enter notification details once and survive refresh', asy
     const row = panel.getByRole('button').filter({hasText:pattern});
     await expect(row).toHaveCount(1);
     await expect(panel.getByRole('button').filter({hasText:/Refresh workspace to check saved state/})).toHaveCount(count);
-    await row.click();
+    await row.press("Enter");
     await expect(panel.getByRole('region',{name:'Notification details'})).toContainText(pattern);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
@@ -413,7 +413,7 @@ test('operation errors enter notification details once and survive refresh', asy
   await assertEvent(/1\/2 review action\(s\) confirmed/,2);
   await expect(card).toContainText('1 Done');
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
-  await page.getByRole('button',{name:'Scan sources',exact:true}).click();
+  await page.getByRole('button',{name:'Scan sources',exact:true}).press('Enter');
   await assertEvent(/Synthetic Discovery/,3);
   await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
   await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
