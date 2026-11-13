@@ -15,6 +15,11 @@ for (const theme of ['light', 'dark']) {
     const topic = engine.locator('.eb-input-topic');
     const upload = engine.getByLabel('Đính kèm tài liệu ý tưởng', { exact: true });
     const analyze = engine.getByRole('button', { name: 'Kiểm tra thông tin và chạy Gate 1', exact: true });
+    const toggle = engine.getByRole('button', { name: 'Mở thanh nhập ý tưởng', exact: true });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(topic).toBeHidden();
+    await toggle.click();
+    await expect(topic).toBeVisible();
     await expect(upload).toBeEnabled();
     await expect(topic).toBeEnabled();
     await expect(analyze).toBeDisabled();
@@ -57,6 +62,11 @@ for (const theme of ['light', 'dark']) {
     await upload.press('Tab');
     await expect(topic).toBeFocused();
     await expectNoStroke();
+    await expect(topic).toHaveValue('Topic with F source');
+    await topic.press('Escape');
+    await expect(topic).toBeHidden();
+    await expect(toggle).toBeFocused();
+    await toggle.press('Enter');
     await expect(topic).toHaveValue('Topic with F source');
     await topic.fill('');
     await expect(analyze).toBeDisabled();
@@ -130,7 +140,7 @@ test('Gate Grid scrolls without tracks and keeps card actions reachable', async 
   await actions.click();
   const regenerate = page.getByRole('dialog',{name:'Task actions'}).getByRole('button',{name:'Regenerate',exact:true});
   await expect(regenerate).toBeInViewport();
-  await expect(page.getByRole('button',{name:'Kiểm tra thông tin và chạy Gate 1',exact:true})).toBeInViewport();
+  await expect(page.getByRole('button',{name:'Mở thanh nhập ý tưởng',exact:true})).toBeInViewport();
   expect(await grid.evaluate(element=>element.scrollWidth <= element.clientWidth)).toBe(desktop);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -30,6 +30,7 @@ test('Discovery goes directly to Gate 1 and waits for a validated brief', async 
  });
  await page.getByRole('button',{name:'Refresh V2 workspace',exact:true}).click();
  await expect(page.getByRole('button',{name:'Refresh V2 workspace',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Mở thanh nhập ý tưởng',exact:true}).click();
  await page.locator('#eb-input').fill('Unrelated draft');
  await page.evaluate(() => window.dispatchEvent(new CustomEvent('writer:eb-open',{detail:'discovery'})));
  await page.getByRole('button',{name:'Chuyển sang Gate 1',exact:true}).click();

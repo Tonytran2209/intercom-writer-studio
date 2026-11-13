@@ -334,6 +334,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
     useState<DiscoveryIdea | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [input, setInput] = useState("")
+  const [inputOpen, setInputOpen] = useState(false)
   const [fileName, setFileName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [activeFilters, setActiveFilters] = useState<string[]>([])
@@ -356,6 +357,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
         .detail
       if (action === "new") {
         setPage("board")
+        setInputOpen(true)
         setInput("")
         setFile(null)
         setFileName("")
@@ -1179,6 +1181,8 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
               </div>
             </section>
             <InputEngine
+              open={inputOpen}
+              setOpen={setInputOpen}
               input={input}
               setInput={setInput}
               fileName={fileName}
@@ -1799,6 +1803,8 @@ function TaskCard({
 type AnalysisTiming = { start: number; accepted: Promise<number | null> | null }
 
 function InputEngine({
+  open,
+  setOpen,
   input,
   setInput,
   fileName,
@@ -1808,6 +1814,8 @@ function InputEngine({
   syncing,
   accepted,
 }: {
+  open: boolean
+  setOpen: (value: boolean) => void
   syncing: boolean
   accepted: boolean
   input: string
@@ -1818,6 +1826,7 @@ function InputEngine({
   analyze: (event: { timeStamp: number }) => void
 }) {
   const engineRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   useLayoutEffect(() => {
     const engine = engineRef.current!
     const board = engine.parentElement!
@@ -1829,8 +1838,28 @@ function InputEngine({
   }, [])
 
   return (
-    <div ref={engineRef} className="eb-input-engine pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 py-2">
-      <div className="mx-auto max-w-4xl">
+    <div
+      ref={engineRef}
+      className="eb-input-engine pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 p-3 sm:p-4"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open) return
+        event.stopPropagation()
+        setOpen(false)
+        toggleRef.current?.focus()
+      }}
+    >
+      <button
+        ref={toggleRef}
+        type="button"
+        className="eb-input-toggle pointer-events-auto order-1 self-end"
+        aria-label={open ? "Thu gọn thanh nhập ý tưởng" : "Mở thanh nhập ý tưởng"}
+        aria-controls="eb-input-panel"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <X size={22} aria-hidden="true" /> : <IconPlus size={22} aria-hidden="true" />}
+      </button>
+      <div id="eb-input-panel" hidden={!open} className="eb-input-panel mx-auto w-full max-w-4xl">
         <div className="space-y-2">
           <div className="glow-input-container eb-input-pill pointer-events-auto">
           <div className="eb-input-row">

@@ -55,6 +55,7 @@ for(const dismissal of ['skip','close','escape','finish']){
   await page.reload();
   await expect(guide(page)).toBeVisible();
   await expect(dialog(page)).not.toBeVisible();
+  await page.getByRole('button',{name:'Mở thanh nhập ý tưởng',exact:true}).click();
   await page.locator('#eb-input').fill('Keep my unfinished idea');
   await guide(page).click();
   await expect(dialog(page)).toHaveAccessibleName('Bắt đầu từ ý tưởng thật');
@@ -81,6 +82,7 @@ test('blocked onboarding storage allows dismissal and reopening under StrictMode
  await page.keyboard.press('Escape');
  await expect(dialog(page)).not.toBeVisible();
  await expect(guide(page)).toBeFocused();
+ await page.getByRole('button',{name:'Mở thanh nhập ý tưởng',exact:true}).click();
  await page.locator('#eb-input').fill('Storage fallback input');
  await guide(page).click();
  await page.getByRole('button',{name:'Bỏ qua',exact:true}).click();
