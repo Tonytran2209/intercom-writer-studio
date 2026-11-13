@@ -2654,7 +2654,14 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
 .eb-workspace .eb-grid-scroll { scrollbar-width: none; }
 .eb-workspace .eb-grid-scroll::-webkit-scrollbar { display: none; }
 
-/* Main Input Engine: keep validation outside the pill. */
+/* Let content scroll behind the floating input and past it at the end. */
+.eb-board-list,
+.eb-board-grid .eb-gate-items {
+  padding-bottom: var(--eb-input-height, 0px);
+  scroll-padding-bottom: var(--eb-input-height, 0px);
+}
+
+/* Main Input Engine */
 .eb-input-engine .eb-input-pill { border-radius: 2rem; }
 .eb-input-engine .eb-input-pill::before { border-radius: inherit; }
 .eb-input-engine .eb-input-row {
@@ -2701,7 +2708,6 @@ html, body, #root { background: #f7f7f5 !important; color: #20201e; color-scheme
   border-radius: .75rem;
 }
 .eb-input-engine .eb-input-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
-.eb-input-engine [role="alert"] { max-height: min(16rem, 28dvh); }
 .eb-input-engine .eb-input-analyze { background: #f3f4f6; color: #202124; }
 .eb-input-engine .eb-input-analyze:hover:not(:disabled) { background: #e5e7eb; }
 @media (max-width: 480px) {

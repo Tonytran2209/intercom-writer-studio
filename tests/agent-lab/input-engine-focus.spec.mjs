@@ -79,6 +79,18 @@ test('Gate Grid scrolls without tracks and keeps card actions reachable', async 
   const gridToggle = page.getByRole('button',{name:'Grid view',exact:true});
   const listToggle = page.getByRole('button',{name:'List view',exact:true});
   await expect(listToggle).toHaveAttribute('aria-pressed','true');
+  const engine = page.locator('.eb-input-engine');
+  const list = page.locator('.eb-board-list');
+  await expect(engine).toHaveCSS('position', 'absolute');
+  await expect(engine).toHaveCSS('pointer-events', 'none');
+  await expect(engine.locator('.eb-input-pill')).toHaveCSS('pointer-events', 'auto');
+  const engineBounds = await engine.boundingBox();
+  const listBounds = await list.boundingBox();
+  expect(listBounds.y + listBounds.height).toBeGreaterThan(engineBounds.y);
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  const lastListTask = await list.locator('h3').last().boundingBox();
+  expect(lastListTask.y + lastListTask.height).toBeLessThan(engineBounds.y);
+
   await expect(gridToggle).toHaveCSS('width','36px');
   await expect(gridToggle).toHaveCSS('height','36px');
   await expect(listToggle).toHaveCSS('width','36px');

@@ -1147,7 +1147,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
       </div>}
       <>
         {page === "board" ? (
-          <div className="eb-board-body flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="eb-board-body relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <section className="eb-board-surface flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
               <div
                 role={view === "grid" ? "region" : undefined}
@@ -1156,7 +1156,7 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
                 className={
                   view === "grid"
                     ? "eb-board-grid eb-grid-scroll grid min-h-0 flex-1 gap-4"
-                    : "min-h-0 flex-1 overflow-y-auto space-y-4 pr-1"
+                    : "eb-board-list min-h-0 flex-1 overflow-y-auto space-y-4 pr-1"
                 }
               >
                 {gates.map((gate) => (
@@ -1817,11 +1817,22 @@ function InputEngine({
   setFile: (file: File | null) => void
   analyze: (event: { timeStamp: number }) => void
 }) {
+  const engineRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const engine = engineRef.current!
+    const board = engine.parentElement!
+    const reserveScrollSpace = () => board.style.setProperty("--eb-input-height", `${engine.offsetHeight}px`)
+    reserveScrollSpace()
+    const observer = new ResizeObserver(reserveScrollSpace)
+    observer.observe(engine)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="eb-input-engine sticky bottom-0 z-10 shrink-0 px-3 py-2">
+    <div ref={engineRef} className="eb-input-engine pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 py-2">
       <div className="mx-auto max-w-4xl">
         <div className="space-y-2">
-          <div className="glow-input-container eb-input-pill">
+          <div className="glow-input-container eb-input-pill pointer-events-auto">
           <div className="eb-input-row">
             <label
               title={fileName || "Đính kèm tài liệu ý tưởng"}
