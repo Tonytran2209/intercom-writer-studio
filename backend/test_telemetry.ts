@@ -14,8 +14,6 @@ async function main(): Promise<void> {
   const success = await sendPackageRunTelemetry({
     stages,
     durationMs: 76300,
-    responseTimeMs: 180,
-    clickLatencyMs: 95,
     workload: "1 topic / 4 channels",
     status: "SUCCESS",
   });

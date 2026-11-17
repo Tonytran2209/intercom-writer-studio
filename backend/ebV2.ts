@@ -22,7 +22,7 @@ import { collectDiscoveryResearch } from "./discoveryResearch.ts"
 import { evidencePassages, findMarkdownEvidence, getEvidenceDocument, maxEvidenceBytes, saveEvidenceDocument } from "./markdownEvidence.ts"
 import { refinementPlan, refinementChecks } from "./refinement.ts"
 import { isolateChannelOutput } from "../src/lib/channelOutput.ts"
-import { sendPackageRunTelemetry } from "./telemetry.ts"
+import { mapGateRunsToTelemetryStages, sendPackageRunTelemetry } from "./telemetry.ts"
 import { gateStepName, MARKDOWN_EVIDENCE_RUN_PREFIX } from "./packageSteps.ts"
 
 const liveRefinements = new Map<string, { text: string; phase: string }>()
@@ -1780,26 +1780,8 @@ export function registerEbV2Routes(app: express.Express) {
           tableSelect<any>("eb_v2_gate_runs", q => q.eq("package_id", item.id).order("started_at", { ascending: true }))
             .then(runs => {
               if (!runs || !runs.length) return
-              const stepEnMap: Record<string, string> = {
-                "Trích xuất brief": "Brief Extraction",
-                "Article Spec": "Article Specification",
-                "Lập outline": "Outline Generation",
-                "Viết bài": "Article Drafting",
-                "Chuyển thể Facebook": "Facebook Adaptation",
-                "Chuyển thể LinkedIn": "LinkedIn Adaptation",
-                "Chuyển thể Threads": "Threads Adaptation",
-                "Kiểm tra trùng lặp": "Repetition Check",
-              };
-              const stages = runs.map((r: any) => {
-                const name = gateStepName(r.gate, r.stage);
-                return {
-                  code: String(r.stage || r.gate || "").replace(":", "_"),
-                  name,
-                  nameEn: stepEnMap[name] || name,
-                  durationMs: Math.max(1, Math.round(r.output_snapshot?.durationMs || (new Date(r.completed_at || Date.now()).getTime() - new Date(r.started_at || Date.now()).getTime()) || 1000)),
-                  status: (r.status === "completed" ? "SUCCESS" : "ERROR") as "SUCCESS" | "ERROR",
-                };
-              });
+              const stages = mapGateRunsToTelemetryStages(runs, gateStepName)
+              if (!stages.length) return
               sendPackageRunTelemetry({
                 runId: `pkg_${item.id}`,
                 workload: "1 topic / 4 channels",
