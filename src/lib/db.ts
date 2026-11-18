@@ -166,8 +166,27 @@ export async function fetchEbV2Workspace(): Promise<EbV2Workspace> { return rail
 export async function saveEbV2NotificationDismissals(entries: Array<[string, string]>): Promise<void> {
   await railwayRequest("/api/eb-v2/notification-dismissals", jsonRequest("POST", { entries }), ebV2Origin())
 }
-export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) { return railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted) }
-export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string }, onAccepted?: () => void) { const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText); return railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted) }
+const flTelemetry = () => (typeof window !== "undefined" ? (window as any).FLTelemetry : undefined)
+
+export async function createEbV2Package(input: { title?: string; inputText: string; sourceType: "input" | "upload" | "discovery"; discoveryId?: string; model: { provider: string; id: string } }, onAccepted?: () => void) {
+  flTelemetry()?.taskSubmit?.("EB V2 package", "gate_1_brief")
+  try {
+    return await railwayRequest<any>("/api/eb-v2/packages", jsonRequest("POST", input), ebV2Origin(), onAccepted)
+  } catch (err: any) {
+    flTelemetry()?.taskError?.("EB V2 package", err?.message)
+    throw err
+  }
+}
+export async function uploadEbV2Package(file: File, model: { provider: string; id: string }, context: { inputText: string }, onAccepted?: () => void) {
+  flTelemetry()?.taskSubmit?.("EB V2 package", "gate_1_brief_upload")
+  const body = new FormData(); body.append("file", file); body.append("provider", model.provider); body.append("modelId", model.id); body.append("inputText", context.inputText)
+  try {
+    return await railwayRequest<any>("/api/eb-v2/packages/upload", { method: "POST", body }, ebV2Origin(), onAccepted)
+  } catch (err: any) {
+    flTelemetry()?.taskError?.("EB V2 package", err?.message)
+    throw err
+  }
+}
 export async function runEbV2Discovery(model: { provider: string; id: string }, sourceUrls: string[] = []) { return railwayRequest<{ items: any[] }>("/api/eb-v2/discovery", jsonRequest("POST", { model, sourceUrls }), ebV2Origin()) }
 export type DiscoveryStreamEvent = { event: "progress"; message?: string } | { event: "item"; item: any } | { event: "complete"; items: any[]; coverage?: Array<{ source?: string; status: string; note?: string }>; diagnostics?: { candidates: number; fresh: number; undated: number; duplicateLeads: number; freshDays: number } } | { event: "error"; error: string }
 export async function runEbV2DiscoveryLive(model: { provider: string; id: string }, sourceUrls: string[] = [], onEvent: (event: DiscoveryStreamEvent) => void) {
@@ -200,9 +219,32 @@ export async function uploadMarkdownEvidenceDocument(file: File) {
 
 export async function deleteEbV2Discovery(id: string) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/discovery/${encodeURIComponent(id)}`, { method: "DELETE" }, ebV2Origin()) }
 export async function clearEbV2Discovery() { return railwayRequest<EbV2Workspace>("/api/eb-v2/discovery", { method: "DELETE" }, ebV2Origin()) }
-export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) { return railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin()) }
-export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel }), ebV2Origin()) }
-export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck", approvedVariants?: "a" | "b" | "both") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action, approvedVariants }), ebV2Origin()) }
+export async function approveEbV2Brief(id: string, model: { provider: string; id: string }) {
+  flTelemetry()?.taskStep?.("gate_2_article")
+  try {
+    return await railwayRequest<any>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-brief`, jsonRequest("POST", { model }), ebV2Origin())
+  } catch (err: any) {
+    flTelemetry()?.taskError?.("EB V2 package", err?.message)
+    throw err
+  }
+}
+export async function approveEbV2Article(id: string, adaptModel: { provider: string; id: string }) {
+  flTelemetry()?.taskStep?.("gate_3_adapt")
+  try {
+    return await railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/approve-article`, jsonRequest("POST", { adaptModel }), ebV2Origin())
+  } catch (err: any) {
+    flTelemetry()?.taskError?.("EB V2 package", err?.message)
+    throw err
+  }
+}
+export async function reviewEbV2Channel(id: string, action: "done" | "reject" | "recheck", approvedVariants?: "a" | "b" | "both") {
+  try {
+    return await railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/review`, jsonRequest("POST", { action, approvedVariants }), ebV2Origin())
+  } catch (err: any) {
+    flTelemetry()?.taskError?.("EB V2 package", err?.message)
+    throw err
+  }
+}
 export async function regenerateEbV2Package(id: string, stage: "brief" | "article", model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { stage, model }), ebV2Origin()) }
 export async function moveEbV2Package(id: string, target: "brief" | "article") { return railwayRequest<EbV2Workspace>(`/api/eb-v2/packages/${encodeURIComponent(id)}/move`, jsonRequest("POST", { target }), ebV2Origin()) }
 export async function regenerateEbV2Channel(id: string, model: { provider: string; id: string }) { return railwayRequest<EbV2Workspace>(`/api/eb-v2/channel-outputs/${encodeURIComponent(id)}/regenerate`, jsonRequest("POST", { model }), ebV2Origin()) }

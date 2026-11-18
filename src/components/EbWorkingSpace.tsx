@@ -739,6 +739,9 @@ export default function EbWorkingSpace({ config }: { config: AppConfig }) {
           }
           saved++
         }
+        if (decision === "done" && saved === targets.length) {
+          ;(window as any).FLTelemetry?.taskComplete?.("EB V2 package")
+        }
       } catch (error) {
         // A response can fail after persistence. Reconcile before allowing retry.
         if (!isShellMode) {
